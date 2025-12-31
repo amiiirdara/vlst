@@ -1,0 +1,2 @@
+Selected features: ['Time since stent implantation', 'CaI', 'WBC', 'HbA1c', 'LV', '1.1:1Post dilation', 'eGFR', 'Cre', 'Men', 'Visual thrombus', 'LVEF']
+Best CV score: 0.94726

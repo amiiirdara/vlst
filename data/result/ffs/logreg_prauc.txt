@@ -1,0 +1,2 @@
+Selected features: ['Time since stent implantation', 'No postdilation', 'No.of stents per lesion', 'Slow flow', 'CKD90', 'Stent type-SES', 'PES', 'Stent release pressure', 'DAPT', 'TIMI-2', 'History of HF', 'EVS', 'Vessel dialation']
+Best CV score: 0.8068049538297821
