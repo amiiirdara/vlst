@@ -1,0 +1,2 @@
+Selected features: ['Time since stent implantation', 'CaI', 'Stent type-SES', 'WBC', 'No postdilation', 'eGFR', 'Pre-TIMI flow-3', 'Visual thrombus', 'Cre', 'LDL', 'STEMI', 'LV', 'LVEF', 'HGB', 'Thrombus aspiration', 'Men', 'No.of stents per lesion', 'UA', 'Slow flow', 'CKD5']
+Best CV score: 0.9683661432739311

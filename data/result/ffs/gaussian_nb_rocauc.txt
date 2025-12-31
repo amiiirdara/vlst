@@ -1,0 +1,2 @@
+Selected features: ['Time since stent implantation', 'WBC', 'eGFR', '1.1:1Post dilation', 'LV', 'LVEF', 'Thrombus aspiration', 'Clopidogrel', 'stent overlap', 'Platelet', 'Diabetes', 'PES', 'Visual thrombus', 'Men', 'Stent release pressure', 'No postdilation', 'HGB', '2-vessel disease']
+Best CV score: 0.8832973573718048

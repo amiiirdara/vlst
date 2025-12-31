@@ -1,0 +1,2 @@
+Selected features: ['Time since stent implantation', 'Stent type-SES', 'WBC', '1.1:1Post dilation', 'LV', 'UA', 'eGFR', 'CKD5', 'Visual thrombus', 'HbA1c', 'Aspirin', 'HL', 'PES', 'HGB', 'LDL', 'Stent release pressure', 'Men', 'Cre', 'No postdilation', 'CKD90', 'Current drinking', 'No reflow', 'P-LM', 'Aneurysm', 'Max-stent diameter']
+Best CV score: 0.9953027661408712
