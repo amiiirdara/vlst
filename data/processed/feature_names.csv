@@ -1,0 +1,175 @@
+feature_name
+Age
+Time since stent implantation
+NO.of vessels
+Min-stent diameter
+Max-stent diameter
+Total stent length
+Stent release pressure
+No.of stents per lesion
+LV
+LVEF
+CaI
+WBC
+HGB
+Platelet
+Cre
+eGFR
+CKD5
+TCL
+LDL
+HDL
+TG
+Fast-Glu
+HbA1c
+Fiberinogen
+Men
+Diabetes
+Hypertension
+HL
+Current smoker
+Current drinking
+Stroke/TIA
+History of peripheral vascualr disease
+Chronic renal insufficiency
+History of HF
+Previous CABG
+Previous PCI
+Previous MI
+Initial diagnosis-AMI
+STEMI
+NSTEMI
+UA
+Cardiogenic shock
+Multi-vessel CAD
+Single-vessel disease
+2-vessel disease
+3-vessel disease
+Chronic total occlusion
+Moderate/severe calcification
+Moderate/severe tortuosity
+Lesion location-Ostial
+Proximal
+Bifurcation
+Visual thrombus
+Aneurysm
+Vessel dialation
+Ulceration
+P-LM
+P-LAD
+P-LCX
+P-RCA
+Pre-TIMI flow-3
+TIMI-2
+TIMI-1
+TIMI-0
+Staged PCI
+Thrombus aspiration
+Slow flow
+No reflow
+Dissection
+PES
+ZES
+EVS
+stent overlap
+1.1:1Post dilation
+No postdilation
+CKD60
+CKD90
+Aspirin
+Clopidogrel
+Ticagrelor
+DAPT
+Stent type-SES_Endeavor
+Stent type-SES_Ex
+Stent type-SES_Ex/Pa
+Stent type-SES_Excecl
+Stent type-SES_Excel
+Stent type-SES_Excel/Firebird
+Stent type-SES_Excel/Partner
+Stent type-SES_Excel:RCA
+Stent type-SES_Firebid
+Stent type-SES_Firebird
+Stent type-SES_LAD:Excel
+Stent type-SES_LAD:Firebird
+Stent type-SES_LAD:Partner
+Stent type-SES_LAD:Resolute
+Stent type-SES_LAD:Tivoli
+Stent type-SES_LAD:XienceV
+Stent type-SES_LADPartner
+Stent type-SES_LAD：Excel
+Stent type-SES_LAD：Firebird
+Stent type-SES_LAD：Partner
+Stent type-SES_LAD：Resolute
+Stent type-SES_LAD：Tivoli
+Stent type-SES_LAD：XienceV
+Stent type-SES_LCX:Excel
+Stent type-SES_LCX:Firebird
+Stent type-SES_LCX:Partner
+Stent type-SES_LCX:Tivoli
+Stent type-SES_LCX:XienceV
+Stent type-SES_LCXPartner
+Stent type-SES_LCX：Excel
+Stent type-SES_LCX：Firebird
+Stent type-SES_LCX：Partner
+Stent type-SES_LCX：Resolute
+Stent type-SES_LCX：Tivoli
+Stent type-SES_LCX：XienceV
+Stent type-SES_LM-LAD:Partner
+Stent type-SES_LM-LAD：Firebird
+Stent type-SES_LM-LAD：Resolute
+Stent type-SES_Liberte Monorail
+Stent type-SES_Mistent
+Stent type-SES_Neovas可降解
+Stent type-SES_PE
+Stent type-SES_Parnter
+Stent type-SES_Partner
+Stent type-SES_Partner 
+Stent type-SES_Partner/Tivoli
+Stent type-SES_RCA:Excel
+Stent type-SES_RCA:Firebird
+Stent type-SES_RCA:Partner
+Stent type-SES_RCA:Tivoli
+Stent type-SES_RCA：Excel
+Stent type-SES_RCA：Firebird
+Stent type-SES_RCA：Partner
+Stent type-SES_RCA：Resolute
+Stent type-SES_RCA：Tivoli
+Stent type-SES_RCA：XienceV
+Stent type-SES_Resolute
+Stent type-SES_Resolute/XX
+Stent type-SES_Tivoli
+Stent type-SES_Tivoli/Firebird
+Stent type-SES_XP
+Stent type-SES_XV
+Stent type-SES_XX
+Stent type-SES_XienceP
+Stent type-SES_XienceV
+Stent type-SES_XienceX
+Stent type-SES_excel
+"Stent type-SES_excel,excel"
+"Stent type-SES_excel,firebird"
+Stent type-SES_firebird
+"Stent type-SES_firebird,fierbird"
+"Stent type-SES_firebird,firebird"
+"Stent type-SES_firebird,firebird,firebird"
+"Stent type-SES_firebird,partner"
+Stent type-SES_firebird，firebird
+Stent type-SES_partner
+"Stent type-SES_partner,partner"
+Stent type-SES_resolut
+Stent type-SES_resolute
+"Stent type-SES_resolute,excel,firebird"
+"Stent type-SES_resolute,resolute"
+Stent type-SES_tivoli
+"Stent type-SES_tivoli,partner"
+"Stent type-SES_tivoli,tivoli"
+"Stent type-SES_tivoli,tivoli,tivoli"
+Stent type-SES_xience
+Stent type-SES_xiencex
+"Stent type-SES_xiencex,xiencex"
+Stent type-SES_实验支架
+Stent type-SES_波科
+Stent type-SES_爱立
+Stent type-SES_爱立，爱立
+Stent type-SES_试验
