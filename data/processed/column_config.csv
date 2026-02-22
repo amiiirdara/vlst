@@ -1,0 +1,83 @@
+role,column
+binary,Men
+binary,Diabetes
+binary,Hypertension
+binary,HL
+binary,Current smoker
+binary,Current drinking
+binary,Stroke/TIA
+binary,History of peripheral vascualr disease
+binary,Chronic renal insufficiency
+binary,History of HF
+binary,Previous CABG
+binary,Previous PCI
+binary,Previous MI
+binary,Initial diagnosis-AMI
+binary,STEMI
+binary,NSTEMI
+binary,UA
+binary,Cardiogenic shock
+binary,Multi-vessel CAD
+binary,Single-vessel disease
+binary,2-vessel disease
+binary,3-vessel disease
+binary,Chronic total occlusion
+binary,Moderate/severe calcification
+binary,Moderate/severe tortuosity
+binary,Lesion location-Ostial
+binary,Proximal
+binary,Bifurcation
+binary,Visual thrombus
+binary,Aneurysm
+binary,Vessel dialation
+binary,Ulceration
+binary,P-LM
+binary,P-LAD
+binary,P-LCX
+binary,P-RCA
+binary,Pre-TIMI flow-3
+binary,TIMI-2
+binary,TIMI-1
+binary,TIMI-0
+binary,Staged PCI
+binary,Thrombus aspiration
+binary,Slow flow
+binary,No reflow
+binary,Dissection
+binary,PES
+binary,ZES
+binary,EVS
+binary,stent overlap
+binary,1.1:1Post dilation
+binary,No postdilation
+binary,CKD60
+binary,CKD90
+binary,Aspirin
+binary,Clopidogrel
+binary,Ticagrelor
+binary,DAPT
+continuous,Age
+continuous,Time since stent implantation
+continuous,NO.of vessels
+continuous,Min-stent diameter
+continuous,Max-stent diameter
+continuous,Total stent length
+continuous,Stent release pressure
+continuous,No.of stents per lesion
+continuous,LV
+continuous,LVEF
+continuous,CaI
+continuous,WBC
+continuous,HGB
+continuous,Platelet
+continuous,Cre
+continuous,eGFR
+continuous,CKD5
+continuous,TCL
+continuous,LDL
+continuous,HDL
+continuous,TG
+continuous,Fast-Glu
+continuous,HbA1c
+continuous,Fiberinogen
+categorical,Stent type-SES
