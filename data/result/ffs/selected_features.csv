@@ -1,0 +1,31 @@
+feature_name,index
+Time since stent implantation,1
+Men,24
+Moderate/severe tortuosity,48
+Aneurysm,53
+Vessel dialation,54
+Stent type-SES_Ex/Pa,83
+Stent type-SES_Excecl,84
+Stent type-SES_Excel/Partner,87
+Stent type-SES_Firebid,89
+Stent type-SES_LAD:Excel,91
+Stent type-SES_LAD:Firebird,92
+Stent type-SES_LAD:Partner,93
+Stent type-SES_LAD:Resolute,94
+Stent type-SES_LAD:XienceV,96
+Stent type-SES_LAD：Firebird,99
+Stent type-SES_LAD：Tivoli,102
+Stent type-SES_LCX:XienceV,108
+Stent type-SES_LCX：Excel,110
+Stent type-SES_LCX：Firebird,111
+Stent type-SES_LCX：Resolute,113
+Stent type-SES_LCX：Tivoli,114
+Stent type-SES_Neovas可降解,121
+Stent type-SES_Parnter,123
+Stent type-SES_Partner ,125
+Stent type-SES_RCA:Tivoli,130
+Stent type-SES_RCA：Excel,131
+Stent type-SES_RCA：Firebird,132
+Stent type-SES_RCA：Resolute,134
+Stent type-SES_RCA：Tivoli,135
+Stent type-SES_Tivoli/Firebird,140
