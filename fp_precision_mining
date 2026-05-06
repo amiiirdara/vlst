@@ -2,13 +2,13 @@
  "cells": [
   {
    "cell_type": "markdown",
-   "id": "9135ffa5",
+   "id": "0970cfd8",
    "metadata": {
     "papermill": {
-     "duration": 0.003206,
-     "end_time": "2026-05-03T12:00:03.009023+00:00",
+     "duration": 0.002721,
+     "end_time": "2026-05-06T08:42:20.393048+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:03.005817+00:00",
+     "start_time": "2026-05-06T08:42:20.390327+00:00",
      "status": "completed"
     },
     "tags": []
@@ -42,13 +42,13 @@
   },
   {
    "cell_type": "markdown",
-   "id": "6d5b283f",
+   "id": "c0859cc5",
    "metadata": {
     "papermill": {
-     "duration": 0.002002,
-     "end_time": "2026-05-03T12:00:03.013325+00:00",
+     "duration": 0.001849,
+     "end_time": "2026-05-06T08:42:20.396823+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:03.011323+00:00",
+     "start_time": "2026-05-06T08:42:20.394974+00:00",
      "status": "completed"
     },
     "tags": []
@@ -62,19 +62,19 @@
   {
    "cell_type": "code",
    "execution_count": 1,
-   "id": "9d6a080f",
+   "id": "b9c316fa",
    "metadata": {
     "execution": {
-     "iopub.execute_input": "2026-05-03T12:00:03.019634Z",
-     "iopub.status.busy": "2026-05-03T12:00:03.019259Z",
-     "iopub.status.idle": "2026-05-03T12:00:05.841116Z",
-     "shell.execute_reply": "2026-05-03T12:00:05.840196Z"
+     "iopub.execute_input": "2026-05-06T08:42:20.402168Z",
+     "iopub.status.busy": "2026-05-06T08:42:20.401910Z",
+     "iopub.status.idle": "2026-05-06T08:42:22.669810Z",
+     "shell.execute_reply": "2026-05-06T08:42:22.669082Z"
     },
     "papermill": {
-     "duration": 2.828009,
-     "end_time": "2026-05-03T12:00:05.843420+00:00",
+     "duration": 2.273029,
+     "end_time": "2026-05-06T08:42:22.671523+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:03.015411+00:00",
+     "start_time": "2026-05-06T08:42:20.398494+00:00",
      "status": "completed"
     },
     "tags": []
@@ -336,13 +336,13 @@
   },
   {
    "cell_type": "markdown",
-   "id": "d1386df1",
+   "id": "757a304b",
    "metadata": {
     "papermill": {
-     "duration": 0.002301,
-     "end_time": "2026-05-03T12:00:05.848275+00:00",
+     "duration": 0.001862,
+     "end_time": "2026-05-06T08:42:22.675471+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:05.845974+00:00",
+     "start_time": "2026-05-06T08:42:22.673609+00:00",
      "status": "completed"
     },
     "tags": []
@@ -356,19 +356,19 @@
   {
    "cell_type": "code",
    "execution_count": 2,
-   "id": "57a32679",
+   "id": "43319ada",
    "metadata": {
     "execution": {
-     "iopub.execute_input": "2026-05-03T12:00:05.854384Z",
-     "iopub.status.busy": "2026-05-03T12:00:05.853922Z",
-     "iopub.status.idle": "2026-05-03T12:00:06.032164Z",
-     "shell.execute_reply": "2026-05-03T12:00:06.031155Z"
+     "iopub.execute_input": "2026-05-06T08:42:22.680189Z",
+     "iopub.status.busy": "2026-05-06T08:42:22.679952Z",
+     "iopub.status.idle": "2026-05-06T08:42:22.840533Z",
+     "shell.execute_reply": "2026-05-06T08:42:22.839473Z"
     },
     "papermill": {
-     "duration": 0.18346,
-     "end_time": "2026-05-03T12:00:06.033928+00:00",
+     "duration": 0.164883,
+     "end_time": "2026-05-06T08:42:22.842107+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:05.850468+00:00",
+     "start_time": "2026-05-06T08:42:22.677224+00:00",
      "status": "completed"
     },
     "tags": []
@@ -380,6 +380,18 @@
      "text": [
       "Winner model | F1-max threshold (cal): 0.05 | cal F1 at t: 0.7368\n",
       "Test | FP (y=0 & pred=1): 3 | among negatives: 1019\n",
+      "\n",
+      "Deploy winner | FP counts by threshold (step=0.1):\n",
+      " threshold  n_fp_test_negatives\n",
+      "       0.1                    1\n",
+      "       0.2                    0\n",
+      "       0.3                    0\n",
+      "       0.4                    0\n",
+      "       0.5                    0\n",
+      "       0.6                    0\n",
+      "       0.7                    0\n",
+      "       0.8                    0\n",
+      "       0.9                    0\n",
       "Saved /kaggle/working/vlst_fp_mining_output/false_positives_deploy_winner_test.csv rows: 3\n"
      ]
     }
@@ -415,6 +427,15 @@
     "    int((y_test == 0).sum()),\n",
     ")\n",
     "\n",
+    "# Requested quick view: FP counts by threshold with step 0.1\n",
+    "coarse_t = np.arange(0.1, 1.0, 0.1)\n",
+    "rows_w = []\n",
+    "for t in coarse_t:\n",
+    "    m = (y_test == 0) & (p_te_w >= t)\n",
+    "    rows_w.append({\"threshold\": float(t), \"n_fp_test_negatives\": int(m.sum())})\n",
+    "print(\"\\nDeploy winner | FP counts by threshold (step=0.1):\")\n",
+    "print(pd.DataFrame(rows_w).to_string(index=False))\n",
+    "\n",
     "df_w = pd.DataFrame(X_test[fp_winner], columns=feature_names)\n",
     "df_w.insert(0, \"test_row_id\", test_row_id[fp_winner])\n",
     "df_w[\"y_true\"] = y_test[fp_winner]\n",
@@ -428,13 +449,13 @@
   },
   {
    "cell_type": "markdown",
-   "id": "66ebe5dc",
+   "id": "8cc5fdd9",
    "metadata": {
     "papermill": {
-     "duration": 0.002116,
-     "end_time": "2026-05-03T12:00:06.038513+00:00",
+     "duration": 0.002136,
+     "end_time": "2026-05-06T08:42:22.846534+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:06.036397+00:00",
+     "start_time": "2026-05-06T08:42:22.844398+00:00",
      "status": "completed"
     },
     "tags": []
@@ -454,19 +475,19 @@
   {
    "cell_type": "code",
    "execution_count": 3,
-   "id": "cc7ae2f9",
+   "id": "0c7583f9",
    "metadata": {
     "execution": {
-     "iopub.execute_input": "2026-05-03T12:00:06.044432Z",
-     "iopub.status.busy": "2026-05-03T12:00:06.044153Z",
-     "iopub.status.idle": "2026-05-03T12:00:06.414844Z",
-     "shell.execute_reply": "2026-05-03T12:00:06.413796Z"
+     "iopub.execute_input": "2026-05-06T08:42:22.852600Z",
+     "iopub.status.busy": "2026-05-06T08:42:22.851947Z",
+     "iopub.status.idle": "2026-05-06T08:42:23.180834Z",
+     "shell.execute_reply": "2026-05-06T08:42:23.180116Z"
     },
     "papermill": {
-     "duration": 0.375753,
-     "end_time": "2026-05-03T12:00:06.416559+00:00",
+     "duration": 0.333746,
+     "end_time": "2026-05-06T08:42:23.182444+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:06.040806+00:00",
+     "start_time": "2026-05-06T08:42:22.848698+00:00",
      "status": "completed"
     },
     "tags": []
@@ -480,6 +501,18 @@
       "Test | TabPFN FP at legacy t*: 1019\n",
       "Saved /kaggle/working/vlst_fp_mining_output/false_positives_tabpfn_maxfp_cal_threshold_test.csv rows: 1019\n",
       "Saved /kaggle/working/vlst_fp_mining_output/tabpfn_fp_counts_by_threshold.csv\n",
+      "\n",
+      "TabPFN | FP counts by threshold (step=0.1):\n",
+      " threshold  n_fp_test_negatives\n",
+      "       0.1                   32\n",
+      "       0.2                   23\n",
+      "       0.3                   16\n",
+      "       0.4                    6\n",
+      "       0.5                    4\n",
+      "       0.6                    0\n",
+      "       0.7                    0\n",
+      "       0.8                    0\n",
+      "       0.9                    0\n",
       "Saved /kaggle/working/vlst_fp_mining_output/false_positives_tabpfn_all_thresholds_long.csv rows: 844\n",
       "TabPFN | union over t_grid (y=0 & p_tab>=0.05): 43 test rows\n",
       "Wrote /kaggle/working/vlst_fp_mining_output/tabpfn_threshold_outputs.json\n"
@@ -559,6 +592,15 @@
     "    df_tab_counts.to_csv(_path_counts, index=False)\n",
     "    print(\"Saved\", _path_counts)\n",
     "\n",
+    "    # Requested quick view: FP counts by threshold with step 0.1\n",
+    "    coarse_t = np.arange(0.1, 1.0, 0.1)\n",
+    "    rows_tab = []\n",
+    "    for t in coarse_t:\n",
+    "        m = (y_test == 0) & (p_tab_te >= t)\n",
+    "        rows_tab.append({\"threshold\": float(t), \"n_fp_test_negatives\": int(m.sum())})\n",
+    "    print(\"\\nTabPFN | FP counts by threshold (step=0.1):\")\n",
+    "    print(pd.DataFrame(rows_tab).to_string(index=False))\n",
+    "\n",
     "    if parts:\n",
     "        df_tab_long = pd.concat(parts, ignore_index=True)\n",
     "        _path_long = os.path.join(OUT_DIR, \"false_positives_tabpfn_all_thresholds_long.csv\")\n",
@@ -589,13 +631,13 @@
   },
   {
    "cell_type": "markdown",
-   "id": "f606987f",
+   "id": "eec80b7e",
    "metadata": {
     "papermill": {
-     "duration": 0.002477,
-     "end_time": "2026-05-03T12:00:06.421615+00:00",
+     "duration": 0.002323,
+     "end_time": "2026-05-06T08:42:23.187205+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:06.419138+00:00",
+     "start_time": "2026-05-06T08:42:23.184882+00:00",
      "status": "completed"
     },
     "tags": []
@@ -609,19 +651,19 @@
   {
    "cell_type": "code",
    "execution_count": 4,
-   "id": "5ca0d479",
+   "id": "c91947ac",
    "metadata": {
     "execution": {
-     "iopub.execute_input": "2026-05-03T12:00:06.428458Z",
-     "iopub.status.busy": "2026-05-03T12:00:06.427527Z",
-     "iopub.status.idle": "2026-05-03T12:00:06.459779Z",
-     "shell.execute_reply": "2026-05-03T12:00:06.458504Z"
+     "iopub.execute_input": "2026-05-06T08:42:23.193398Z",
+     "iopub.status.busy": "2026-05-06T08:42:23.192884Z",
+     "iopub.status.idle": "2026-05-06T08:42:23.218723Z",
+     "shell.execute_reply": "2026-05-06T08:42:23.217994Z"
     },
     "papermill": {
-     "duration": 0.037564,
-     "end_time": "2026-05-03T12:00:06.461537+00:00",
+     "duration": 0.030448,
+     "end_time": "2026-05-06T08:42:23.220006+00:00",
      "exception": false,
-     "start_time": "2026-05-03T12:00:06.423973+00:00",
+     "start_time": "2026-05-06T08:42:23.189558+00:00",
      "status": "completed"
     },
     "tags": []
@@ -705,7 +747,7 @@
  ],
  "metadata": {
   "kaggle": {
-   "accelerator": "none",
+   "accelerator": "nvidiaTeslaT4",
    "dataSources": [
     {
      "databundleVersionId": 17036619,
@@ -714,13 +756,12 @@
      "sourceType": "datasetVersion"
     },
     {
-     "isSourceIdPinned": false,
      "sourceId": 316213549,
      "sourceType": "kernelVersion"
     }
    ],
    "dockerImageVersionId": 31328,
-   "isGpuEnabled": false,
+   "isGpuEnabled": true,
    "isInternetEnabled": true,
    "language": "python",
    "sourceType": "notebook"
@@ -744,14 +785,14 @@
   },
   "papermill": {
    "default_parameters": {},
-   "duration": 6.983874,
-   "end_time": "2026-05-03T12:00:07.084458+00:00",
+   "duration": 5.594362,
+   "end_time": "2026-05-06T08:42:23.639080+00:00",
    "environment_variables": {},
    "exception": null,
    "input_path": "__notebook__.ipynb",
    "output_path": "__notebook__.ipynb",
    "parameters": {},
-   "start_time": "2026-05-03T12:00:00.100584+00:00",
+   "start_time": "2026-05-06T08:42:18.044718+00:00",
    "version": "2.7.0"
   }
  },
