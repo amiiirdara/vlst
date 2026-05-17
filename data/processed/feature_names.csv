@@ -79,96 +79,11 @@ Aspirin
 Clopidogrel
 Ticagrelor
 DAPT
-Stent type-SES_Endeavor
-Stent type-SES_Ex
-Stent type-SES_Ex/Pa
-Stent type-SES_Excecl
-Stent type-SES_Excel
-Stent type-SES_Excel/Firebird
-Stent type-SES_Excel/Partner
-Stent type-SES_Excel:RCA
-Stent type-SES_Firebid
-Stent type-SES_Firebird
-Stent type-SES_LAD:Excel
-Stent type-SES_LAD:Firebird
-Stent type-SES_LAD:Partner
-Stent type-SES_LAD:Resolute
-Stent type-SES_LAD:Tivoli
-Stent type-SES_LAD:XienceV
-Stent type-SES_LADPartner
-Stent type-SES_LAD：Excel
-Stent type-SES_LAD：Firebird
-Stent type-SES_LAD：Partner
-Stent type-SES_LAD：Resolute
-Stent type-SES_LAD：Tivoli
-Stent type-SES_LAD：XienceV
-Stent type-SES_LCX:Excel
-Stent type-SES_LCX:Firebird
-Stent type-SES_LCX:Partner
-Stent type-SES_LCX:Tivoli
-Stent type-SES_LCX:XienceV
-Stent type-SES_LCXPartner
-Stent type-SES_LCX：Excel
-Stent type-SES_LCX：Firebird
-Stent type-SES_LCX：Partner
-Stent type-SES_LCX：Resolute
-Stent type-SES_LCX：Tivoli
-Stent type-SES_LCX：XienceV
-Stent type-SES_LM-LAD:Partner
-Stent type-SES_LM-LAD：Firebird
-Stent type-SES_LM-LAD：Resolute
-Stent type-SES_Liberte Monorail
-Stent type-SES_Mistent
-Stent type-SES_Neovas可降解
-Stent type-SES_PE
-Stent type-SES_Parnter
-Stent type-SES_Partner
-Stent type-SES_Partner 
-Stent type-SES_Partner/Tivoli
-Stent type-SES_RCA:Excel
-Stent type-SES_RCA:Firebird
-Stent type-SES_RCA:Partner
-Stent type-SES_RCA:Tivoli
-Stent type-SES_RCA：Excel
-Stent type-SES_RCA：Firebird
-Stent type-SES_RCA：Partner
-Stent type-SES_RCA：Resolute
-Stent type-SES_RCA：Tivoli
-Stent type-SES_RCA：XienceV
-Stent type-SES_Resolute
-Stent type-SES_Resolute/XX
-Stent type-SES_Tivoli
-Stent type-SES_Tivoli/Firebird
-Stent type-SES_XP
-Stent type-SES_XV
-Stent type-SES_XX
-Stent type-SES_XienceP
-Stent type-SES_XienceV
-Stent type-SES_XienceX
-Stent type-SES_excel
-"Stent type-SES_excel,excel"
-"Stent type-SES_excel,firebird"
-Stent type-SES_firebird
-"Stent type-SES_firebird,fierbird"
-"Stent type-SES_firebird,firebird"
-"Stent type-SES_firebird,firebird,firebird"
-"Stent type-SES_firebird,partner"
-Stent type-SES_firebird，firebird
-Stent type-SES_partner
-"Stent type-SES_partner,partner"
-Stent type-SES_resolut
-Stent type-SES_resolute
-"Stent type-SES_resolute,excel,firebird"
-"Stent type-SES_resolute,resolute"
-Stent type-SES_tivoli
-"Stent type-SES_tivoli,partner"
-"Stent type-SES_tivoli,tivoli"
-"Stent type-SES_tivoli,tivoli,tivoli"
-Stent type-SES_xience
-Stent type-SES_xiencex
-"Stent type-SES_xiencex,xiencex"
-Stent type-SES_实验支架
-Stent type-SES_波科
-Stent type-SES_爱立
-Stent type-SES_爱立，爱立
-Stent type-SES_试验
+stent_brand_firebird
+stent_brand_other
+stent_brand_partner
+stent_brand_resolute
+stent_brand_tivoli
+stent_brand_xiencev
+stent_brand_xv
+stent_brand_xx
