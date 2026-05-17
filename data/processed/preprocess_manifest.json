@@ -1,0 +1,17 @@
+{
+  "raw_path": "../data/raw/VLST.csv",
+  "n_rows_after_clean": 5185,
+  "test_size": 0.2,
+  "random_state": 42,
+  "dropped_id_cols": [
+    "NO.",
+    "Name"
+  ],
+  "dropped_leakage_cols": [
+    "Time since stent implantation"
+  ],
+  "n_duplicate_rows_dropped": 0,
+  "n_features_after_preprocess": 173,
+  "train_positives": 74,
+  "test_positives": 18
+}
