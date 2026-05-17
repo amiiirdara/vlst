@@ -79,4 +79,4 @@ continuous,TG
 continuous,Fast-Glu
 continuous,HbA1c
 continuous,Fiberinogen
-categorical,Stent type-SES
+categorical,stent_brand
