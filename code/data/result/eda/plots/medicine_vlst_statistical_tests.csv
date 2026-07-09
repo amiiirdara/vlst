@@ -1,0 +1,6 @@
+Medicine,VLST on medicine,No VLST on medicine,VLST not on medicine,No VLST not on medicine,VLST rate on medicine (%),VLST rate not on medicine (%),Odds ratio,Chi-square p-value,Fisher p-value,Test used,P-value,Significant (p < 0.05),Bonferroni significant
+Clopidogrel,28,2368,64,2725,1.17,2.29,0.503,0.003109,0.002133,Chi-square,0.003109,Yes,True
+Aspirin,45,3148,47,1945,1.41,2.36,0.592,0.015844,0.012886,Chi-square,0.015844,Yes,False
+No antiplatelet medicine,41,1747,51,3346,2.29,1.5,1.54,0.052142,0.046083,Chi-square,0.052142,No,False
+DAPT,35,2260,57,2833,1.53,1.97,0.77,0.268807,0.244929,Chi-square,0.268807,No,False
+Ticagrelor,1,90,91,5003,1.1,1.79,0.611,0.926815,1.0,Fisher's exact,1.0,No,False
