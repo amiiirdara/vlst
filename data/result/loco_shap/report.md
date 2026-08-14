@@ -14,9 +14,9 @@ Top-K = 12 per method × objective (`pr_auc`, `f1`, `f2`)
 |--------|-----------|------------------|------|
 | **LOCO** | pr_auc / f1 / f2 | Drop in test metric when one column is removed and TabPFN is **refit** | O(d) fits |
 | **SHAP** | pr_auc / f1 / f2 | Coalition Shapley value of the **global** metric on explained test rows (mask to background; no refit) | O(n_perm × k) forward passes |
-| **FFS** (tabpfn.ipynb §10) | pr_auc / f1 / f2 | Greedy forward add on holdout | O(K × d) fits |
+| **FFS** (tabpfn_playground.ipynb §10) | pr_auc / f1 / f2 | Greedy forward add on holdout | O(K × d) fits |
 
-**Threshold policy:** For `f1` and `f2`, the metric is computed after tuning the decision threshold on the same scores used for evaluation (test set for LOCO; explained cohort for SHAP). This matches the FFS holdout logic in `tabpfn.ipynb` but is optimistic if you iterate on test — use for exploratory ranking, not final model selection.
+**Threshold policy:** For `f1` and `f2`, the metric is computed after tuning the decision threshold on the same scores used for evaluation (test set for LOCO; explained cohort for SHAP). This matches the FFS holdout logic in `tabpfn_playground.ipynb` but is optimistic if you iterate on test — use for exploratory ranking, not final model selection.
 
 ## Top features by objective
 
