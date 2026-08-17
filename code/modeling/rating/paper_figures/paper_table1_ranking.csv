@@ -1,0 +1,7 @@
+rank,model,pr_auc,roc_auc,brier
+1,TabPFN,0.852,0.99,0.036
+2,CatBoost,0.697,0.97,0.009
+3,LightGBM,0.677,0.961,0.0096
+4,XGBoost,0.665,0.949,0.0093
+5,Random Forest,0.456,0.931,0.0147
+6,Logistic Regression,0.342,0.925,0.0543

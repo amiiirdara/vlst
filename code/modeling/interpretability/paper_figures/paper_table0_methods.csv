@@ -1,0 +1,7 @@
+Method,Question,Backend,Notebook setting
+mutual_info_classif,Univariate association,sklearn,0 TabPFN calls; median-imputed raw matrix
+Stability (repeated SFS),Selection frequency,local TabPFN,"10 resamples × top-10 forward SFS, AP scoring"
+PDP,Average predicted risk,local TabPFN,Continuous grid + binary 0 vs 1 bars
+SHAP (shapiq SV),Local attributions,local TabPFN (client fallback),"15 explained rows, budget=256, baseline imputer"
+k-SII / SHAP-IQ,Pairwise interactions,local TabPFN (client fallback),"One positive-class row, budget=256"
+Consensus (Borda),Mean of normalized ranks,aggregate,MI + stability frequency + mean(|SHAP|)

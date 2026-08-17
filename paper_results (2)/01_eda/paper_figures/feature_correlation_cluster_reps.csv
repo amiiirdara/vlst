@@ -1,0 +1,65 @@
+Corr cluster,Representative,Domain,P-value,n in cluster,Cluster mates
+20,WBC,Laboratory,7.902144282841582e-21,1,—
+29,eGFR,Laboratory,4.6430610786181575e-20,1,—
+15,LV,Cardiac function,5.4383309460018465e-17,1,—
+45,1.1:1Post dilation,Procedural / stent,1.2951772451909664e-10,2,No postdilation
+27,CKD90,Laboratory,6.550244235288351e-06,2,CKD5
+4,Previous PCI,Comorbidities / history,1.25052788367341e-05,1,—
+46,No.of stents per lesion,Procedural / stent,0.00014121979786497457,2,stent overlap
+54,3-vessel disease,Anatomy / lesion,0.0001807138876244862,1,—
+9,HbA1c,Laboratory,0.0001975000249745339,1,—
+53,NO.of vessels,Anatomy / lesion,0.0004766856673643825,3,"Multi-vessel CAD, Single-vessel disease"
+47,Total stent length,Procedural / stent,0.0011222634842722242,1,—
+59,Clopidogrel,Medications (1y),0.002196624637642745,2,DAPT
+10,Diabetes,Comorbidities / history,0.002769502309228314,1,—
+40,PES,Procedural / stent,0.004421005519799075,1,—
+60,Aspirin,Medications (1y),0.0117144605337541,1,—
+24,Fiberinogen,Laboratory,0.011910976196995151,1,—
+17,TIMI-0,Anatomy / lesion,0.016884411481108683,2,Pre-TIMI flow-3
+8,Fast-Glu,Laboratory,0.02458279422964183,1,—
+36,Stroke/TIA,Comorbidities / history,0.03301329283908383,1,—
+16,LVEF,Cardiac function,0.03330140576588231,1,—
+30,HGB,Laboratory,0.038765041300497856,1,—
+64,CaI,Laboratory,0.050713641980663055,1,—
+41,ZES,Procedural / stent,0.05391994141823923,1,—
+19,Initial diagnosis-AMI,Presentation / ACS,0.054154679589692556,3,"UA, STEMI"
+56,Bifurcation,Anatomy / lesion,0.06893784593319656,1,—
+42,EVS,Procedural / stent,0.08754072119413052,1,—
+51,Min-stent diameter,Procedural / stent,0.10584011246770593,2,Max-stent diameter
+5,Previous MI,Comorbidities / history,0.12778791286616617,1,—
+21,NSTEMI,Presentation / ACS,0.13035038630924312,1,—
+28,Men,Demographics / lifestyle,0.2680570836658024,1,—
+62,Vessel dialation,Anatomy / lesion,0.2816797041351217,1,—
+34,Chronic renal insufficiency,Comorbidities / history,0.31467899090474816,1,—
+6,Previous CABG,Comorbidities / history,0.3251434623364961,1,—
+13,LDL,Laboratory,0.32742239625050396,2,TCL
+22,Cardiogenic shock,Presentation / ACS,0.45396657979084043,1,—
+31,Age,Demographics / lifestyle,0.4633458211201912,1,—
+55,2-vessel disease,Anatomy / lesion,0.46367548543563186,1,—
+32,CKD60,Laboratory,0.5548593229811211,1,—
+12,TG,Laboratory,0.5582882325538095,1,—
+35,Hypertension,Comorbidities / history,0.5666751649351782,1,—
+18,Thrombus aspiration,Procedural / stent,0.5748790464009405,2,Visual thrombus
+63,Dissection,Procedural / stent,0.614680274396358,1,—
+25,Current smoker,Demographics / lifestyle,0.6264718289130093,1,—
+37,History of peripheral vascualr disease,Comorbidities / history,0.6698481728455976,1,—
+44,P-LM,Anatomy / lesion,0.7101289645075537,1,—
+48,P-RCA,Anatomy / lesion,0.7437283460384675,2,P-LAD
+49,P-LCX,Anatomy / lesion,0.7591727489367808,1,—
+1,TIMI-1,Anatomy / lesion,0.7837747666510047,1,—
+14,HL,Comorbidities / history,0.8036093917908292,1,—
+23,Platelet,Laboratory,0.8159502280273638,1,—
+26,Current drinking,Demographics / lifestyle,0.868929809834284,1,—
+33,Cre,Laboratory,0.8785448928231391,1,—
+11,HDL,Laboratory,0.8993117604945001,1,—
+57,Staged PCI,Procedural / stent,0.927859712023575,1,—
+52,Stent release pressure,Procedural / stent,0.9486375470511298,1,—
+50,Proximal,Anatomy / lesion,0.9788762756724867,1,—
+2,Slow flow,Procedural / stent,1.0,1,—
+7,History of HF,Comorbidities / history,1.0,1,—
+3,TIMI-2,Anatomy / lesion,1.0,1,—
+38,Moderate/severe calcification,Anatomy / lesion,1.0,1,—
+43,Lesion location-Ostial,Anatomy / lesion,1.0,1,—
+39,Moderate/severe tortuosity,Anatomy / lesion,1.0,1,—
+58,Chronic total occlusion,Anatomy / lesion,1.0,1,—
+61,Ticagrelor,Medications (1y),1.0,1,—

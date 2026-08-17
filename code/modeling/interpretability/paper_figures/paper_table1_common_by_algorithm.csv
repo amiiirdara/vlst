@@ -1,0 +1,10 @@
+Algorithm,Metric,n common,Features shared by all 7 models
+LOCO,pr_auc,2,LV; eGFR
+LOCO,f1,2,LV; eGFR
+LOCO,f2,1,LV
+SHAP,pr_auc,1,LV
+SHAP,f1,1,eGFR
+SHAP,f2,2,LV; WBC
+FFS,pr_auc,1,Cre
+FFS,f1,1,WBC
+FFS,f2,1,WBC

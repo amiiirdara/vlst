@@ -1,0 +1,9 @@
+Domain,n_features,n_raw_p05,n_fdr_global,n_fdr_domain,min_p,max_neglog10p,top_feature
+Laboratory,16,8,6,6,7.902144282841582e-21,20.102255044931734,WBC
+Cardiac function,2,2,1,2,5.4383309460018465e-17,16.264534367243353,LV
+Procedural / stent,16,6,5,6,1.2951772451909664e-10,9.887670794253763,1.1:1Post dilation
+Comorbidities / history,10,3,2,2,1.25052788367341e-05,4.902906620134608,Previous PCI
+Anatomy / lesion,23,6,4,4,0.0001807138876244862,3.7430084711970886,3-vessel disease
+Medications (1y),4,2,1,2,0.002196624637642745,2.6582441496011255,Clopidogrel
+Presentation / ACS,5,0,0,0,0.054154679589692556,1.2663640093586874,Initial diagnosis-AMI
+Demographics / lifestyle,4,0,0,0,0.2680570836658024,0.5717727116383727,Men
