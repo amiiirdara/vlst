@@ -1,0 +1,21 @@
+Model,Algorithm,Metric,Priority label,Rank,In ranked list
+cat,LOCO,pr_auc,"Age, years",—,No
+cat,LOCO,pr_auc,Male sex,—,No
+cat,LOCO,pr_auc,Current drinking,18,Yes
+cat,LOCO,pr_auc,Diabetes mellitus,—,No
+cat,LOCO,pr_auc,aspirin,—,No
+cat,LOCO,pr_auc,Hypertension,20,Yes
+cat,LOCO,pr_auc,Dapt,—,No
+cat,LOCO,pr_auc,Dyslipidemia,—,No
+cat,LOCO,pr_auc,HbA1C,—,No
+cat,LOCO,pr_auc,Clopidogrel,—,No
+cat,LOCO,pr_auc,Current smoker,30,Yes
+cat,LOCO,f1,"Age, years",—,No
+cat,LOCO,f1,Male sex,—,No
+cat,LOCO,f1,Current drinking,5,Yes
+cat,LOCO,f1,Diabetes mellitus,—,No
+cat,LOCO,f1,aspirin,—,No
+cat,LOCO,f1,Hypertension,14,Yes
+cat,LOCO,f1,Dapt,—,No
+cat,LOCO,f1,Dyslipidemia,—,No
+cat,LOCO,f1,HbA1C,—,No

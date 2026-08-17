@@ -1,0 +1,16 @@
+rank,feature,mutual_info
+1,CaI,0.019224
+2,WBC,0.01836
+3,LV,0.015178
+4,Stent type-SES,0.011357
+5,eGFR,0.009931
+6,1.1:1Post dilation,0.007932
+7,LDL,0.007693
+8,No postdilation,0.007535
+9,HbA1c,0.007439
+10,HGB,0.004606
+11,Fast-Glu,
+12,TCL,0.004257
+13,Fiberinogen,0.00404
+14,ZES,
+15,Visual thrombus,0.003707

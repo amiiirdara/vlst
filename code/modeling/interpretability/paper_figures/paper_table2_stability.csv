@@ -1,0 +1,23 @@
+feature,selected_of_10,selection_freq
+LV,10,1.0
+Stent type-SES,10,1.0
+eGFR,10,1.0
+Age,9,0.9
+Cre,9,0.9
+WBC,9,0.9
+No postdilation,7,0.7
+STEMI,6,0.6
+HbA1c,5,0.5
+LVEF,5,0.5
+No.of stents per lesion,3,0.3
+Staged PCI,3,0.3
+1.1:1Post dilation,2,0.2
+CKD5,2,0.2
+CKD60,2,0.2
+EVS,2,0.2
+Current drinking,1,0.1
+History of peripheral vascualr disease,1,0.1
+Initial diagnosis-AMI,1,0.1
+PES,1,0.1
+Single-vessel disease,1,0.1
+Visual thrombus,1,0.1

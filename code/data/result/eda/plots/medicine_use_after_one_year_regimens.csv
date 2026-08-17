@@ -1,0 +1,10 @@
+Medicine regimen,Number of patients,Percentage of patients
+Aspirin + Clopidogrel + DAPT,2215,42.72
+No antiplatelet medicine,1788,34.48
+Aspirin,903,17.42
+Clopidogrel,181,3.49
+Aspirin + Ticagrelor + DAPT,72,1.39
+Ticagrelor,18,0.35
+DAPT,4,0.08
+Aspirin + DAPT,3,0.06
+Ticagrelor + DAPT,1,0.02

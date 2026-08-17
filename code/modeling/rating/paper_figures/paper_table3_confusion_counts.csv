@@ -1,0 +1,7 @@
+model,strategy,threshold,tn,fp,fn,tp
+Logistic Regression,f1,0.97,5043,50,54,38
+Random Forest,f1,0.084,5018,75,36,56
+XGBoost,f1,0.381,5076,17,37,55
+LightGBM,f1,0.228,5079,14,42,50
+CatBoost,f1,0.347,5063,30,31,61
+TabPFN,f1,0.901,5066,27,15,77

@@ -1,0 +1,16 @@
+Feature,Univariate vs VLST,Why ML consensus keeps it and FDR does not
+Cre,ns (p=0.88),Univariate p=0.88 (redundant with eGFR). Models still use Cre as a renal surrogate
+Men,ns (p=0.27),Univariate ns. Men×eGFR interaction is FDR-significant; LR uses sex as an additive offset
+LVEF,"raw p=0.033, FDR ns",Borderline univariate (q=0.067). Domain multivariable OR persists; trees split on systolic function
+HGB,"raw p=0.039, FDR ns","Raw p=0.039, FDR ns. CatBoost/XGB F-score consensus — threshold metrics, not mean tests"
+Fast-Glu,"raw p=0.025, FDR ns","Raw p=0.025, FDR ns. LR F2 consensus; correlated with HbA1c/diabetes"
+Platelet,ns,Univariate ns. RF/CatBoost haemostasis panel with Fiberinogen
+HL,ns,Univariate ns. Lipid split that helps rare-event ranking in boosting/RF
+STEMI,ns,"Univariate ns. Presentation split on hold-out PR-AUC/F2, not a 2x2 discovery"
+Current drinking,ns,Univariate ns. LightGBM F1; unstable lifestyle split with 28 test events
+History of HF,ns,Univariate ns. LightGBM F2; sparse history indicator
+Hypertension,ns,"Univariate ns. CatBoost F2; common comorbidity, weak marginal association"
+TG,ns,Univariate ns. LR PR-AUC additive lipid term
+TCL,ns,Univariate ns. XGB PR-AUC lipid surrogate
+Min-stent diameter,ns,Univariate ns. LR PR-AUC geometric term after scaling
+CaI,"raw p=0.051, FDR ns","Raw p=0.051, FDR ns. RF_b PR-AUC; near the FDR boundary"

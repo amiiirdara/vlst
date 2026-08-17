@@ -1,0 +1,16 @@
+rank,feature,importance_score,n_methods,selection_freq,shap_mean_abs,mutual_info,in_mi_top,in_shap_top
+1,LV,0.9875,3,1.0,1.236759,0.015178,True,True
+2,WBC,0.975,3,0.9,1.164785,0.01836,True,True
+3,eGFR,0.966667,3,1.0,0.471301,0.009931,True,True
+4,Stent type-SES,0.9625,3,1.0,0.229591,0.011357,True,True
+5,No postdilation,0.920833,3,0.7,0.1779,0.007535,True,True
+6,1.1:1Post dilation,0.90625,2,0.2,0.239164,0.007932,True,True
+7,HbA1c,0.897917,3,0.5,0.160197,0.007439,True,True
+8,Visual thrombus,0.785417,1,0.1,0.038371,0.003707,True,False
+9,CaI,0.758333,2,0.0,0.177856,0.019224,True,True
+10,LDL,0.754167,2,0.0,0.640808,0.007693,True,True
+11,Cre,0.747917,2,0.9,0.153856,0.0,False,True
+12,HGB,0.695833,2,0.0,0.076019,0.004606,True,True
+13,Fiberinogen,0.6875,2,0.0,0.094188,0.00404,True,True
+14,No.of stents per lesion,0.683333,0,0.3,0.042381,0.0,False,False
+15,TCL,0.679167,1,0.0,0.050013,0.004257,True,False

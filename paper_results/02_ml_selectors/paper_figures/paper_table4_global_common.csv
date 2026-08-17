@@ -1,0 +1,3 @@
+Scope,n features,Features
+"All 7 models × LOCO, SHAP, FFS × pr_auc/f1/f2",2,WBC; eGFR
+Any model / selector / metric (union),40,40 unique features (full list truncated in notebook display)

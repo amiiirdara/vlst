@@ -1,0 +1,58 @@
+Feature,Test,OR,RR,Phi,VLST% (1),VLST% (0),p,q (FDR),Sig
+1.1:1Post dilation,Chi-square,0.187,0.191,-0.089,0.56,2.92,1.30e-10,3.69e-09,***
+No postdilation,Chi-square,5.355,5.228,0.089,2.92,0.56,1.30e-10,3.69e-09,***
+CKD90,Chi-square,2.625,2.567,0.063,3.59,1.40,6.55e-06,0.0001,***
+Previous PCI,Fisher exact,6.485,5.958,0.085,9.62,1.61,1.25e-05,0.0002,***
+3-vessel disease,Chi-square,2.169,2.135,0.052,2.87,1.34,0.0002,0.0021,**
+Clopidogrel,Chi-square,0.503,0.509,-0.043,1.17,2.29,0.0022,0.0209,*
+Diabetes,Chi-square,1.889,1.865,0.042,2.71,1.45,0.0028,0.0226,*
+PES,Chi-square,2.158,2.133,0.040,2.12,1.00,0.0044,0.0315,*
+Multi-vessel CAD,Chi-square,1.890,1.870,0.038,2.19,1.17,0.0062,0.0351,*
+Single-vessel disease,Chi-square,0.529,0.535,-0.038,1.17,2.19,0.0062,0.0351,*
+Aspirin,Chi-square,0.592,0.597,-0.035,1.41,2.36,0.0117,0.0596,ns
+stent overlap,Chi-square,1.770,1.749,0.035,2.71,1.55,0.0125,0.0596,ns
+TIMI-0,Chi-square,1.651,1.635,0.033,2.40,1.47,0.0169,0.0740,ns
+Pre-TIMI flow-3,Chi-square,0.619,0.625,-0.032,1.42,2.27,0.0218,0.0889,ns
+Stroke/TIA,Chi-square,1.932,1.902,0.030,3.17,1.66,0.0330,0.1255,ns
+ZES,Chi-square,0.513,0.518,-0.027,1.00,1.94,0.0539,0.1816,ns
+Initial diagnosis-AMI,Chi-square,1.554,1.543,0.027,2.06,1.33,0.0542,0.1816,ns
+Bifurcation,Chi-square,1.632,1.615,0.025,2.66,1.65,0.0689,0.2183,ns
+EVS,Chi-square,0.515,0.520,-0.024,0.99,1.90,0.0875,0.2626,ns
+Previous MI,Chi-square,1.668,1.649,0.021,2.80,1.70,0.1278,0.3538,ns
+NSTEMI,Chi-square,1.469,1.457,0.021,2.41,1.65,0.1304,0.3538,ns
+UA,Chi-square,0.733,0.737,-0.019,1.45,1.97,0.1677,0.4345,ns
+DAPT,Chi-square,0.770,0.773,-0.017,1.53,1.97,0.2256,0.5592,ns
+Men,Chi-square,1.303,1.297,0.015,1.91,1.47,0.2681,0.6366,ns
+Vessel dialation,Fisher exact,1.963,1.931,0.013,3.39,1.76,0.2817,0.6422,ns
+Chronic renal insufficiency,Fisher exact,1.803,1.778,0.011,3.12,1.76,0.3147,0.6864,ns
+Previous CABG,Fisher exact,1.608,1.591,0.013,2.78,1.75,0.3251,0.6864,ns
+Aneurysm,Fisher exact,2.062,2.024,0.010,3.57,1.76,0.3950,0.8042,ns
+Cardiogenic shock,Fisher exact,1.527,1.513,0.010,2.65,1.75,0.4540,0.8810,ns
+2-vessel disease,Chi-square,0.841,0.844,-0.010,1.57,1.86,0.4637,0.8810,ns
+Ulceration,Fisher exact,1.462,1.450,0.005,2.56,1.77,0.5038,0.9264,ns
+No reflow,Fisher exact,1.291,1.284,0.003,2.27,1.77,0.5466,0.9362,ns
+CKD60,Fisher exact,1.300,1.294,0.007,2.27,1.76,0.5549,0.9362,ns
+Hypertension,Chi-square,1.129,1.126,0.008,1.87,1.66,0.5667,0.9362,ns
+Thrombus aspiration,Chi-square,0.828,0.830,-0.008,1.51,1.81,0.5749,0.9362,ns
+Dissection,Fisher exact,1.065,1.064,0.001,1.89,1.77,0.6147,0.9651,ns
+Current smoker,Chi-square,1.110,1.107,0.007,1.85,1.67,0.6265,0.9651,ns
+History of peripheral vascualr disease,Fisher exact,1.294,1.287,0.005,2.27,1.77,0.6698,1.0000,ns
+P-LM,Fisher exact,1.077,1.075,0.001,1.90,1.77,0.7101,1.0000,ns
+STEMI,Chi-square,1.078,1.077,0.005,1.85,1.72,0.7203,1.0000,ns
+P-RCA,Chi-square,1.075,1.073,0.005,1.86,1.73,0.7437,1.0000,ns
+P-LCX,Chi-square,1.087,1.085,0.004,1.90,1.75,0.7592,1.0000,ns
+P-LAD,Chi-square,0.939,0.940,-0.004,1.72,1.83,0.7645,1.0000,ns
+TIMI-1,Fisher exact,1.112,1.110,0.003,1.96,1.77,0.7838,1.0000,ns
+HL,Chi-square,0.945,0.946,-0.003,1.71,1.81,0.8036,1.0000,ns
+Visual thrombus,Chi-square,0.934,0.935,-0.003,1.67,1.79,0.8406,1.0000,ns
+Current drinking,Chi-square,0.951,0.952,-0.002,1.70,1.79,0.8689,1.0000,ns
+Staged PCI,Chi-square,1.033,1.032,0.001,1.83,1.77,0.9279,1.0000,ns
+Proximal,Chi-square,1.006,1.006,0.000,1.78,1.77,0.9789,1.0000,ns
+Lesion location-Ostial,Fisher exact,0.945,0.946,-0.001,1.68,1.78,1.0000,1.0000,ns
+Chronic total occlusion,Fisher exact,0.940,0.941,-0.002,1.67,1.78,1.0000,1.0000,ns
+Moderate/severe calcification,Fisher exact,0.910,0.911,-0.002,1.62,1.78,1.0000,1.0000,ns
+History of HF,Fisher exact,0.816,0.819,-0.004,1.46,1.78,1.0000,1.0000,ns
+Moderate/severe tortuosity,Fisher exact,0.938,0.939,-0.001,1.67,1.78,1.0000,1.0000,ns
+Slow flow,Fisher exact,0.894,0.896,-0.003,1.60,1.78,1.0000,1.0000,ns
+TIMI-2,Fisher exact,0.923,0.924,-0.002,1.65,1.78,1.0000,1.0000,ns
+Ticagrelor,Fisher exact,0.611,0.615,-0.007,1.10,1.79,1.0000,1.0000,ns
