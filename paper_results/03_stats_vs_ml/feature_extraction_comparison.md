@@ -34,10 +34,10 @@ The two pipelines are not two estimates of the same quantity. They optimize diff
 | ---------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Question**                 | Does this column’s *marginal* distribution differ by VLST after multiplicity control? | If I train `lr` / `rf` / boosting, which columns does the *fitted model* need for hold-out PR-AUC / F1 / F2? |
 | **Unit of evidence**         | One test per feature (Welch, Mann–Whitney, χ² / Fisher) plus FDR                      | LOCO (refit without the column), coalition SHAP, greedy FFS                                                  |
-| **Sample**                   | Full cohort, n ≈ 5,185, ~92 events                                                    | Stored smoke: scored on the 1,556-row test fold (28 events). Current Part 2 *code* uses an inner train hold-out (not re-run). |
+| **Sample**                   | Full cohort, n ≈ 5,185, ~92 events                                                    | Prior export: scored on the 1,556-row test fold (28 events). Paper-protocol code scores a val slice of the **full** cohort (no unused outer test). Not re-run. |
 | **Feature view**             | Raw clinical columns; `Stent type-SES` collapsed to 9 levels for χ²                  | Scaled matrix (**185 columns**): raw 106 brand strings one-hot + `StandardScaler`. Imputers in the transformer are inert (no NaNs). |
 | **Discovery rule used here** | Univariate FDR q < 0.05 (plus a sparse multivariable logistic check)                  | Names in **LOCO ∩ SHAP ∩ FFS** top-12 for at least one model × metric                                        |
-| **Multiplicity**             | Benjamini–Hochberg across the tested family                                           | Implicit: top-12 of a 40-column LOCO pool (smoke run)                                                        |
+| **Multiplicity**             | Benjamini–Hochberg across the tested family                                           | Prior export: top-12 of a 40-column LOCO pool. Paper protocol: top-20, independent pools.                     |
 
 
 **Statistical catalogue (n = 20 names, excluding time-at-risk).** Continuous FDR: `WBC`, `eGFR`, `LV`, `CKD5`, `No.of stents per lesion`, `HbA1c`, `NO.of vessels`, `Total stent length`, `Fiberinogen`. Binary FDR: `1.1:1Post dilation`, `No postdilation`, `CKD90`, `Previous PCI`, `3-vessel disease`, `Clopidogrel`, `Diabetes`, `PES`, `Multi-vessel CAD`, `Single-vessel disease`. Categorical: `Stent type-SES`. `Time since stent implantation` is the strongest univariate hit but is a follow-up / time-at-risk variable, not a baseline predictor, and is excluded from ML.
@@ -127,7 +127,7 @@ Fifteen FDR discoveries never enter ML LOCO ∩ SHAP ∩ FFS. They are not “fa
 | CKD5                    | Renal cutpoint | FDR hit; adjusted OR *flips sign* (collinear with eGFR). In the ML union prefix, not in 3-way consensus    |
 | 3-vessel disease        | Anatomy        | χ² discovery; collinear with `NO.of vessels` / multi-vessel CAD                                            |
 | Multi-vessel CAD        | Anatomy        | Same information as single-vessel (complements)                                                            |
-| Single-vessel disease   | Anatomy        | Protective complement of multi-vessel disease                                                              |
+| Single-vessel disease   | Anatomy        | Complement of multi-vessel disease (same 2×2 as `Multi-vessel CAD`, inverted)                              |
 | NO.of vessels           | Anatomy        | Continuous count of the same anatomy cluster                                                               |
 | No.of stents per lesion | Procedural     | Tiny effect (MW r = 0.037); not competitive in a 12-feature predictive list                                |
 | Total stent length      | Procedural     | Small effect; collinear with stent count / vessel burden                                                   |
@@ -225,7 +225,7 @@ Statistics therefore “owns” **stent technique and anatomy coding** (postdila
 - Univariate tests do not penalize redundancy. FDR will list `3-vessel disease`, `Multi-vessel CAD`, `Single-vessel disease`, and `NO.of vessels` if each 2×2/t-test is small. A model only needs one of them.
 - Complements are two encodings of one bit (`1.1:1Post dilation` vs `No postdilation`). χ² sees both; multivariable logistic already showed the pair is not independently identified.
 - Categorical χ² on `Stent type-SES` does not survive one-hot fragmentation in 185 columns.
-- The stored ML smoke run never scores the full 185-column matrix with LOCO (cap 40). That cap was the first 40 **ColumnTransformer output-order** columns, not a trained ranking. Absence from consensus is sometimes “not in the pool,” not “the model disproved the association.” The current Part 2 code ranks that cap by train importance; figures here are still the old pool.
+- The prior ML export never scores the full 185-column matrix with LOCO (cap 40). That cap was the first 40 **ColumnTransformer output-order** columns, not a trained ranking. Absence from consensus is sometimes “not in the pool,” not “the model disproved the association.” Paper-protocol code ranks each selector’s own cheap-importance pool; figures here are still the old pool.
 - Hold-out PR-AUC with 28 events is under-powered for moderate ORs (Clopidogrel 0.50, Diabetes 1.89) that FDR can still detect on 92 events.
 
 **Why a feature can appear in ML and not in statistics**
@@ -259,4 +259,4 @@ Statistics therefore “owns” **stent technique and anatomy coding** (postdila
 
 ---
 
-*Statistical names: univariate FDR q < 0.05 from* `eda.ipynb` *(time-since-stent excluded from the overlap count). ML names: LOCO ∩ SHAP ∩ FFS top-12 from the smoke run of* `baseline_feature_selections.ipynb` *(seven classic models). Figures and CSVs regenerated by* `code/analyzes/stats_vs_ml/rebuild_comparison.py`. *Re-run that script if either catalogue changes.*
+*Statistical names: univariate FDR q < 0.05 from* `eda.ipynb` *(time-since-stent excluded from the overlap count). ML names: LOCO ∩ SHAP ∩ FFS top-12 from a prior reduced export of* `baseline_feature_selections.ipynb` *(seven classic models; not the paper protocol). Figures and CSVs regenerated by* `code/analyzes/stats_vs_ml/rebuild_comparison.py`. *Re-run that script after the paper-protocol Part 2 run.*

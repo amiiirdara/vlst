@@ -122,7 +122,7 @@ Rendered table image: [01_eda/paper_figures/paper_table1_continuous_fdr.png](01_
 
 ![Figure 3](01_eda/paper_figures/paper_fig3_continuous_effect_sizes.png)
 
-**Figure 3.** Primary effect sizes for continuous features with FDR q < 0.05. Grey highlighting (when present) marks the structural time-at-risk variable (`Time since stent implantation`).
+**Figure 3.** Primary effect sizes for continuous features with FDR q < 0.05. **Cohen's d (Welch) and Mann–Whitney r are different metrics and are not on one scale** — `WBC` r = 0.13 is not “smaller than” `LV` d = 1.13. The stored PNG plots them on one axis; read the `Effect size` column in Table 1, not bar length across tests. Grey highlighting (when present) marks the structural time-at-risk variable (`Time since stent implantation`).
 
 **Source file:** [01_eda/paper_figures/paper_fig3_continuous_effect_sizes.png](01_eda/paper_figures/paper_fig3_continuous_effect_sizes.png)
 
@@ -134,7 +134,7 @@ Rendered table image: [01_eda/paper_figures/paper_table1_continuous_fdr.png](01_
 
 ![Figure 4](01_eda/paper_figures/paper_fig4_binary_odds_ratios.png)
 
-**Figure 4.** Univariate odds ratios (OR) for binary clinical/procedural indicators associated with VLST after FDR control. OR > 1 indicates higher odds of VLST when the feature is present.
+**Figure 4.** Univariate 2×2 odds ratios for binary indicators with FDR q < 0.05. OR > 1: higher odds of VLST when the flag is present. OR < 1: lower odds in this table, **not** a treatment benefit (confounding by indication).
 
 **Source file:** [01_eda/paper_figures/paper_fig4_binary_odds_ratios.png](01_eda/paper_figures/paper_fig4_binary_odds_ratios.png)
 
@@ -142,7 +142,7 @@ Rendered table image: [01_eda/paper_figures/paper_table1_continuous_fdr.png](01_
 
 Rendered table image: [01_eda/paper_figures/paper_table2_binary_fdr.png](01_eda/paper_figures/paper_table2_binary_fdr.png)
 
-**Table 2.** Binary predictors with FDR q < 0.05, showing OR, relative risk (RR), phi coefficient, VLST rates by feature level, raw p, and FDR q.
+**Table 2.** Binary associations with FDR q < 0.05. **OR is the 2×2 cross-product** (Fisher exact when the notebook chose Fisher; chi-square otherwise) — for `Previous PCI` this is **6.49**. This is not the univariate logistic OR in Table 4 (6.46) or the joint-domain univariate OR in Table S4 (6.73). Rates, RR, and phi use the same 2×2. OR < 1 is a **lower odds of recorded VLST** when the flag is 1, not a treatment benefit (confounding by indication).
 
 | Feature | Test | OR | RR | Phi | VLST% (1) | VLST% (0) | p | q (FDR) | Sig |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -167,7 +167,7 @@ Rendered table image: [01_eda/paper_figures/paper_table2_binary_fdr.png](01_eda/
 
 ![Figure 5](01_eda/paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
-**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after collapsing rare levels (n < 30) to `other`. Rates are descriptive; formal association testing is summarized in Table 3.
+**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after collapsing rare levels (n < 30) to `other` (**9 levels**). This is the EDA encoding. Part 2/4 one-hot the **raw 106 brand strings**; Part 5 codes brands as integers. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
 
 **Source file:** [01_eda/paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png](01_eda/paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
@@ -194,6 +194,8 @@ Rendered table image: [01_eda/paper_figures/paper_table3_categorical.png](01_eda
 Rendered table image: [01_eda/paper_figures/paper_table4_multivariable_or.png](01_eda/paper_figures/paper_table4_multivariable_or.png)
 
 **Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). Given ~92 events, EPV is low and the model is for screening/confounding context, not prediction. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
+
+**OR estimators (do not mix).** Table 4 “Univariate OR” is from this unweighted logit (one covariate at a time, same scaling). Table 2 OR is the **2×2 / Fisher** estimator. Supplementary Figure S4 “Univariate OR” is from the joint-domain specification. For `Previous PCI` those three numbers are **6.46 / 6.49 / 6.73**. OR < 1 for `1.1:1Post dilation` or `Clopidogrel` is not a treatment benefit.
 
 | Feature | Type | Univariate OR | Adjusted OR | 95% CI |
 | --- | --- | --- | --- | --- |
@@ -312,7 +314,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 ![Figure S4](01_eda/paper_figures/domain_joint_uni_vs_multi_or.png)
 
-**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs. Continuous covariates are per 1 SD; time-since-stent is excluded. Same inferential note as Figure S3: stored figure is the old bootstrap run; current code uses unweighted Wald CIs (primary) plus a 2,000-replicate bootstrap robustness check. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model.
+**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs. Continuous covariates are per 1 SD; time-since-stent is excluded. Same inferential note as Figure S3: stored figure is the old bootstrap run; current code uses unweighted Wald CIs (primary) plus a 2,000-replicate bootstrap robustness check. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model. The “Univariate OR” column below is from **this joint-domain specification** (`Previous PCI` 6.73), not Table 2’s 2×2 OR (6.49) or Table 4’s univariate logit (6.46).
 
 | Feature | Domain | Univariate OR | Adjusted OR | OR lower | OR upper |
 | --- | --- | --- | --- | --- | --- |
@@ -331,7 +333,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 #### Supplementary Table S2. Exploratory interaction screen
 
-**Table S2.** Limited, clinically motivated pairwise interaction screen (likelihood-ratio test vs main-effects-only model). FDR q is computed among tested interactions only. With ~92 events, interactions are hypothesis-generating.
+**Table S2.** All **16** pairs from `domain_interaction_screen.csv` (likelihood-ratio test vs main-effects-only). FDR q is among these 16 tests only. With ~92 events, interactions are hypothesis-generating. Two pairs (LV × eGFR, Men × eGFR) have q < 0.05.
 
 | Pair | LR statistic | Interaction p | Interaction OR | q (FDR) |
 | --- | --- | --- | --- | --- |
@@ -343,6 +345,14 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Diabetes x HbA1c | 1.25 | 0.264 | 0.787 | 0.623 |
 | Men x Previous PCI | 1.19 | 0.274 | 0.442 | 0.623 |
 | LV x Previous PCI | 0.964 | 0.326 | 0.786 | 0.623 |
+| LV x Men | 0.873 | 0.350 | 1.17 | 0.623 |
+| DAPT x Diabetes | 0.428 | 0.513 | 1.49 | 0.821 |
+| No.of stents per lesion x Total stent length | 0.297 | 0.586 | 0.977 | 0.823 |
+| Previous PCI x eGFR | 0.186 | 0.667 | 1.19 | 0.823 |
+| 1.1:1Post dilation x Men | 0.131 | 0.718 | 0.786 | 0.823 |
+| 1.1:1Post dilation x Previous PCI | 0.129 | 0.720 | 1.46 | 0.823 |
+| 1.1:1Post dilation x LV | 0.020 | 0.888 | 0.974 | 0.912 |
+| 1.1:1Post dilation x eGFR | 0.012 | 0.912 | 0.979 | 0.912 |
 
 **Source file:** [01_eda/paper_figures/domain_interaction_screen.csv](01_eda/paper_figures/domain_interaction_screen.csv)
 
@@ -388,11 +398,11 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 This document gathers publication-oriented figures and tables from the multi-model feature selectors in `baseline_feature_selections.ipynb`.
 
-**Cohort / protocol.** Same VLST records, n = 5,185, stratified 70/30 (`random_state=42`): train 3,629 (64 events) / test 1,556 (28 events). Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). Models use the **scaled** view: `ColumnTransformer` one-hots the **raw 106** `Stent type-SES` strings (EDA instead collapses to 9 levels) and then `StandardScaler` → **185 columns**. Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. The stored notebook run is `RUN_MODE="smoke"` with **top-12** features per model × selector × metric. TabPFN was configured but **unavailable** in that run. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`, 200/400 rounds) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
+**Cohort / protocol.** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol** (current code; figures below are not yet this run): no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE` of the full cohort, `random_state=42`); **PR-AUC only**; LOCO / SHAP / FFS independent; top-20; SHAP universe 40 / 40 permutations / 3 background draws; LOCO cap 60; FFS pool 24 × 12 steps with early stop; boosting 400 rounds. Models use the **scaled** view: `ColumnTransformer` one-hots the **raw 106** `Stent type-SES` strings (EDA instead collapses to 9 levels) and then `StandardScaler` → **185 columns**. Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. TabPFN may be configured but is optional. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
 
-**Methods note — stored figures vs current code.** Figures and tables below are the **stored smoke run**. In that run, LOCO’s 40-column cap was the first 40 columns in **ColumnTransformer output order** (23 continuous, then the first 17 binaries); SHAP’s coalition metric used **all 28 test events plus 4 random controls** (87.5% prevalence). The notebook **code** has since been changed (not re-run): selectors score on an inner hold-out of train (`INNER_VAL_SIZE=0.2`, `y_test` unused); the LOCO cap is cheap **train** importance, not column order; SHAP draws a stratified inner-val sample at train prevalence. Do not read these figures as if they already used the new protocol.
+**Methods note — stored figures vs paper protocol.** Figures and tables below are a **prior reduced export** and must be replaced after the paper-protocol Kaggle run. In that export, selectors scored on a 1,556-row / 28-event **test** fold; LOCO’s 40-column cap was ColumnTransformer **output order**; SHAP and FFS nested in that pool; SHAP used **all 28 test events plus 4 random controls** (87.5% prevalence); metrics were `pr_auc`, `f1`, `f2`; top-12. Do not quote these figures as the paper result.
 
-**Selectors (intent of the current code; figures are the old run).** LOCO = drop-one and refit, scored on the inner hold-out. Coalition SHAP and FFS are nested in LOCO’s top pool as a **compute cap**, not because those models “read LOCO’s answer.” Objectives: `pr_auc`, `f1`, `f2` — **PR-AUC is the ranking metric aligned with Part 4**; F1/F2 are extra operating-point views, not inferential tests. Wald / GLM standard errors are not applicable to tree selectors. These catalogues do **not** feed Part 4 (nested-CV uses all 81 raw features, not this 185-column mask). SMOTE is not used.
+**Selectors (intent of the current code; figures are the old run).** LOCO = drop-one and refit on the val slice. Coalition SHAP = permutation coalitions on a cheap-importance universe (not LOCO’s names). FFS = greedy forward search on its own cheap-importance pool. Objective: **`pr_auc` only**. Wald / GLM standard errors are not applicable to tree selectors. These catalogues do **not** feed Part 4 (nested-CV uses all 81 raw features, not this 185-column mask). SMOTE is not used.
 
 **Asset root:** [02_ml_selectors/paper_figures/](02_ml_selectors/paper_figures/)
 
@@ -423,7 +433,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 | lr | Logistic regression | Linear | No | L2-penalized log-odds (C=2, balanced); additive on scaled features |
 | rf | Random forest | Bagged trees | No | 500 deep trees, class_weight=balanced_subsample |
 | rf_b | Random forest (subsample) | Bagged trees | No | Same as RF with max_samples=0.88 |
-| cat | CatBoost | Boosting | Yes | Ordered boosting, balanced class weights |
+| cat | CatBoost | Boosting | Yes | GPU **Plain** boosting (`task_type=GPU`; Ordered is CPU-only); `eval_metric=PRAUC`; balanced class weights |
 | xgb | XGBoost | Boosting | Yes | scale_pos_weight for VLST imbalance |
 | xgb_b | XGBoost (subsample) | Boosting | Yes | Lower subsample / colsample_bytree (0.78) |
 | lgb | LightGBM | Boosting | Yes | Leaf-wise growth, balanced class weights |
@@ -440,7 +450,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 ### 2. How much each selector keeps
 
-LOCO is run on a capped pool (`LOCO_MAX_FEATURES=40` in smoke mode), so every model reports **40** unique LOCO features once all three metrics are pooled. SHAP and FFS are nested inside that pool (SHAP universe 24; FFS candidate pool 30; both take top-12 per metric), so they keep fewer unique names.
+In the **prior export** shown here, LOCO used a 40-column ColumnTransformer-order cap, so every model reports **40** unique LOCO features once the three old metrics are pooled. SHAP and FFS were nested inside that pool (universe 24 / candidate pool 30; top-12 per metric). The paper protocol instead uses independent cheap-importance pools (LOCO 60 / SHAP 40 / FFS 24) and PR-AUC only.
 
 #### Figure 1. Unique selected features by classic model and selector
 
@@ -705,7 +715,7 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list against each model
 
 ---
 
-*Numbers are taken from the executed outputs currently stored in `baseline_feature_selections.ipynb` (Kaggle smoke run, seven classic models, top-12).*
+*Numbers below are from a prior reduced export stored in `baseline_feature_selections.ipynb` (seven classic models, top-12, three metrics). They are not the paper protocol. Re-run the notebook, then replace these figures.*
 
 
 ---
@@ -747,10 +757,10 @@ The two pipelines are not two estimates of the same quantity. They optimize diff
 | ---------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Question**                 | Does this column’s *marginal* distribution differ by VLST after multiplicity control? | If I train `lr` / `rf` / boosting, which columns does the *fitted model* need for hold-out PR-AUC / F1 / F2? |
 | **Unit of evidence**         | One test per feature (Welch, Mann–Whitney, χ² / Fisher) plus FDR                      | LOCO (refit without the column), coalition SHAP, greedy FFS                                                  |
-| **Sample**                   | Full cohort, n ≈ 5,185, ~92 events                                                    | Stored smoke: scored on the 1,556-row test fold (28 events). Current Part 2 *code* uses an inner train hold-out (not re-run). |
+| **Sample**                   | Full cohort, n ≈ 5,185, ~92 events                                                    | Prior export: scored on the 1,556-row test fold (28 events). Paper-protocol code scores a val slice of the **full** cohort (no unused outer test). Not re-run. |
 | **Feature view**             | Raw clinical columns; `Stent type-SES` collapsed to 9 levels for χ²                  | Scaled matrix (**185 columns**): raw 106 brand strings one-hot + `StandardScaler`. Imputers in the transformer are inert (no NaNs). |
 | **Discovery rule used here** | Univariate FDR q < 0.05 (plus a sparse multivariable logistic check)                  | Names in **LOCO ∩ SHAP ∩ FFS** top-12 for at least one model × metric                                        |
-| **Multiplicity**             | Benjamini–Hochberg across the tested family                                           | Implicit: top-12 of a 40-column LOCO pool (smoke run)                                                        |
+| **Multiplicity**             | Benjamini–Hochberg across the tested family                                           | Prior export: top-12 of a 40-column LOCO pool. Paper protocol: top-20, independent pools.                     |
 
 
 **Statistical catalogue (n = 20 names, excluding time-at-risk).** Continuous FDR: `WBC`, `eGFR`, `LV`, `CKD5`, `No.of stents per lesion`, `HbA1c`, `NO.of vessels`, `Total stent length`, `Fiberinogen`. Binary FDR: `1.1:1Post dilation`, `No postdilation`, `CKD90`, `Previous PCI`, `3-vessel disease`, `Clopidogrel`, `Diabetes`, `PES`, `Multi-vessel CAD`, `Single-vessel disease`. Categorical: `Stent type-SES`. `Time since stent implantation` is the strongest univariate hit but is a follow-up / time-at-risk variable, not a baseline predictor, and is excluded from ML.
@@ -840,7 +850,7 @@ Fifteen FDR discoveries never enter ML LOCO ∩ SHAP ∩ FFS. They are not “fa
 | CKD5                    | Renal cutpoint | FDR hit; adjusted OR *flips sign* (collinear with eGFR). In the ML union prefix, not in 3-way consensus    |
 | 3-vessel disease        | Anatomy        | χ² discovery; collinear with `NO.of vessels` / multi-vessel CAD                                            |
 | Multi-vessel CAD        | Anatomy        | Same information as single-vessel (complements)                                                            |
-| Single-vessel disease   | Anatomy        | Protective complement of multi-vessel disease                                                              |
+| Single-vessel disease   | Anatomy        | Complement of multi-vessel disease (same 2×2 as `Multi-vessel CAD`, inverted)                              |
 | NO.of vessels           | Anatomy        | Continuous count of the same anatomy cluster                                                               |
 | No.of stents per lesion | Procedural     | Tiny effect (MW r = 0.037); not competitive in a 12-feature predictive list                                |
 | Total stent length      | Procedural     | Small effect; collinear with stent count / vessel burden                                                   |
@@ -938,7 +948,7 @@ Statistics therefore “owns” **stent technique and anatomy coding** (postdila
 - Univariate tests do not penalize redundancy. FDR will list `3-vessel disease`, `Multi-vessel CAD`, `Single-vessel disease`, and `NO.of vessels` if each 2×2/t-test is small. A model only needs one of them.
 - Complements are two encodings of one bit (`1.1:1Post dilation` vs `No postdilation`). χ² sees both; multivariable logistic already showed the pair is not independently identified.
 - Categorical χ² on `Stent type-SES` does not survive one-hot fragmentation in 185 columns.
-- The stored ML smoke run never scores the full 185-column matrix with LOCO (cap 40). That cap was the first 40 **ColumnTransformer output-order** columns, not a trained ranking. Absence from consensus is sometimes “not in the pool,” not “the model disproved the association.” The current Part 2 code ranks that cap by train importance; figures here are still the old pool.
+- The prior ML export never scores the full 185-column matrix with LOCO (cap 40). That cap was the first 40 **ColumnTransformer output-order** columns, not a trained ranking. Absence from consensus is sometimes “not in the pool,” not “the model disproved the association.” Paper-protocol code ranks each selector’s own cheap-importance pool; figures here are still the old pool.
 - Hold-out PR-AUC with 28 events is under-powered for moderate ORs (Clopidogrel 0.50, Diabetes 1.89) that FDR can still detect on 92 events.
 
 **Why a feature can appear in ML and not in statistics**
@@ -972,7 +982,7 @@ Statistics therefore “owns” **stent technique and anatomy coding** (postdila
 
 ---
 
-*Statistical names: univariate FDR q < 0.05 from* `eda.ipynb` *(time-since-stent excluded from the overlap count). ML names: LOCO ∩ SHAP ∩ FFS top-12 from the smoke run of* `baseline_feature_selections.ipynb` *(seven classic models). Figures and CSVs regenerated by* `code/analyzes/stats_vs_ml/rebuild_comparison.py`. *Re-run that script if either catalogue changes.*
+*Statistical names: univariate FDR q < 0.05 from* `eda.ipynb` *(time-since-stent excluded from the overlap count). ML names: LOCO ∩ SHAP ∩ FFS top-12 from a prior reduced export of* `baseline_feature_selections.ipynb` *(seven classic models; not the paper protocol). Figures and CSVs regenerated by* `code/analyzes/stats_vs_ml/rebuild_comparison.py`. *Re-run that script after the paper-protocol Part 2 run.*
 
 
 ---
@@ -1292,7 +1302,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 1](05_tabpfn_interpretability/paper_figures/paper_fig1_pdp_continuous.png)
 
-**Figure 1.** Average TabPFN predicted risk while sweeping one continuous feature (rug marks show the empirical distribution). `LV`: predicted risk stays low until the mid-40s and then rises steeply toward ~0.6. `eGFR`: the opposite shape — high predicted risk at low filtration, falling toward ~0 as eGFR increases. `Stent type-SES` is nearly flat across its coded range. `Age` is essentially flat (~0.14), matching the SHAP scatter in Figure 4. The LV × SES contour is dominated by vertical (LV) bands: the interaction plot does not show a strong SES-dependent twist once LV is accounted for.
+**Figure 1.** Average TabPFN **balanced-prior** output while sweeping one feature (rug = empirical distribution). `LV`: output stays low until the mid-40s then rises toward ~0.6 on that scale, **not** a 60% absolute risk. `eGFR`: high output at low filtration. `Stent type-SES` is integer-coded here; a sweep across brand codes is **not** a nominal brand contrast (EDA uses 9 collapsed levels; Part 4 one-hots 106 strings). `Age` is essentially flat (~0.14). The LV × SES contour is dominated by vertical (LV) bands.
 
 **Source file:** [05_tabpfn_interpretability/paper_figures/paper_fig1_pdp_continuous.png](05_tabpfn_interpretability/paper_figures/paper_fig1_pdp_continuous.png)
 
@@ -1300,7 +1310,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 2](05_tabpfn_interpretability/paper_figures/paper_fig2_pdp_binary.png)
 
-**Figure 2.** Average predicted P[Stent thrombosis] when each binary feature is forced to absent (0, blue) vs present (1, orange). The largest shift is `1.1:1Post dilation` (ΔP = −0.086): presence of 1.1:1 post-dilation lowers average predicted risk. `No postdilation` also lowers predicted risk (ΔP = −0.036) but from a higher baseline. `STEMI`, `Staged PCI`, `CKD60`, and `EVS` have small average effects (|ΔP| ≤ 0.013).
+**Figure 2.** Average balanced-prior P[Stent thrombosis] when each binary feature is forced to absent (0, blue) vs present (1, orange). The largest shift is `1.1:1Post dilation` (ΔP = −0.086): the flag is associated with **lower model output**, not a proven treatment effect. `No postdilation` also lowers output (ΔP = −0.036) from a higher baseline. `STEMI`, `Staged PCI`, `CKD60`, and `EVS` have small average effects (|ΔP| ≤ 0.013).
 
 **Source file:** [05_tabpfn_interpretability/paper_figures/paper_fig2_pdp_binary.png](05_tabpfn_interpretability/paper_figures/paper_fig2_pdp_binary.png)
 
@@ -1339,7 +1349,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 4](05_tabpfn_interpretability/paper_figures/paper_fig4_shap_scatter_age.png)
 
-**Figure 4.** Age versus its SHAP contribution on the explained rows, with a background histogram of Age. Almost all points sit at SHAP = 0; one younger outlier (~age 46) has a small positive attribution (~0.03). This matches the flat Age PDP in Figure 1: Age is stable in SFS (9/10) but is not a strong *attribution* driver for TabPFN on the explained sample.
+**Figure 4.** Age versus its SHAP contribution on the **15 VLST cases**, with a background histogram of Age. Almost all points sit at SHAP = 0; one younger outlier (~age 46) has a small positive attribution (~0.03). This matches the flat Age PDP in Figure 1: Age is stable in SFS (9/10) but is not a strong *attribution* driver on this all-case sample.
 
 **Source file:** [05_tabpfn_interpretability/paper_figures/paper_fig4_shap_scatter_age.png](05_tabpfn_interpretability/paper_figures/paper_fig4_shap_scatter_age.png)
 
@@ -1355,7 +1365,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 6](05_tabpfn_interpretability/paper_figures/paper_fig6_shap_beeswarm.png)
 
-**Figure 6.** Same 15-row attributions as Figure 3, restricted to the top-9 features plus the residual bundle. High `LV` / `WBC` increase output; high `eGFR` decreases it. `1.1:1Post dilation` shows a strong negative attribution on at least one high-value row.
+**Figure 6.** Same **15 VLST-case** attributions as Figure 3, restricted to the top-9 features plus the residual bundle. High `LV` / `WBC` increase output; high `eGFR` decreases it. `1.1:1Post dilation` shows a strong negative attribution on at least one high-value row.
 
 **Source file:** [05_tabpfn_interpretability/paper_figures/paper_fig6_shap_beeswarm.png](05_tabpfn_interpretability/paper_figures/paper_fig6_shap_beeswarm.png)
 
@@ -1363,7 +1373,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 7](05_tabpfn_interpretability/paper_figures/paper_fig7_shap_waterfall.png)
 
-**Figure 7.** Additive breakdown for one explained row, from base value E[f(X)] ≈ −5.39 to f(x) ≈ −3.09 (model output scale). This row is pushed up mainly by `LV` = 55 (+2.32) and `WBC` = 17.16 (+1.70), and pulled down by `1.1:1Post dilation` = 1 (−1.07) and `eGFR` = 132 (−0.67). It is a local explanation for one patient, not a global ranking.
+**Figure 7.** Additive breakdown for **one VLST case**, from base value E[f(X)] ≈ −5.39 to f(x) ≈ −3.09 (model output scale). This row is pushed up mainly by `LV` = 55 (+2.32) and `WBC` = 17.16 (+1.70), and pulled down by `1.1:1Post dilation` = 1 (−1.07) and `eGFR` = 132 (−0.67). Local explanation for one patient, not a global ranking and not a treatment effect.
 
 **Source file:** [05_tabpfn_interpretability/paper_figures/paper_fig7_shap_waterfall.png](05_tabpfn_interpretability/paper_figures/paper_fig7_shap_waterfall.png)
 
@@ -1403,7 +1413,7 @@ k-SII plots use the **same one positive-class row** as the waterfall (budget = 2
 
 ![Figure 8](05_tabpfn_interpretability/paper_figures/paper_fig8_ksii_network.png)
 
-**Figure 8.** Circular k-SII network for the top 20 features by |Shapley value| on one positive-class row. Large red nodes (`LV`, `WBC`) are strong positive main effects; `1.1:1Post dilation` is a large protective (blue) main effect. Thick edges among `LV`, `WBC`, `eGFR`, `LDL`, and post-dilation are the dominant pairwise terms.
+**Figure 8.** Circular k-SII network for the top 20 features by |Shapley value| on **one VLST case**. Large red nodes (`LV`, `WBC`) are strong positive main effects; `1.1:1Post dilation` is a large **negative** (blue) main effect on this row — not a cohort-level benefit. Thick edges among `LV`, `WBC`, `eGFR`, `LDL`, and post-dilation are the dominant pairwise terms **for that patient**.
 
 **Source file:** [05_tabpfn_interpretability/paper_figures/paper_fig8_ksii_network.png](05_tabpfn_interpretability/paper_figures/paper_fig8_ksii_network.png)
 

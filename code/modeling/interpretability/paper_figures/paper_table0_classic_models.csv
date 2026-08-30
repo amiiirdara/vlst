@@ -2,7 +2,7 @@ Code,Classic model,Family,GPU,Specification (notebook)
 lr,Logistic regression,Linear,No,"L2-penalized log-odds; additive, scaled features"
 rf,Random forest,Bagged trees,No,"Deep trees, balanced subsample weights"
 rf_b,Random forest (subsample),Bagged trees,No,Same as RF with max_samples=0.88
-cat,CatBoost,Boosting,Yes,"Ordered boosting, balanced class weights"
+cat,CatBoost,Boosting,Yes,"GPU Plain boosting (task_type=GPU; Ordered is CPU-only); eval_metric=PRAUC; balanced class weights"
 xgb,XGBoost,Boosting,Yes,scale_pos_weight for VLST imbalance
 xgb_b,XGBoost (subsample),Boosting,Yes,Lower subsample/colsample (0.78)
 lgb,LightGBM,Boosting,Yes,"Leaf-wise growth, balanced class weights"

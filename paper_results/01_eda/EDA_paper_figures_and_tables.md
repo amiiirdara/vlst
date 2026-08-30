@@ -105,7 +105,7 @@ Rendered table image: [paper_figures/paper_table1_continuous_fdr.png](paper_figu
 
 ![Figure 3](paper_figures/paper_fig3_continuous_effect_sizes.png)
 
-**Figure 3.** Primary effect sizes for continuous features with FDR q < 0.05. Grey highlighting (when present) marks the structural time-at-risk variable (`Time since stent implantation`).
+**Figure 3.** Primary effect sizes for continuous features with FDR q < 0.05. **Cohen's d (Welch) and Mann–Whitney r are different metrics and are not on one scale** — `WBC` r = 0.13 is not “smaller than” `LV` d = 1.13. The stored PNG plots them on one axis; read the `Effect size` column in Table 1, not bar length across tests. Grey highlighting (when present) marks the structural time-at-risk variable (`Time since stent implantation`).
 
 **Source file:** [paper_figures/paper_fig3_continuous_effect_sizes.png](paper_figures/paper_fig3_continuous_effect_sizes.png)
 
@@ -117,7 +117,7 @@ Rendered table image: [paper_figures/paper_table1_continuous_fdr.png](paper_figu
 
 ![Figure 4](paper_figures/paper_fig4_binary_odds_ratios.png)
 
-**Figure 4.** Univariate odds ratios (OR) for binary clinical/procedural indicators associated with VLST after FDR control. OR > 1 indicates higher odds of VLST when the feature is present.
+**Figure 4.** Univariate 2×2 odds ratios for binary indicators with FDR q < 0.05. OR > 1: higher odds of VLST when the flag is present. OR < 1: lower odds in this table, **not** a treatment benefit (confounding by indication).
 
 **Source file:** [paper_figures/paper_fig4_binary_odds_ratios.png](paper_figures/paper_fig4_binary_odds_ratios.png)
 
@@ -125,7 +125,7 @@ Rendered table image: [paper_figures/paper_table1_continuous_fdr.png](paper_figu
 
 Rendered table image: [paper_figures/paper_table2_binary_fdr.png](paper_figures/paper_table2_binary_fdr.png)
 
-**Table 2.** Binary predictors with FDR q < 0.05, showing OR, relative risk (RR), phi coefficient, VLST rates by feature level, raw p, and FDR q.
+**Table 2.** Binary associations with FDR q < 0.05. **OR is the 2×2 cross-product** (Fisher exact when the notebook chose Fisher; chi-square otherwise) — for `Previous PCI` this is **6.49**. This is not the univariate logistic OR in Table 4 (6.46) or the joint-domain univariate OR in Table S4 (6.73). Rates, RR, and phi use the same 2×2. OR < 1 is a **lower odds of recorded VLST** when the flag is 1, not a treatment benefit (confounding by indication).
 
 | Feature | Test | OR | RR | Phi | VLST% (1) | VLST% (0) | p | q (FDR) | Sig |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -150,7 +150,7 @@ Rendered table image: [paper_figures/paper_table2_binary_fdr.png](paper_figures/
 
 ![Figure 5](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
-**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after collapsing rare levels (n < 30) to `other`. Rates are descriptive; formal association testing is summarized in Table 3.
+**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after collapsing rare levels (n < 30) to `other` (**9 levels**). This is the EDA encoding. Part 2/4 one-hot the **raw 106 brand strings**; Part 5 codes brands as integers. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
 
 **Source file:** [paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
@@ -177,6 +177,8 @@ Rendered table image: [paper_figures/paper_table3_categorical.png](paper_figures
 Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png)
 
 **Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). Given ~92 events, EPV is low and the model is for screening/confounding context, not prediction. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
+
+**OR estimators (do not mix).** Table 4 “Univariate OR” is from this unweighted logit (one covariate at a time, same scaling). Table 2 OR is the **2×2 / Fisher** estimator. Supplementary Figure S4 “Univariate OR” is from the joint-domain specification. For `Previous PCI` those three numbers are **6.46 / 6.49 / 6.73**. OR < 1 for `1.1:1Post dilation` or `Clopidogrel` is not a treatment benefit.
 
 | Feature | Type | Univariate OR | Adjusted OR | 95% CI |
 | --- | --- | --- | --- | --- |
@@ -295,7 +297,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 ![Figure S4](paper_figures/domain_joint_uni_vs_multi_or.png)
 
-**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs. Continuous covariates are per 1 SD; time-since-stent is excluded. Same inferential note as Figure S3: stored figure is the old bootstrap run; current code uses unweighted Wald CIs (primary) plus a 2,000-replicate bootstrap robustness check. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model.
+**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs. Continuous covariates are per 1 SD; time-since-stent is excluded. Same inferential note as Figure S3: stored figure is the old bootstrap run; current code uses unweighted Wald CIs (primary) plus a 2,000-replicate bootstrap robustness check. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model. The “Univariate OR” column below is from **this joint-domain specification** (`Previous PCI` 6.73), not Table 2’s 2×2 OR (6.49) or Table 4’s univariate logit (6.46).
 
 | Feature | Domain | Univariate OR | Adjusted OR | OR lower | OR upper |
 | --- | --- | --- | --- | --- | --- |
@@ -314,7 +316,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 ### Supplementary Table S2. Exploratory interaction screen
 
-**Table S2.** Limited, clinically motivated pairwise interaction screen (likelihood-ratio test vs main-effects-only model). FDR q is computed among tested interactions only. With ~92 events, interactions are hypothesis-generating.
+**Table S2.** All **16** pairs from `domain_interaction_screen.csv` (likelihood-ratio test vs main-effects-only). FDR q is among these 16 tests only. With ~92 events, interactions are hypothesis-generating. Two pairs (LV × eGFR, Men × eGFR) have q < 0.05.
 
 | Pair | LR statistic | Interaction p | Interaction OR | q (FDR) |
 | --- | --- | --- | --- | --- |
@@ -326,6 +328,14 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Diabetes x HbA1c | 1.25 | 0.264 | 0.787 | 0.623 |
 | Men x Previous PCI | 1.19 | 0.274 | 0.442 | 0.623 |
 | LV x Previous PCI | 0.964 | 0.326 | 0.786 | 0.623 |
+| LV x Men | 0.873 | 0.350 | 1.17 | 0.623 |
+| DAPT x Diabetes | 0.428 | 0.513 | 1.49 | 0.821 |
+| No.of stents per lesion x Total stent length | 0.297 | 0.586 | 0.977 | 0.823 |
+| Previous PCI x eGFR | 0.186 | 0.667 | 1.19 | 0.823 |
+| 1.1:1Post dilation x Men | 0.131 | 0.718 | 0.786 | 0.823 |
+| 1.1:1Post dilation x Previous PCI | 0.129 | 0.720 | 1.46 | 0.823 |
+| 1.1:1Post dilation x LV | 0.020 | 0.888 | 0.974 | 0.912 |
+| 1.1:1Post dilation x eGFR | 0.012 | 0.912 | 0.979 | 0.912 |
 
 **Source file:** [paper_figures/domain_interaction_screen.csv](paper_figures/domain_interaction_screen.csv)
 

@@ -12,5 +12,5 @@ Clopidogrel,Medication,Full-cohort medication association; weak on a 28-event ho
 Diabetes,Comorbidity,Univariate FDR; multivariable CI includes 1; trees may split on labs instead
 PES,Stent type,Stent-polymer binary; collinear with Stent type-SES
 Multi-vessel CAD,Anatomy,Overlaps Single-vessel and 3-vessel; shared anatomical information
-Single-vessel disease,Anatomy,Protective complement of multi-vessel disease
+Single-vessel disease,Anatomy,"Complement of multi-vessel disease (same 2x2 as Multi-vessel CAD, inverted)"
 Stent type-SES,Stent type,Multi-level factor; one-hot encoding splits the signal across rare dummy columns
