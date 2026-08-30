@@ -334,28 +334,30 @@ misleading about the effort.
 | Coalition SHAP | Shapley decomposition of a metric, 12 permutations, 3 background draws | **32 test rows, of which 28 are cases (87.5% prevalence)** | L556, L561–567, L584 |
 | FFS | greedy forward addition | inner 20% hold-out of train (≈ 726 rows, ≈ 13 events), but confined to the LOCO top-30 pool | L621–634, L647 |
 
-Run configuration: `RUN_MODE = "smoke"`, `FEATURE_TOPK = 12`, `SHAP_UNIVERSE = 24`, `LOCO_MAX_FEATURES = 40`,
-`FFS_CANDIDATE_POOL = 30`, seven models, three objectives (`pr_auc`, `f1`, `f2`), 185 encoded columns.
+**Stored export** (figures still shown): top-12, SHAP universe 24, LOCO cap 40, FFS pool 30, three metrics.
+**Paper protocol** (current notebook, no smoke switch): top-20, SHAP 40/40/3, LOCO 60, FFS 24×12, PR-AUC only,
+400 rounds, seven models, 185 encoded columns.
 
 **Cites.** Table 4; Part 2's own tables to **Supplementary Tables S6–S8**.
 
 **Safe claims.** The mechanism of each selector; the within-model and cross-model intersections as *descriptive*
 results.
 
-**Requires confirmation — blocking (EM CONFIRM #6).** The **stored smoke figures** still have three defects
-(Part 2/3 markdowns now disclose them). The **notebook code** has been changed but not re-run:
+**Requires confirmation — blocking (EM CONFIRM #6).** The **stored figures** are a prior reduced export and
+still have three defects (Part 2/3 markdowns now disclose them). The **notebook** is the paper protocol but
+has not been re-run:
 1. **Stored LOCO pool is not a ranking.** The executed run used the first 40 `ColumnTransformer` columns
    (23 continuous, then the first 17 binaries). Current code ranks that cap by train importance.
-2. **Stored LOCO/SHAP scored on the test set.** Current code scores on an inner hold-out of train.
+2. **Stored LOCO/SHAP scored on the test set.** Current code scores on a val slice of the full cohort (no unused outer test).
 3. **Stored SHAP value function used an 87.5%-positive sample** (28 test events + 4 controls). Current code
-   draws a stratified inner-val sample at train prevalence.
+   draws a stratified val sample at cohort prevalence.
 
-Until Kaggle re-export, report Parts 2 and 3 as exploratory discovery on the old smoke run.
+Until Kaggle re-export, do not quote Parts 2 and 3 as the paper result.
 **The paper must not describe these features as "validated" or "required by the model".**
 
-Also: disclose `RUN_MODE = "smoke"` and its cost — 12 Shapley permutations with 3 background draws, Monte-Carlo
-error unquantified, no seed-stability check (EM §12.8). And correct Part 2 Table 0, which states CatBoost used
-"Ordered boosting"; the factory sets `task_type="GPU"`, where CatBoost supports only **Plain** (EM §12.7).
+Do not ship a smoke switch in the methods notebook (removed). After the paper-protocol run, replace the
+figures. Correct Part 2 Table 0 if it still says CatBoost used "Ordered boosting"; the factory sets
+`task_type="GPU"`, where CatBoost supports only **Plain** (EM §12.7).
 
 ### 2.7 TabPFN
 

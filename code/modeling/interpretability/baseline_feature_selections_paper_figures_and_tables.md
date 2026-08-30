@@ -1,14 +1,14 @@
 # Classic-model feature selection — paper figures and tables
 
-This document gathers publication-oriented figures and tables from the multi-model feature selectors in [baseline_feature_selections.ipynb](baseline_feature_selections.ipynb).
+This document gathers publication-oriented figures and tables from the multi-model feature selectors in `baseline_feature_selections.ipynb`.
 
-**Cohort / protocol.** Same VLST records, n = 5,185, stratified 70/30 (`random_state=42`): train 3,629 (64 events) / test 1,556 (28 events). Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). Models use the **scaled** view: `ColumnTransformer` one-hots the **raw 106** `Stent type-SES` strings (EDA instead collapses to 9 levels) and then `StandardScaler` → **185 columns**. Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. The stored notebook run is `RUN_MODE="smoke"` with **top-12** features per model × selector × metric. TabPFN was configured but **unavailable** in that run. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`, 200/400 rounds) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
+**Cohort / protocol.** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol** (current code; figures below are not yet this run): no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE` of the full cohort, `random_state=42`); **PR-AUC only**; LOCO / SHAP / FFS independent; top-20; SHAP universe 40 / 40 permutations / 3 background draws; LOCO cap 60; FFS pool 24 × 12 steps with early stop; boosting 400 rounds. Models use the **scaled** view: `ColumnTransformer` one-hots the **raw 106** `Stent type-SES` strings (EDA instead collapses to 9 levels) and then `StandardScaler` → **185 columns**. Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. TabPFN may be configured but is optional. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
 
-**Methods note — stored figures vs current code.** Figures and tables below are the **stored smoke run**. In that run, LOCO’s 40-column cap was the first 40 columns in **ColumnTransformer output order** (23 continuous, then the first 17 binaries); SHAP’s coalition metric used **all 28 test events plus 4 random controls** (87.5% prevalence). The notebook **code** has since been changed (not re-run): selectors score on an inner hold-out of train (`INNER_VAL_SIZE=0.2`, `y_test` unused); the LOCO cap is cheap **train** importance, not column order; SHAP draws a stratified inner-val sample at train prevalence. Do not read these figures as if they already used the new protocol.
+**Methods note — stored figures vs paper protocol.** Figures and tables below are a **prior reduced export** and must be replaced after the paper-protocol Kaggle run. In that export, selectors scored on a 1,556-row / 28-event **test** fold; LOCO’s 40-column cap was ColumnTransformer **output order**; SHAP and FFS nested in that pool; SHAP used **all 28 test events plus 4 random controls** (87.5% prevalence); metrics were `pr_auc`, `f1`, `f2`; top-12. Do not quote these figures as the paper result.
 
-**Selectors (intent of the current code; figures are the old run).** LOCO = drop-one and refit, scored on the inner hold-out. Coalition SHAP and FFS are nested in LOCO’s top pool as a **compute cap**, not because those models “read LOCO’s answer.” Objectives: `pr_auc`, `f1`, `f2` — **PR-AUC is the ranking metric aligned with Part 4**; F1/F2 are extra operating-point views, not inferential tests. Wald / GLM standard errors are not applicable to tree selectors. These catalogues do **not** feed Part 4 (nested-CV uses all 81 raw features, not this 185-column mask). SMOTE is not used.
+**Selectors (intent of the current code; figures are the old run).** LOCO = drop-one and refit on the val slice. Coalition SHAP = permutation coalitions on a cheap-importance universe (not LOCO’s names). FFS = greedy forward search on its own cheap-importance pool. Objective: **`pr_auc` only**. Wald / GLM standard errors are not applicable to tree selectors. These catalogues do **not** feed Part 4 (nested-CV uses all 81 raw features, not this 185-column mask). SMOTE is not used.
 
-**Asset root:** [paper_figures/](paper_figures/) (also at `data/result/model_feature_selectors/`)
+**Asset root:** [paper_figures/](paper_figures/)
 
 ---
 
@@ -38,7 +38,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 | lr | Logistic regression | Linear | No | L2-penalized log-odds (C=2, balanced); additive on scaled features |
 | rf | Random forest | Bagged trees | No | 500 deep trees, class_weight=balanced_subsample |
 | rf_b | Random forest (subsample) | Bagged trees | No | Same as RF with max_samples=0.88 |
-| cat | CatBoost | Boosting | Yes | Ordered boosting, balanced class weights |
+| cat | CatBoost | Boosting | Yes | GPU **Plain** boosting (`task_type=GPU`; Ordered is CPU-only); `eval_metric=PRAUC`; balanced class weights |
 | xgb | XGBoost | Boosting | Yes | scale_pos_weight for VLST imbalance |
 | xgb_b | XGBoost (subsample) | Boosting | Yes | Lower subsample / colsample_bytree (0.78) |
 | lgb | LightGBM | Boosting | Yes | Leaf-wise growth, balanced class weights |
@@ -55,7 +55,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 ## 2. How much each selector keeps
 
-LOCO is run on a capped pool (`LOCO_MAX_FEATURES=40` in smoke mode), so every model reports **40** unique LOCO features once all three metrics are pooled. SHAP and FFS are nested inside that pool (SHAP universe 24; FFS candidate pool 30; both take top-12 per metric), so they keep fewer unique names.
+In the **prior export** shown here, LOCO used a 40-column ColumnTransformer-order cap, so every model reports **40** unique LOCO features once the three old metrics are pooled. SHAP and FFS were nested inside that pool (universe 24 / candidate pool 30; top-12 per metric). The paper protocol instead uses independent cheap-importance pools (LOCO 60 / SHAP 40 / FFS 24) and PR-AUC only.
 
 ### Figure 1. Unique selected features by classic model and selector
 
@@ -320,4 +320,4 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list against each model
 
 ---
 
-*Numbers are taken from the executed outputs currently stored in `baseline_feature_selections.ipynb` (Kaggle smoke run, seven classic models, top-12).*
+*Numbers below are from a prior reduced export stored in `baseline_feature_selections.ipynb` (seven classic models, top-12, three metrics). They are not the paper protocol. Re-run the notebook, then replace these figures.*

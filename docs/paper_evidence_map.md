@@ -4,7 +4,7 @@
 repository, with its exact provenance. Nothing here is new analysis. Where the repository does not contain something,
 this document says so explicitly rather than filling the gap.
 
-**Revision 2.** This version applies four author scope decisions (§0) and re-resolves every code-vs-Markdown
+**Revision 2.** This version applies three author scope decisions (§0) and re-resolves every code-vs-Markdown
 conflict in the code's favour. Numbers that changed as a result are flagged in place.
 
 **Revision 3.** Cohort provenance is no longer a repository-only problem. Wang et al., *Sci Rep* 2020;10:6378
@@ -17,12 +17,15 @@ explicitly.
 *code* on methodology. Imputers are described as inert (no missing values). Part 4 now states the unequal
 feature view (classics ~186 scaled one-hot columns vs TabPFN raw 81) and that GridSearch winners are not
 imported. Part 5 now states MI/SFS = full cohort, SHAP = 15 VLST cases by construction, shapiq `imputer` ≠
-NaN fill, and `balance_probabilities=True` (not absolute risk). Part 2/3 now distinguish the **stored smoke
-run** (column-order LOCO pool; 87.5% SHAP sample) from **current selector code** (inner-val; train-importance
-pool). Part 3 no longer says the LVEF adjusted OR “persists.” Exported Part 4 PNGs remain **[STALE]** for
-TabPFN Brier / confusion counts; captions now quote the notebook.
+NaN fill, and `balance_probabilities=True` (not absolute risk). Part 2/3 now distinguish the **prior reduced export**
+(column-order LOCO pool; 87.5% SHAP sample) from the **paper-protocol selector code** (full-cohort fit/val;
+independent cheap-importance pools; PR-AUC only; no unused outer test; no smoke switch). Part 3 no longer says the LVEF adjusted OR “persists.” Exported Part 4 PNGs remain **[STALE]** for
+TabPFN Brier / confusion counts; captions now quote the notebook. Section C wording (C1–C16) is rewritten in
+the reports: no “protective” claims; CatBoost is GPU Plain + PRAUC; mixed d/r, three Previous-PCI ORs, and
+three SES encodings are labelled rather than silently mixed; Table S2 lists all 16 pairs. PNG re-exports that
+would split Figure 3 or unify SES encoding remain on the B list.
 
-**Audit scope.** The paper-style Markdown reports, both copies of each (`paper_results/`** and `code/**`), the
+**Audit scope.** The paper-style Markdown reports, both copies of each (`paper_results/`** and `code/`**), the
 root `README.md`, the raw data file `data/raw/VLST.csv`, and the executed notebook outputs. Notebook code and outputs
 were extracted to plain text under `.nbdump/` for line-addressable citation; the mapping is
 `code/<path>/<name>.ipynb` → `.nbdump/code__<path>__<name>.txt`.
@@ -41,8 +44,6 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 
 
 ---
-
-
 
 ## Contents
 
@@ -63,23 +64,16 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 
 ---
 
-
-
 ## 0. Scope in force
 
-
-
-### 0.1 The four decisions
+### 0.1 The three decisions
 
 
 | #      | Decision                                                                                                                                                                                                                                                                                         | Effect on this audit                                                                                                                                                               |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **D1** | `code/failed_hypothesis/`** **is out of scope** — all ten notebooks (`anomaly_detection`, `baseline_blending`, `baseline_plus_tabpfn_blending`, `ffs`, `fp_precision_mining`, `llm_tabular_small_n`, `tabpfn_5fold_fp_mining`, `tabpfn_fp_followup`, `tabpfn_oversampling`, `tabpfn_synthesis`). | The selective-reporting finding built on this directory is **withdrawn** (§12.11).                                                                                                 |
 | **D2** | **TabPFN comes from exactly two notebooks:** `rating/baseline_plus_tabpfn.ipynb` (performance) and `interpretability/tabpfn_interpretability.ipynb` (interpretability). `rating/tabpfn_playground.ipynb` is out of scope.                                                                        | No other file may be cited for a TabPFN number.                                                                                                                                    |
-| **D3** | `analyzes/causal_analysis.ipynb` **is out of scope** — not needed for paper results.                                                                                                                                                                                                             | No causal/ATE/ATT claim enters the paper. Rationale recorded in §5.10.                                                                                                             |
 | **D4** | **The Markdown reports remain part of the analysis and are read on their merits — but where a report and the code disagree, the code is authoritative.**                                                                                                                                         | Every `[DISCREPANCY]` below now carries an explicit resolution. Reports still count as the source for *reasoning, framing and caveats*; the notebooks are the source for *values*. |
-
-
 
 
 ### 0.2 The seven in-scope notebooks
@@ -96,7 +90,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | 7   | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | artefacts unused by any analysis (§12.5)   |
 
 
-Twelve of the nineteen notebooks on disk are excluded by D1–D3 and are not audited.
+Eleven notebooks on disk are excluded by D1–D2 and are not audited (ten under `failed_hypothesis/`, plus `tabpfn_playground.ipynb`). D4 is a reading rule, not an exclusion.
 
 ### 0.3 Part 3 now has generating code
 
@@ -111,11 +105,7 @@ Generating code: `code/analyzes/stats_vs_ml/rebuild_comparison.py`, invoked by
 
 ---
 
-
-
 ## 1. Clinical and scientific motivation
-
-
 
 ### What the repository actually states
 
@@ -153,8 +143,6 @@ high risk of VLST so that intensive follow-up and treatment choices after year 1
 | Pre-registration         | Cohort study **NCT03491891**; ethics NO. 2013-256, both hospitals                                                                                       | The *cohort* was pre-registered. The TabPFN analysis was not. Do not imply otherwise              |
 
 
-
-
 ### [GAP] Motivation this repository still does not contain
 
 - Why a tabular foundation model (TabPFN) is a reasonable choice for a rare-event tabular problem.
@@ -163,11 +151,7 @@ high risk of VLST so that intensive follow-up and treatment choices after year 1
 
 ---
 
-
-
 ## 2. Dataset, target, event count, prevalence
-
-
 
 ### 2.1 Verified from the raw file
 
@@ -197,12 +181,12 @@ rows of Part 4 (§12.2) and the handful of narrative claims listed in §13.C.
 ### 2.2 Events per variable
 
 
-| Comparison                                   | Value              | Consequence                                                           |
-| -------------------------------------------- | ------------------ | --------------------------------------------------------------------- |
-| Events / candidate features (81)             | 92 / 81 ≈ **1.14** | Far below any conventional threshold                                  |
-| Events / multivariable-model covariates (17) | 92 / 17 ≈ **5.4**  | Below the conventional EPV ≥ 10 rule                                  |
-| Events in the 30% hold-out test set          | **28**             | Feature-selection metrics in Part 2 are estimated on 28 events        |
-| Events per outer CV fold (Part 4)            | 18, 18, 18, 19, 19 | `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1030–1060 |
+| Comparison                                   | Value              | Consequence                                                                                                        |
+| -------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Events / candidate features (81)             | 92 / 81 ≈ **1.14** | Far below any conventional threshold                                                                               |
+| Events / multivariable-model covariates (17) | 92 / 17 ≈ **5.4**  | Below the conventional EPV ≥ 10 rule                                                                               |
+| Events in the stored Part 2 test fold        | **28**             | Stored figures scored on 28 events. Current code uses a full-cohort val slice (~18 events at `INNER_VAL_SIZE=0.2`) |
+| Events per outer CV fold (Part 4)            | 18, 18, 18, 19, 19 | `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1030–1060                                              |
 
 
 **[RISK]** The EDA Markdown says the multivariable model "is sparse and intended for screening/confounding context"
@@ -239,11 +223,7 @@ follow-up. It is **not** a sampling fraction. See the revised §4.2.
 
 ---
 
-
-
 ## 3. Variable dictionary
-
-
 
 ### 3.1 Domain assignment as used by the analysis
 
@@ -327,11 +307,7 @@ post-dilation complement pair **and** three encodings of renal function simultan
 
 ---
 
-
-
 ## 4. Leakage and quasi-leakage variables
-
-
 
 ### 4.1 `Time since stent implantation` — confirmed structural leakage, correctly excluded
 
@@ -443,9 +419,10 @@ exclusion from Wang's Cox model in Discussion.
 ### 4.4 Analysis-induced leakage in Part 2 (feature selection)
 
 **Code fix applied; not yet re-run.** The stored Part 2 figures/tables and the Part 3 consensus still come from
-the test-scored smoke run below. `baseline_feature_selections.ipynb` now scores LOCO / SHAP / FFS on an inner
-hold-out of *train* (`INNER_VAL_SIZE=0.2`), ranks the LOCO cap by cheap train importance (not column order), and
-sets `USE_CACHE=False`. Re-run on Kaggle, then rebuild Part 3 from the new catalogues.
+the prior reduced export below. `baseline_feature_selections.ipynb` is now a **single paper protocol**
+(no smoke switch): **full cohort** (no parked 70/30 test), **PR-AUC only**, LOCO / SHAP / FFS **independent**
+(each takes its own cheap fit-slice importance pool). Budget: top-20, SHAP 40/40/3, LOCO cap 60,
+FFS `24 × 12` with early stop, 400 boosting rounds. `USE_CACHE=False`. Re-run on Kaggle, then rebuild Part 3.
 
 Historical (stored) leak, for provenance of current figures:
 
@@ -476,32 +453,27 @@ protocol paragraph.
 
 ---
 
-
-
 ## 5. The analysis pipeline as actually implemented
-
-
 
 ### 5.1 Notebook inventory (in scope only)
 
 
-| Stage                                | Notebook                                                           | Reported in                            |
-| ------------------------------------ | ------------------------------------------------------------------ | -------------------------------------- |
-| Statistical EDA                      | `code/analyzes/eda.ipynb`                                          | Part 1                                 |
-| Classic-ML feature selection         | `code/modeling/interpretability/baseline_feature_selections.ipynb` | Part 2                                 |
+| Stage                                | Notebook                                                                             | Reported in                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------- |
+| Statistical EDA                      | `code/analyzes/eda.ipynb`                                                            | Part 1                                 |
+| Classic-ML feature selection         | `code/modeling/interpretability/baseline_feature_selections.ipynb`                   | Part 2                                 |
 | Stats-vs-ML comparison               | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb` (+ `rebuild_comparison.py`) | Part 3                                 |
-| Nested-CV baselines + TabPFN         | `code/modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4                                 |
-| TabPFN interpretability              | `code/modeling/interpretability/tabpfn_interpretability.ipynb`     | Part 5                                 |
-| Leaky baselines (with TSSI)          | `code/modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 Table S-TSSI                    |
-| Baselines without TSSI, single split | `code/modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 Table S-TSSI                    |
-| Preprocessing artefacts              | `code/modeling/preprocessing/preprocessing.ipynb`                  | not reported; artefacts unused (§12.5) |
+| Nested-CV baselines + TabPFN         | `code/modeling/rating/baseline_plus_tabpfn.ipynb`                                    | Part 4                                 |
+| TabPFN interpretability              | `code/modeling/interpretability/tabpfn_interpretability.ipynb`                       | Part 5                                 |
+| Leaky baselines (with TSSI)          | `code/modeling/rating/baseline_tssi_leakage.ipynb`                                   | Part 4 Table S-TSSI                    |
+| Baselines without TSSI, single split | `code/modeling/rating/baseline_without_tssi.ipynb`                                   | Part 4 Table S-TSSI                    |
+| Preprocessing artefacts              | `code/modeling/preprocessing/preprocessing.ipynb`                                    | not reported; artefacts unused (§12.5) |
 
 
-Excluded by D1–D3 and not audited: the ten `code/failed_hypothesis/*.ipynb`, `rating/tabpfn_playground.ipynb`,
-and `analyzes/causal_analysis.ipynb`.
+Excluded by D1–D2 and not audited: the ten `code/failed_hypothesis/*.ipynb` and `rating/tabpfn_playground.ipynb`.
 
-**Selective-reporting finding withdrawn.** Revision 1 raised a `[RISK — selective reporting]` because twelve of
-nineteen notebooks were unreported. D1–D3 declare those twelve out of scope, so the previous framing — that the
+**Selective-reporting finding withdrawn.** Revision 1 raised a `[RISK — selective reporting]` because exploratory
+notebooks were unreported. D1–D2 declare those out of scope, so the previous framing — that the
 reported TabPFN advantage "cannot be distinguished from selection over many attempts" — is withdrawn. See §12.11
 for what remains of it (one sentence, not a table).
 
@@ -517,14 +489,12 @@ Applied to 24 continuous variables. **[VERIFIED]** against
 58 binary, 1 categorical), not globally. `Time since stent implantation` is included in the continuous family,
 which shifts every other continuous q-value.
 
-
-
 ### 5.3 "Bivariate" feature extraction
 
 **Resolved.** No extra extraction step. Three layers already exist in `eda.ipynb` and are now named in Part 1 §6:
 
 - **Predictor × VLST** — the FDR screens of §5.2 (called “univariate” because each test has one predictor). This is the discovery catalogue.
-- **Feature × feature** — Pearson/Spearman heatmaps (`03_*`, now Supplementary Figure S5) and domain Spearman clustermaps (Figure S2). Multicollinearity / clustering, not a second FDR set.
+- **Feature × feature** — Pearson/Spearman heatmaps (`03_`*, now Supplementary Figure S5) and domain Spearman clustermaps (Figure S2). Multicollinearity / clustering, not a second FDR set.
 - **Pair × VLST** — the limited interaction screen of §5.5 (Table S2).
 
 The correlation heatmap is admissible as bivariate analysis of *feature–feature* structure. It is not a substitute for the Welch / Mann–Whitney / Fisher screens.
@@ -534,8 +504,8 @@ The correlation heatmap is admissible as bivariate analysis of *feature–featur
 Implementation, from `.nbdump/code__analyzes__eda.txt`:
 
 
-| Element            | Value                                                                                                                             | Line            |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Element            | Value                                                                                                             | Line                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------- |
 | Estimator          | `statsmodels.Logit` unweighted MLE (sklearn `class_weight` removed from this table)                               | `eda.ipynb` 10f / 10g-3 |
 | Regularisation     | None (unpenalised MLE); previously sklearn `C=1e6` near-unpenalised ridge                                         | superseded              |
 | Class weighting    | **Not used** for ORs. Reserved for Part 2/4 predictive models                                                     | —                       |
@@ -564,8 +534,6 @@ selected by correlation clustering; bootstrap 95% CIs (`.nbdump/code__analyzes__
 main-effects model, BH-FDR **within those 16 only**. LR tests now use the same unweighted `statsmodels.Logit`
 as the OR tables.
 
-
-
 ### 5.6 Classic ML baselines
 
 Two distinct baseline exercises exist and must not be conflated:
@@ -575,27 +543,28 @@ Two distinct baseline exercises exist and must not be conflated:
 2. **Nested-CV baselines** (`baseline_plus_tabpfn.ipynb`, Part 4): 5 outer × 4 inner folds, 5 classic models
   - TabPFN, **no hyperparameter tuning** (see §6.3).
 
-
-
 ### 5.7 Classic ML feature selection (Part 2)
 
 - Feature view: raw one-hot of all 81 columns → **185 columns**
 (`.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L223).
-- Run mode: `RUN_MODE = "smoke"` with `FEATURE_TOPK = 12`, `SHAP_UNIVERSE = 24`, `LOCO_MAX_FEATURES = 40`,
-`FFS_CANDIDATE_POOL = 30`, `SHAP_N_PERM = 12`, `SHAP_N_INSTANCES = 32`, `SHAP_N_BACKGROUND = 32` (L90–97).
+- **Stored export** (figures still shown): top-12, SHAP universe 24 / 12 perms, LOCO cap 40, FFS pool 30.
+- **Paper protocol** (current code, not re-run): `FEATURE_TOPK = 20`, `SHAP_UNIVERSE = 40`, `SHAP_N_PERM = 40`,
+`LOCO_MAX_FEATURES = 60`, `FFS_CANDIDATE_POOL = 24`, `FFS_MAX_STEPS = 12`, 400 boosting rounds. No `RUN_MODE`.
 - Seven classic models: `lr`, `rf`, `rf_b`, `cat`, `xgb`, `xgb_b`, `lgb`. TabPFN was configured but unavailable
 in the stored run (L446–447).
 - Three objectives: `pr_auc`, `f1`, `f2`.
 
-**[CRITICAL — stored LOCO is not a ranking; code has changed]** The **stored smoke dump** set
+**[CRITICAL — stored LOCO is not a ranking; code has changed]** The **prior reduced dump** set
 `order = list(range(n))` then truncated to the first 40 (old L524–526): the first 40 **columns in
 ColumnTransformer output order**. Every published "ML consensus" name in Parts 2 and 3 is still from that
-prefix. The **current** notebook ranks the cap by cheap train importance and scores on an inner hold-out of
-train. Not re-run. Part 2/3 markdowns now say so; Figure 1's caption no longer reads the 40-cap as a finding.
+prefix. The **current** notebook ranks each selector’s own pool by cheap fit-slice importance (SHAP/FFS no
+longer nest in LOCO), scores **PR-AUC only** on a val slice of the **full** cohort, and caps FFS at 16×8
+with early stop. Not re-run. Part 2/3 markdowns now say so; Figure 1's caption no longer reads the 40-cap
+as a finding.
 
 **[CRITICAL — stored SHAP sample is 87.5% positive; code has changed]** The stored `run_shap` used all 28 test
 positives plus 4 random negatives, then scored PR-AUC/F1/F2 on those 32 rows. Current code uses a stratified
-inner-val sample at train prevalence. Not re-run. Part 2 markdown now discloses the stored sample.
+val sample at cohort prevalence. Not re-run. Part 2 markdown now discloses the stored sample.
 
 ### 5.8 TabPFN (Part 4)
 
@@ -605,8 +574,6 @@ inner-val sample at train prevalence. Not re-run. Part 2 markdown now discloses 
 including the 106-level `Stent type-SES` string column, while the classic models receive **scaled + one-hot**
 input (imputers in that transformer are inert). See §6.4. **[REV4]** disclosed in Part 4 Methods.
 - 25 TabPFN fits total (5 outer × [4 inner + 1 outer]); the first inner fit took 24 min 38 s (L327–330).
-
-
 
 ### 5.9 TabPFN interpretability (Part 5)
 
@@ -618,7 +585,7 @@ input (imputers in that transformer are inert). See §6.4. **[REV4]** disclosed 
 | PDP                 | 4 continuous (grid 30) + 6 binary (0 vs 1); fit on 70% train, evaluated on the frame | local TabPFN                      | L755–797                                        |
 | SHAP (shapiq SV)    | **15 explained rows**, budget 256, baseline imputer                                  | local TabPFN after client failure | L1042–1130                                      |
 | k-SII / SHAP-IQ     | **one** row (`X_explain[0]`), budget 256                                             | local TabPFN after client failure | L1213                                           |
-| Consensus           | Borda mean of normalised ranks over MI + stability + mean|SHAP|                      | aggregate                         | Part 5 Table 5                                  |
+| Consensus           | Borda mean of normalised ranks over MI + stability + mean                            | SHAP                              |                                                 |
 
 
 **[CRITICAL — the 15 SHAP rows are all VLST cases]** The explained set is built as
@@ -641,26 +608,7 @@ wording; **[TODO-PDP]** remains only if a paper draft still quotes 0.24 as absol
 Verified: `balance_probabilities=True` appears at L610, L774, L1067, L1087, L1107, L1415, L1433 and L1453 — every
 TabPFN instantiation in the notebook, with no exceptions.
 
-### 5.10 Why excluding the causal analysis (D3) is the right call
-
-Recorded so the decision is defensible if a reviewer asks why no causal analysis appears. `causal_analysis.ipynb`
-was fully executed, but as configured it could not have supported a claim:
-
-
-| Element        | Value                                                                                               | Source (`.nbdump/code__analyzes__causal_analysis.txt`) |
-| -------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Exposure       | `Current drinking` — univariately null (OR 0.981)                                                   | L360                                                   |
-| Exposed cases  | **13**                                                                                              | L393–401                                               |
-| Adjustment set | 80 covariates auto-selected as "all numeric columns", **including** `Time since stent implantation` | L371–379, L399                                         |
-| Estimates      | IPTW ATE 0.0021, IPTW ATT 0.0031, PSM ATT 0.0052, **AIPW ATE 0.0158**                               | L665–671                                               |
-| Uncertainty    | **none** — no SEs, no bootstrap, no CIs                                                             | whole notebook                                         |
-
-
-The adjustment set contains the structural-leakage column from §4.1; AIPW disagrees with IPTW by ~7× with no
-interval to judge it; and 13 exposed events cannot support an 80-covariate propensity model. The notebook's own
-header calls itself a template with a default exposure. Excluding it is correct.
-
-### 5.11 The published clinical baseline is not in this repository
+### 5.10 The published clinical baseline is not in this repository
 
 Wang 2020's VLST score is an 8-variable Cox model (DM, previous PCI, AMI as admitting diagnosis, eGFR < 90,
 3-vessel disease, number of stents per lesion, SES, no post-dilation), derivation c-statistic 0.80 (cross-validated
@@ -670,25 +618,22 @@ TabPFN vs untuned sklearn defaults, not TabPFN vs the score already published on
 
 ---
 
-
-
 ## 6. Data splits and validation procedures
-
-
 
 ### 6.1 Three different splitting schemes are in use
 
 
-| Scheme                             | Where                                            | Details                                                                                                                               |
-| ---------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **A. 70/30 stratified hold-out**   | `preprocessing.ipynb`, Part 2, Part 5            | `train_test_split(test_size=0.3, stratify=y, random_state=42)` → train 3,629 (64 events) / test 1,556 (28 events)                     |
-| **B. Nested 5×4 stratified CV**    | Part 4                                           | Outer `StratifiedKFold(5, shuffle=True, random_state=42)`; inner `StratifiedKFold(4, shuffle=True, random_state=10_000 + outer_fold)` |
-| **C. Single 70/30 + GridSearchCV** | `baseline_tssi_leakage`, `baseline_without_tssi` | Not reported in any Markdown                                                                                                          |
+| Scheme                             | Where                                                 | Details                                                                                                                                              |
+| ---------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A. 70/30 stratified hold-out**   | `preprocessing.ipynb`, Part 5 (stored Part 2 figures) | `train_test_split(test_size=0.3, stratify=y, random_state=42)` → train 3,629 (64 events) / test 1,556 (28 events)                                    |
+| **B. Nested 5×4 stratified CV**    | Part 4                                                | Outer `StratifiedKFold(5, shuffle=True, random_state=42)`; inner `StratifiedKFold(4, shuffle=True, random_state=10_000 + outer_fold)`                |
+| **C. Single 70/30 + GridSearchCV** | `baseline_tssi_leakage`, `baseline_without_tssi`      | Not reported in any Markdown                                                                                                                         |
+| **D. Full-cohort fit / val**       | Part 2 **current code**                               | One stratified split of all 5,185 rows (`INNER_VAL_SIZE=0.2`, `random_state=42`) → ~4,148 fit / ~1,037 val (~74 / ~18 events). No unused outer test. |
 
 
-**[VERIFIED]** Scheme A produces identical counts in `preprocessing.ipynb` and in
-`baseline_feature_selections.ipynb`, which asserts them explicitly
-(`.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L259, L267).
+**[VERIFIED]** Scheme A produces identical counts in `preprocessing.ipynb` and in the **stored** Part 2 dump
+(`.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L259, L267). Current Part 2
+**code** is scheme D (full-cohort fit/val). Not re-run.
 
 ### 6.2 What the inner loop of the nested CV actually does
 
@@ -715,8 +660,8 @@ paper states plainly that the nesting is for **threshold** selection.
 (`baseline_plus_tabpfn.ipynb` fit cell). No grid, no random search inside the nested loop.
 - **TabPFN** (client) still runs with `thinking_mode=True, thinking_effort="high"` — constructor unchanged.
 - **TabPFN (local)** is now a seventh arm in the same notebook (`from tabpfn import TabPFNClassifier`,
-  no thinking). Toggle `RUN_MODELS` to run only that arm. **Not yet executed**; stored OOF/figures remain
-  the six-model thinking-high run.
+no thinking). Toggle `RUN_MODELS` to run only that arm. **Not yet executed**; stored OOF/figures remain
+the six-model thinking-high run.
 
 Comparing an untuned default RandomForest / LogisticRegression against a high-effort TabPFN and concluding
 "TabPFN dominates" is **not a fair comparison**. Nothing in Part 4 discloses that the baselines are untuned.
@@ -773,11 +718,7 @@ has an external cohort this analysis did not use.
 
 ---
 
-
-
 ## 7. Every reported metric
-
-
 
 ### 7.1 Part 4 — nested-CV ranking metrics (the paper's headline results)
 
@@ -909,8 +850,6 @@ Sources: `.nbdump/code__modeling__rating__baseline_tssi_leakage.txt` L797–817;
 | LightGBM            | 0.9981 / 0.9412 / 0.8889 / 1.0000 / 0.9989 / 0.9708    | 0.9865 / 0.5625 / 0.5000 / 0.6429 / 0.9483 / 0.6018       |
 
 
-
-
 ### 7.6 Part 1 — statistical effect estimates
 
 **Continuous, FDR q < 0.05** (`paper_table1_continuous_univariate.csv`; full-cohort n = 5,185):
@@ -1029,7 +968,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 | Are they compared with identical tuning effort?                 | **No.** Classic models are untuned defaults; TabPFN uses high-effort thinking mode.                                                                                                                                                                                                                                                           |
 | Are they compared on identical feature representations?         | **No.** TabPFN bypasses the ColumnTransformer.                                                                                                                                                                                                                                                                                                |
 | Are the Part 4 operating-point metrics unbiased?                | **No** — threshold selected on the evaluation labels. Honest version exists (§7.3).                                                                                                                                                                                                                                                           |
-| Is Part 2 comparable with Part 4?                               | **No.** Part 2 uses a single 70/30 split, 185 encoded columns, seven differently configured models, and test-set-based selection.                                                                                                                                                                                                             |
+| Is Part 2 comparable with Part 4?                               | **No.** Stored Part 2 is a prior reduced 70/30 test-scored export. Paper-protocol Part 2 is a full-cohort fit/val discovery split, 185 encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
 | Is Part 5 comparable with Part 4?                               | **No.** Part 5 uses local TabPFN with `balance_probabilities=True`; Part 4 uses the client with thinking mode and no probability balancing. Different models, different output scales.                                                                                                                                                        |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
 | Are univariate ORs consistent across tables?                    | **No.** See §12.4.                                                                                                                                                                                                                                                                                                                            |
@@ -1037,11 +976,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 
 ---
 
-
-
 ## 8. Feature sets produced by each method
-
-
 
 ### 8.1 EDA / statistical (univariate FDR q < 0.05)
 
@@ -1074,8 +1009,6 @@ not an importance ranking.
 - Cross-model intersection (present in all 7 models' top-12): PR-AUC → `LV`, `eGFR`; F1 → `LV`, `eGFR`;
 F2 → `LV`.
 
-
-
 ### 8.4 Coalition SHAP (Part 2)
 
 - Universe: LOCO top-24 (nested inside the arbitrary 40).
@@ -1084,16 +1017,12 @@ averaged over 3 background draws, 12 permutations.
 - Unique names per model: 30–36.
 - Cross-model intersection: PR-AUC → `LV`; F1 → `eGFR`; F2 → `LV`, `WBC`.
 
-
-
 ### 8.5 FFS (Part 2)
 
 - Candidate pool: LOCO top-30.
 - Greedy forward addition, scored on an inner 20% hold-out of the training set (≈ 726 rows, ≈ 13 events).
 - Unique names per model: 18–24 (sparsest of the three selectors).
 - Cross-model intersection: PR-AUC → `Cre`; F1 → `WBC`; F2 → `WBC`.
-
-
 
 ### 8.6 Classic-model consensus (Part 2 Table 2 and Table 4)
 
@@ -1144,7 +1073,6 @@ Part 2 correctly notes (L140).
 
 **Binary PDP, balanced-prior scale, not absolute risk** (`paper_table3_pdp_binary.csv`):
 
-
 | Feature            | P(y=1 | 0) | P(y=1 | 1) | ΔP      |
 | ------------------ | ---------- | ---------- | ------- |
 | 1.1:1Post dilation | 0.2643     | 0.1781     | −0.0862 |
@@ -1153,7 +1081,6 @@ Part 2 correctly notes (L140).
 | CKD60              | 0.1359     | 0.1234     | −0.0124 |
 | Staged PCI         | 0.1334     | 0.1303     | −0.0031 |
 | EVS                | 0.1328     | 0.1354     | +0.0026 |
-
 
 **Borda consensus, top 15** (`paper_table5_consensus.csv`): `LV` 0.9875 (3/3), `WBC` 0.9750 (3/3),
 `eGFR` 0.9667 (3/3), `Stent type-SES` 0.9625 (3/3), `No postdilation` 0.9208 (3/3),
@@ -1174,8 +1101,6 @@ Present in the statistical FDR set, the classic-ML consensus, **and** the TabPFN
 measurement timing is undocumented.
 
 ---
-
-
 
 ## 9. Overlap and disagreement: statistics vs machine learning
 
@@ -1236,17 +1161,15 @@ sentence about statistics-only features, not bury it in a methods note.
 ### 9.4 ML-only (15) — the repository's own explanations, audited
 
 
-| Feature                                                                                         | Univariate status         | Repository's stated reason                                                | Assessment                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cre                                                                                             | p = 0.88 (MW r = 0.002)   | Renal surrogate for eGFR                                                  | Plausible; note `Cre` skew = 7.48, kurtosis = 161                                                                                                                                              |
-| Men                                                                                             | p = 0.27                  | `Men × eGFR` interaction is FDR-significant; joint model adjusted OR 3.28 | The interaction q = 0.028 comes from **16 hand-picked pairs**; the adjusted OR 3.28 arises from a null univariate. **Exploratory only.**                                                       |
-| LVEF                                                                                            | raw p = 0.033, q = 0.0666 | (was "OR persists")                                                       | **[REV4]** Part 3 now states the **sign reversal** (0.851 → 1.65) when `LV` is in the same model. |
-| HGB                                                                                             | raw p = 0.039, q = 0.0716 | Threshold-metric consensus                                                | Plausible                                                                                                                                                                                      |
-| Fast-Glu                                                                                        | raw p = 0.025, q = 0.0536 | Correlated with HbA1c / diabetes                                          | Plausible                                                                                                                                                                                      |
-| CaI                                                                                             | raw p = 0.051, q = 0.0869 | On the FDR boundary                                                       | Plausible; note `CaI` is the **top** mutual-information feature in Part 5                                                                                                                      |
-| Platelet, HL, STEMI, Current drinking, History of HF, Hypertension, TG, TCL, Min-stent diameter | ns                        | Metric/hold-out artefacts                                                 | Part 3 L235 already calls LightGBM's set "algorithm artefacts". Endorse that framing.                                                                                                          |
-
-
+| Feature                                                                                         | Univariate status         | Repository's stated reason                                                | Assessment                                                                                                                               |
+| ----------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Cre                                                                                             | p = 0.88 (MW r = 0.002)   | Renal surrogate for eGFR                                                  | Plausible; note `Cre` skew = 7.48, kurtosis = 161                                                                                        |
+| Men                                                                                             | p = 0.27                  | `Men × eGFR` interaction is FDR-significant; joint model adjusted OR 3.28 | The interaction q = 0.028 comes from **16 hand-picked pairs**; the adjusted OR 3.28 arises from a null univariate. **Exploratory only.** |
+| LVEF                                                                                            | raw p = 0.033, q = 0.0666 | (was "OR persists")                                                       | **[REV4]** Part 3 now states the **sign reversal** (0.851 → 1.65) when `LV` is in the same model.                                        |
+| HGB                                                                                             | raw p = 0.039, q = 0.0716 | Threshold-metric consensus                                                | Plausible                                                                                                                                |
+| Fast-Glu                                                                                        | raw p = 0.025, q = 0.0536 | Correlated with HbA1c / diabetes                                          | Plausible                                                                                                                                |
+| CaI                                                                                             | raw p = 0.051, q = 0.0869 | On the FDR boundary                                                       | Plausible; note `CaI` is the **top** mutual-information feature in Part 5                                                                |
+| Platelet, HL, STEMI, Current drinking, History of HF, Hypertension, TG, TCL, Min-stent diameter | ns                        | Metric/hold-out artefacts                                                 | Part 3 L235 already calls LightGBM's set "algorithm artefacts". Endorse that framing.                                                    |
 
 
 ### 9.5 The comparison's structural weakness
@@ -1262,8 +1185,6 @@ It is largely a finding about the two procedures' differing power, encodings and
 comparison as a **methods-comparison** result, not a biological one.
 
 ---
-
-
 
 ## 10. Complete figure and table inventory
 
@@ -1287,7 +1208,7 @@ re-exported (§12.2). Part 4's TSSI leakage supplement is current (stored single
 | Table 3   | Table      | `paper_table3_categorical.png/.csv`                                                                                                                                                                                                     | χ² for `Stent type-SES`                                 |
 | Table 4   | Table      | `paper_table4_multivariable_or.png/.csv` + `_numeric.csv`                                                                                                                                                                               | 17-covariate adjusted ORs                               |
 | Fig 6     | Figure     | `paper_fig6_uni_vs_multivariable_or.png`                                                                                                                                                                                                | Univariate vs adjusted OR                               |
-| Fig S5a–b | Supp fig   | `03_correlation_heatmap_top42_vs_next41_with_target.png`, `03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png` | Pearson / Spearman pairwise heatmaps (with target) |
+| Fig S5a–b | Supp fig   | `03_correlation_heatmap_top42_vs_next41_with_target.png`, `03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png`                                                                                                            | Pearson / Spearman pairwise heatmaps (with target)      |
 | Fig S1    | Supp fig   | `domain_univariate_top_hits.png`                                                                                                                                                                                                        | Top hits per clinical domain                            |
 | Table S1  | Supp table | `domain_strength_summary.csv`, `domain_univariate_summary.csv`                                                                                                                                                                          | Domain-level screening summary                          |
 | Fig S2a–d | Supp fig   | `domain_clustermap_global/lab/anatomy/procedural.png`                                                                                                                                                                                   | Spearman clustermaps                                    |
@@ -1323,8 +1244,6 @@ No truncation note.
 | Fig S3  | Supp fig | `selector_overlap_heatmap.png`                 |
 
 
-
-
 ### Part 3 — stats vs ML
 
 
@@ -1345,17 +1264,17 @@ No truncation note.
 ### Part 4 — nested-CV rating  — **every item below is [STALE] for TabPFN**
 
 
-| ID      | Type   | File                                       | Status                                                             |
-| ------- | ------ | ------------------------------------------ | ------------------------------------------------------------------ |
-| Table 0 | Table  | `paper_table0_models.png/.csv`             | model descriptions only; check the untuned-defaults wording (§6.3) |
-| Fig 1   | Figure | `paper_fig1_pr_roc_curves.png`             | **[STALE]** — TabPFN curve from the superseded run                 |
-| Table 1 | Table  | `paper_table1_ranking.png/.csv`            | **[STALE]** — TabPFN Brier 0.036 → 0.0060; add fold mean ± SD      |
-| Fig 2   | Figure | `paper_fig2_calibration_curves.png`        | **[STALE]** — title reads Brier 0.0360                             |
-| Fig 3   | Figure | `paper_fig3_confusion_matrices.png`        | **[STALE]** — title reads t_F1 0.901                               |
-| Table 2 | Table  | `paper_table2_f1_operating_point.png/.csv` | **[STALE]** — TabPFN row only                                      |
-| Table 3 | Table  | `paper_table3_confusion_counts.png/.csv`   | **[STALE]** — TabPFN row only; also redundant (§11.3)              |
-| Table S-TSSI | Table | `paper_table_s_tssi_leakage.png/.csv`     | Current — stored 70/30 metrics, not nested-CV                      |
-| Fig S-TSSI | Figure | `paper_fig_s_tssi_pr_auc.png`             | Current — PR-AUC with vs without TSSI                              |
+| ID           | Type   | File                                       | Status                                                             |
+| ------------ | ------ | ------------------------------------------ | ------------------------------------------------------------------ |
+| Table 0      | Table  | `paper_table0_models.png/.csv`             | model descriptions only; check the untuned-defaults wording (§6.3) |
+| Fig 1        | Figure | `paper_fig1_pr_roc_curves.png`             | **[STALE]** — TabPFN curve from the superseded run                 |
+| Table 1      | Table  | `paper_table1_ranking.png/.csv`            | **[STALE]** — TabPFN Brier 0.036 → 0.0060; add fold mean ± SD      |
+| Fig 2        | Figure | `paper_fig2_calibration_curves.png`        | **[STALE]** — title reads Brier 0.0360                             |
+| Fig 3        | Figure | `paper_fig3_confusion_matrices.png`        | **[STALE]** — title reads t_F1 0.901                               |
+| Table 2      | Table  | `paper_table2_f1_operating_point.png/.csv` | **[STALE]** — TabPFN row only                                      |
+| Table 3      | Table  | `paper_table3_confusion_counts.png/.csv`   | **[STALE]** — TabPFN row only; also redundant (§11.3)              |
+| Table S-TSSI | Table  | `paper_table_s_tssi_leakage.png/.csv`      | Current — stored 70/30 metrics, not nested-CV                      |
+| Fig S-TSSI   | Figure | `paper_fig_s_tssi_pr_auc.png`              | Current — PR-AUC with vs without TSSI                              |
 
 
 **Produced by the notebook but absent from the report:** `best_model_threshold_fpfn_panel.png`,
@@ -1399,8 +1318,6 @@ exist in the repo. **[TODO-REPRO]**
 
 ---
 
-
-
 ## 11. Recommended main text, supplement, and redundant items
 
 Recommendations assume the leakage questions in §4.3 and §12.1 are resolved favourably. If they are not, the
@@ -1409,33 +1326,29 @@ paper's framing changes and this layout does not apply.
 ### 11.1 Main text (target: 4 figures, 3 tables)
 
 
-| Slot         | Item                                                                                                                                                                          | Rationale                                                                                                                                                                                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Table 1**  | Baseline cohort characteristics, cases vs controls                                                                                                                            | Wang 2020 Table 1 **already is this table** for this cohort. Rebuild it from `VLST.csv` (do not photocopy: post-dilation labelling is inconsistent in Wang, and `LV` / `CaI` need to appear). Cite Wang for the recruitment flow (6,038 → 5,185).        |
-| **Table 2**  | Part 4 Table 1 **rebuilt**: PR-AUC and ROC-AUC as pooled value **and** fold mean ± SD, Brier, with prevalence 0.0177 stated; plus the honest nested operating point from §7.3 | Combines the two threshold-independent and threshold-dependent results into one defensible table. Must use the notebook values, not the stale Markdown values.                                                                                           |
-| **Table 3**  | Part 1 Table 4 **respecified** — see §12.1; one representative per collinear block, EPV stated                                                                                | Currently unpublishable as written.                                                                                                                                                                                                                      |
-| **Figure 1** | Part 4 Figure 1 (PR and ROC curves) with the prevalence line, **PR panel first and larger**                                                                                   | The single most important result. PR-AUC leads because prevalence is 1.77%.                                                                                                                                                                              |
-| **Figure 2** | Part 4 Figure 2 (calibration), **re-exported** from the current notebook state                                                                                                | The Brier question is settled (§12.2): TabPFN's 0.0060 is the best of the six. Calibration now *supports* the result instead of qualifying it — but the caption must be rewritten from scratch, because the existing one says the opposite.              |
-| **Figure 3** | A **new** single figure merging Part 1 Figure 4 (binary ORs) and Part 1 Figure 3 (continuous effect sizes) with **separate panels per effect-size metric**                    | Fixes the d-vs-r comparability problem of §7.8 while keeping the association story in one place.                                                                                                                                                         |
-| **Figure 4** | Part 5 Figure 13 (consensus ranking) **or** Part 3 Figure 1 (Venn) — pick one                                                                                                 | Both answer "which variables matter". Two is redundant in the main text. Prefer Figure 13 if the paper's thesis is interpretation; prefer the Venn if the thesis is methods comparison. The Venn is now generated by `rebuild_comparison.py`. |
-
-
+| Slot         | Item                                                                                                                                                                          | Rationale                                                                                                                                                                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Table 1**  | Baseline cohort characteristics, cases vs controls                                                                                                                            | Wang 2020 Table 1 **already is this table** for this cohort. Rebuild it from `VLST.csv` (do not photocopy: post-dilation labelling is inconsistent in Wang, and `LV` / `CaI` need to appear). Cite Wang for the recruitment flow (6,038 → 5,185). |
+| **Table 2**  | Part 4 Table 1 **rebuilt**: PR-AUC and ROC-AUC as pooled value **and** fold mean ± SD, Brier, with prevalence 0.0177 stated; plus the honest nested operating point from §7.3 | Combines the two threshold-independent and threshold-dependent results into one defensible table. Must use the notebook values, not the stale Markdown values.                                                                                    |
+| **Table 3**  | Part 1 Table 4 **respecified** — see §12.1; one representative per collinear block, EPV stated                                                                                | Currently unpublishable as written.                                                                                                                                                                                                               |
+| **Figure 1** | Part 4 Figure 1 (PR and ROC curves) with the prevalence line, **PR panel first and larger**                                                                                   | The single most important result. PR-AUC leads because prevalence is 1.77%.                                                                                                                                                                       |
+| **Figure 2** | Part 4 Figure 2 (calibration), **re-exported** from the current notebook state                                                                                                | The Brier question is settled (§12.2): TabPFN's 0.0060 is the best of the six. Calibration now *supports* the result instead of qualifying it — but the caption must be rewritten from scratch, because the existing one says the opposite.       |
+| **Figure 3** | A **new** single figure merging Part 1 Figure 4 (binary ORs) and Part 1 Figure 3 (continuous effect sizes) with **separate panels per effect-size metric**                    | Fixes the d-vs-r comparability problem of §7.8 while keeping the association story in one place.                                                                                                                                                  |
+| **Figure 4** | Part 5 Figure 13 (consensus ranking) **or** Part 3 Figure 1 (Venn) — pick one                                                                                                 | Both answer "which variables matter". Two is redundant in the main text. Prefer Figure 13 if the paper's thesis is interpretation; prefer the Venn if the thesis is methods comparison. The Venn is now generated by `rebuild_comparison.py`.     |
 
 
 ### 11.2 Supplement
 
 
-| Group                                          | Items                                                                                                                                                                         |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Group                                           | Items                                                                                                                                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Leakage evidence (**now in Part 4 supplement**) | Table S-TSSI and Figure S-TSSI: with-TSSI vs without-TSSI metric contrast (§7.5) and the case vs non-case time distribution (min 1,241 vs min 380 days), framed as binary-ified survival time (§4.2). |
-| Statistical detail                             | Part 1 Fig 1, Table R, Fig 2, Table 2, Table 3, Fig 5, Fig 6, Fig S5a–b (Pearson/Spearman pairwise)                                                                          |
-| Domain analysis                                | Part 1 Fig S1, Table S1, Fig S2a–d, Fig S3, Fig S4, Table S2 (**all 16 interaction rows, not 8**)                                                                             |
-| Feature-selection methods                      | Part 2 Table 0, Fig 1, Table 1, Table 2, Table 3, Table 4 — each with an explicit note that LOCO's pool is a column-order prefix and that scoring used the test set           |
-| Stats-vs-ML                                    | Part 3 Fig 1 or 2, Table 1, Tables 2–4                                                                                                                                        |
-| Interpretability                               | Part 5 Table 1, Table 2, Fig 1, Fig 2, Table 3, Fig 5, Table 4, Fig 7, Fig 8 — every caption restated per §12.6                                                               |
-| Reproducibility                                | `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `nested_cv_operating_point.csv` — **must be regenerated and committed**                                     |
-
-
+| Statistical detail                              | Part 1 Fig 1, Table R, Fig 2, Table 2, Table 3, Fig 5, Fig 6, Fig S5a–b (Pearson/Spearman pairwise)                                                                                                   |
+| Domain analysis                                 | Part 1 Fig S1, Table S1, Fig S2a–d, Fig S3, Fig S4, Table S2 (**all 16 interaction rows, not 8**)                                                                                                     |
+| Feature-selection methods                       | Part 2 Table 0, Fig 1, Table 1, Table 2, Table 3, Table 4 — each with an explicit note that LOCO's pool is a column-order prefix and that scoring used the test set                                   |
+| Stats-vs-ML                                     | Part 3 Fig 1 or 2, Table 1, Tables 2–4                                                                                                                                                                |
+| Interpretability                                | Part 5 Table 1, Table 2, Fig 1, Fig 2, Table 3, Fig 5, Table 4, Fig 7, Fig 8 — every caption restated per §12.6                                                                                       |
+| Reproducibility                                 | `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `nested_cv_operating_point.csv` — **must be regenerated and committed**                                                             |
 
 
 ### 11.3 Redundant — cut or merge
@@ -1458,11 +1371,7 @@ paper's framing changes and this layout does not apply.
 
 ---
 
-
-
 ## 12. Unsupported claims, ambiguities, contradictions, missing information
-
-
 
 ### 12.1 [CRITICAL] The exploratory multivariable model is not identified
 
@@ -1530,8 +1439,6 @@ when TabPFN was re-run; the classic-model rows were unaffected because those mod
    `paper_table2_f1_operating_point.csv` and `paper_table3_confusion_counts.csv` carry the stale threshold and
    confusion counts too. **[TODO-P4]**
 
-
-
 ### 12.3 [CRITICAL] Claims that ROC-AUC and F1 support clinical usefulness
 
 Statements to remove or heavily qualify:
@@ -1590,33 +1497,29 @@ the five reported analyses**.
 ### 12.6 [CRITICAL] Interpretability claims that overreach their sample
 
 
-| Claim                                                                                         | Actual basis                                                                                                                                                                                                                    | Required restatement                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance                        | **15 rows, all of them VLST cases** (§5.9)                                                                                                                                                                                      | **[REV4]** Captions now say 15 VLST cases / not a population measure. Keep that wording in the paper.                                                                                           |
-| Part 5 Figures 8, 9, 11, 12 — "dominant pairwise terms" among LV/WBC/eGFR/LDL                 | **One** positive-class patient, budget 256                                                                                                                                                                                      | Already flagged in the text (L223) — keep and strengthen. These are **not** cohort interactions. The only cohort-level interaction evidence in the repository is the 16-pair LR screen (§7.6). |
-| Part 5 Figure 1: "predicted risk … rises steeply toward ~0.6"; Table 3: "P(y=1 | 0) = 0.2430" | `balance_probabilities=True` — a **uniform-prior** rescaling; true prevalence is 0.0177                                                                                                                                         | **[REV4]** Methods note + Table 3 caption now say balanced-prior, not absolute risk.                                                                                                           |
-| Part 5 Table 5: `Cre` and `No.of stents per lesion` with `mutual_info = 0.000000`             | Imputed zeros for features outside the MI top-15                                                                                                                                                                                | **[REV4]** Table 5 caption now says these are fill zeros, not measured zeros.                                                                                                                   |
-| Part 5 Table 1: `Fast-Glu` and `ZES` shown as "—"                                             | Confirmed: `paper_table1_mutual_info.csv` rows 11 and 14 have an empty `mutual_info` field. The notebook printed only the ranked **names** (L679), never the values, so the numbers are not recoverable from the stored output. | Re-run `mutual_info_classif` — it is pure sklearn, seconds, zero TabPFN calls (L566) — and re-export. Do not publish a "top 15" with two blanks. **[TODO-MI]**                                 |
-| Part 5 Table 2 caption: "8.6 h" wall time                                                     | Verified in the notebook                                                                                                                                                                                                        | Fine; keep as a reproducibility note.                                                                                                                                                          |
+| Claim                                                                             | Actual basis                                                                                                                                                                                                                    | Required restatement                                                                                                                                                                           |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance            | **15 rows, all of them VLST cases** (§5.9)                                                                                                                                                                                      | **[REV4]** Captions now say 15 VLST cases / not a population measure. Keep that wording in the paper.                                                                                          |
+| Part 5 Figures 8, 9, 11, 12 — "dominant pairwise terms" among LV/WBC/eGFR/LDL     | **One** positive-class patient, budget 256                                                                                                                                                                                      | Already flagged in the text (L223) — keep and strengthen. These are **not** cohort interactions. The only cohort-level interaction evidence in the repository is the 16-pair LR screen (§7.6). |
+| Part 5 Figure 1: "predicted risk … rises steeply toward ~0.6"; Table 3: "P(y=1    | 0) = 0.2430"                                                                                                                                                                                                                    | `balance_probabilities=True` — a **uniform-prior** rescaling; true prevalence is 0.0177                                                                                                        |
+| Part 5 Table 5: `Cre` and `No.of stents per lesion` with `mutual_info = 0.000000` | Imputed zeros for features outside the MI top-15                                                                                                                                                                                | **[REV4]** Table 5 caption now says these are fill zeros, not measured zeros.                                                                                                                  |
+| Part 5 Table 1: `Fast-Glu` and `ZES` shown as "—"                                 | Confirmed: `paper_table1_mutual_info.csv` rows 11 and 14 have an empty `mutual_info` field. The notebook printed only the ranked **names** (L679), never the values, so the numbers are not recoverable from the stored output. | Re-run `mutual_info_classif` — it is pure sklearn, seconds, zero TabPFN calls (L566) — and re-export. Do not publish a "top 15" with two blanks. **[TODO-MI]**                                 |
+| Part 5 Table 2 caption: "8.6 h" wall time                                         | Verified in the notebook                                                                                                                                                                                                        | Fine; keep as a reproducibility note.                                                                                                                                                          |
 
 
+### 12.7 [STALE PNG] Part 2 Table 0 CatBoost spec — reports corrected
 
+**[REV4]** Markdown Table 0 and `paper_table0_classic_models.csv` now say GPU **Plain** boosting
+(`task_type=GPU`; Ordered is CPU-only) and `eval_metric=PRAUC`, matching the current Part 2 factory
+(`baseline_feature_selections.ipynb`) and Part 4. The exported **PNG** of Table 0 is still the old
+“Ordered boosting” image until re-export. Do not quote the PNG over the CSV.
 
-### 12.7 [DISCREPANCY] Part 2 Table 0 misdescribes CatBoost
+### 12.8 [RISK] Part 2 figures are a prior reduced export; the notebook no longer has a smoke switch
 
-Part 2 Table 0 (L39) states CatBoost used **"Ordered boosting"**. The factory
-(`.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L335–353) sets no `boosting_type`
-and sets `task_type="GPU"`. CatBoost on GPU supports only **Plain** boosting. The same table also omits that
-`eval_metric="AUC"` (not PR-AUC) was used for the selector models, in contrast to Part 4 where CatBoost uses
-`eval_metric="PRAUC"`.
-
-### 12.8 [RISK] Part 2 numbers are from a deliberately reduced "smoke" run
-
-Part 2 discloses `RUN_MODE = "smoke"` (L5). What it does not foreground is what smoke mode costs:
-`SHAP_N_PERM = 12` permutations, 3 background draws per coalition evaluation, `FEATURE_TOPK = 12`,
-`LOCO_MAX_FEATURES = 40` of 185. Monte-Carlo error on the Shapley estimates is unquantified and unreported. No
-seed-stability analysis. Publishing a smoke-mode result as a feature-selection finding requires either a full-mode
-re-run or an explicit statement that these are provisional.
+The notebook is a single paper protocol (top-20, SHAP 40 permutations, LOCO 60, FFS 24×12, 400 rounds). The
+**stored figures** are still the old reduced export (`FEATURE_TOPK = 12`, `SHAP_N_PERM = 12`,
+`LOCO_MAX_FEATURES = 40` of 185). Monte-Carlo error on those Shapley estimates is unquantified. Do not publish
+the stored figures as the paper result; re-run the paper protocol, then replace Parts 2 and 3.
 
 ### 12.9 [RISK] Unquantified uncertainty everywhere
 
@@ -1628,8 +1531,6 @@ paired test on 92 events, and no such test was run.
 - No confidence intervals on precision/recall/F1 at any operating point.
 - No calibration slope or intercept; only Brier and a visual reliability curve.
 - Univariate effect sizes in Table 1 and Table 2 carry no confidence intervals — only p and q.
-
-
 
 ### 12.10 [GAP] Reproducibility
 
@@ -1644,14 +1545,12 @@ paired test on 92 events, and no such test was run.
 | Notebooks explicitly excluded from the results pack (`paper_results/README.md`)           | The pack cannot be audited on its own                                                                                                                                         |
 
 
+### 12.11 [WITHDRAWN under D1–D2] Selective reporting
 
-
-### 12.11 [WITHDRAWN under D1–D3] Selective reporting
-
-Revision 1 argued that because nineteen notebooks exist and five analyses are reported, the TabPFN advantage
+Revision 1 argued that because many notebooks exist and five analyses are reported, the TabPFN advantage
 "cannot be distinguished from selection over many attempts", and demanded a CONSORT/TRIPOD-style declaration of
-everything tried. **That finding is withdrawn.** The twelve excluded notebooks (ten `failed_hypothesis/`, the TabPFN
-playground, the causal analysis) are out of scope by author decision, contribute no number to the paper, and are
+everything tried. **That finding is withdrawn.** The excluded notebooks (ten `failed_hypothesis/`, the TabPFN
+playground) are out of scope by author decision, contribute no number to the paper, and are
 not cited anywhere in it.
 
 One sentence of residual substance, kept for honesty and needing no table: exploratory work beyond the reported
@@ -1673,13 +1572,11 @@ paired significance test separates TabPFN from CatBoost (§12.9), and the ML mod
 | Never use                        | "risk factor", "causal", "protective", "independent predictor", "clinically useful", "validated" — none is supported by anything in this repository. |
 
 
-Note in particular that `1.1:1Post dilation` appears with a protective adjusted OR of 0.144 and a negative PDP
-shift of −0.086, and that `Clopidogrel` appears with an OR of 0.464. In an observational cohort with
-confounding by indication, neither can be described as protective.
+Note in particular that `1.1:1Post dilation` has an adjusted OR of 0.144 and a negative PDP
+shift of −0.086, and that `Clopidogrel` has an OR of 0.464. In an observational cohort with
+confounding by indication, neither is a treatment benefit. Reports no longer use “protective” for these flags.
 
 ---
-
-
 
 ## 13. What is left to do
 
@@ -1692,13 +1589,12 @@ Groups B–E are execution work.
 | Was                                                        | Now                                                                                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | "Which TabPFN run is authoritative?" (old blocking item 4) | **Closed.** The notebook is internally consistent; the exports are stale. Use Brier 0.0060, t_F1 0.173, 5072/21/19/73 (§12.2). |
-| "Declare the full analysis history" (old item 16)          | **Closed** by D1–D3 (§12.11).                                                                                                  |
+| **C1–C16** false or mixed claims in reports                | **Closed in reports.** Captions/tables rewritten; stale PNGs still listed under B1 / §12.7.                                    |
+| "Declare the full analysis history" (old item 16)          | **Closed** by D1–D2 (§12.11).                                                                                                  |
 | "Fold-wise mean ± SD are not available"                    | **Closed.** They are in the notebook and are now tabulated in §7.1 and §7.4.                                                   |
 | **A2** How were controls sampled?                          | **Closed by Wang 2020.** Consecutive complete-follow-up cohort, not case-control. 1.77% is published incidence (§2.3, §4.2).   |
 | **A3** What does `Stent thrombosis = 1` mean?              | **Closed by Wang 2020.** ARC 2007 definite ST, angiographically confirmed, > 1 year (§2.3).                                    |
 | **A5** Recruitment frame, ethics, consent                  | **Closed by Wang 2020.** Jilin University, Jan 2014–Jun 2015, NCT03491891, ethics 2013-256 (§2.3).                             |
-
-
 
 
 ### A. Remaining author questions after Wang 2020
@@ -1710,65 +1606,59 @@ Groups B–E are execution work.
 | **A4** | `LV` **and** `CaI` **only.** `TCL` = total cholesterol (mmol/L), `HL` = dyslipidaemia, fibrinogen in g/L, stent release pressure in atm, DAPT = mandated ≥1 year plus physician-directed continuation — all from Wang. `LV` and `CaI` are still unnamed.                                                                                                                                                                                                                                                                              | Partial.                                                                                                                            |
 
 
-
-
 ### B. Re-run or compute (roughly in dependency order)
 
 
-| #                    | Task                                                                                                                                                                                                                                                                                 | Cost                                                                                                                                                            | Notes                                                                                                                                                                                                                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **B1** [TODO-P4]     | **Re-export all of Part 4** from the current notebook state: 3 figures, 4 CSVs, 4 table images.                                                                                                                                                                                      | Low, if the notebook state is intact — but TabPFN is non-deterministic, so a full re-run gives *different* numbers again. Prefer exporting from the stored run. | This is the highest-value single fix. Everything downstream quotes these files.                                                                                                                                                                                                                                                            |
-| **B2** [TODO-REPRO]  | **Persist** `oof_predictions.csv`**,** `fold_thresholds.csv`**,** `fold_metrics.csv`**,** `model_comparison.csv`**,** `nested_cv_operating_point.csv` into the repo.                                                                                                                 | Low                                                                                                                                                             | Confirmed absent from `data/result/` entirely. Without OOF predictions nobody — including you — can add confidence intervals later without re-running TabPFN. Do this *at the same time as B1* while the run is reproducible.                                                                                                              |
-| **B3** [TODO-CI]     | **Bootstrap CIs on PR-AUC / ROC-AUC / Brier, and a paired test** (bootstrap difference or DeLong for ROC) between TabPFN and CatBoost.                                                                                                                                               | Low **once B2 exists** — pure post-processing of OOF probabilities, no model refits.                                                                            | Currently there is no interval on any metric and no test behind "TabPFN dominates" (§12.9). Interim fallback that costs nothing: TabPFN wins PR-AUC in **5 of 5 folds** (§7.4).                                                                                                                                                            |
-| **B4** [TODO-T4]     | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; raise `N_BOOT` from 200 to ≥ 2,000.                                                                                                                                                          | Low                                                                                                                                                             | As it stands the model is not identified: `1.1:1Post dilation` sits beside its exact complement, and `eGFR` beside `CKD5` and `CKD90` (§12.1). `CKD90`'s CI is 2.708–639.506. **This table cannot be published as written.**                                                                                                               |
-| **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `rebuild_comparison.py` + `stats_vs_ml_comparison.ipynb`. Jaccard 5/35 asserted; figures/tables written to both report trees. | Done | Inputs remain the §8.1 FDR set and §8.6 ML consensus. Re-run the script if either catalogue changes. |
-| **B6** [TODO-MI]     | **Re-run** `mutual_info_classif` and re-export Part 5 Table 1 to fill the blank `Fast-Glu` and `ZES` cells.                                                                                                                                                                          | Seconds — pure sklearn, zero TabPFN calls                                                                                                                       | A published "top 15" with two empty cells is not acceptable (§12.6).                                                                                                                                                                                                                                                                       |
-| **B7** [TODO-TABLE1] | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3).                                                                             | Low                                                                                                                                                             | A conventional Table 1 already exists in Wang 2020; the repo still needs a verified, ML-complete version.                                                                                                                                                                                                                                  |
-| **B8**               | **Part 2 code is now train-only** (option a): inner-val scoring + cheap-train importance-ordered LOCO pool; SHAP/FFS still nest in that pool as a compute cap. **Re-run on Kaggle** (`USE_CACHE=False`), then refresh Part 3. Stored figures remain the leaky smoke run until then. | Kaggle — 7 models × 3 selectors | Until re-export, Part 2/3 cannot support a predictive claim (§4.4). |
-| **B9**               | **Optional but strengthens the comparison:** tune the five classic baselines, or drop the ~106 one-hot brand dummies so all six models see comparable input.                                                                                                                         | Medium                                                                                                                                                          | Right now it is untuned defaults vs high-effort TabPFN (§6.3) on non-identical representations (§6.4). Disclosure is the minimum; tuning is the fix.                                                                                                                                                                                       |
-| **B10** [TODO-SCORE] | **Implement Wang's 8-variable VLST score as a comparator** on the same 5,185 rows (and on Shantou if obtained): DM, previous PCI, AMI as admitting diagnosis, eGFR < 90, 3-vessel disease, stents per lesion, SES, no post-dilation. Report nested-CV PR-AUC/ROC-AUC against TabPFN. | Low–medium                                                                                                                                                      | This is the published clinical baseline. A paper that claims better prediction on the same cohort without beating this score will be the first reviewer comment. Watch the post-dilation coding (§3.3).                                                                                                                                    |
-| **B11** [TODO-EXT]   | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used.                                                                                                                                                                                 | Political, not computational                                                                                                                                    | Without it, state clearly that ML validation is derivation-cohort nested CV only.                                                                                                                                                                                                                                                          |
-
-
+| #                         | Task                                                                                                                                                                                                                                                                                         | Cost                                                                                                                                                            | Notes                                                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **B1** [TODO-P4]          | **Re-export all of Part 4** from the current notebook state: 3 figures, 4 CSVs, 4 table images.                                                                                                                                                                                              | Low, if the notebook state is intact — but TabPFN is non-deterministic, so a full re-run gives *different* numbers again. Prefer exporting from the stored run. | This is the highest-value single fix. Everything downstream quotes these files.                                                                                                                                               |
+| **B2** [TODO-REPRO]       | **Persist** `oof_predictions.csv`**,** `fold_thresholds.csv`**,** `fold_metrics.csv`**,** `model_comparison.csv`**,** `nested_cv_operating_point.csv` into the repo.                                                                                                                         | Low                                                                                                                                                             | Confirmed absent from `data/result/` entirely. Without OOF predictions nobody — including you — can add confidence intervals later without re-running TabPFN. Do this *at the same time as B1* while the run is reproducible. |
+| **B3** [TODO-CI]          | **Bootstrap CIs on PR-AUC / ROC-AUC / Brier, and a paired test** (bootstrap difference or DeLong for ROC) between TabPFN and CatBoost.                                                                                                                                                       | Low **once B2 exists** — pure post-processing of OOF probabilities, no model refits.                                                                            | Currently there is no interval on any metric and no test behind "TabPFN dominates" (§12.9). Interim fallback that costs nothing: TabPFN wins PR-AUC in **5 of 5 folds** (§7.4).                                               |
+| **B4** [TODO-T4]          | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; raise `N_BOOT` from 200 to ≥ 2,000.                                                                                                                                                                  | Low                                                                                                                                                             | As it stands the model is not identified: `1.1:1Post dilation` sits beside its exact complement, and `eGFR` beside `CKD5` and `CKD90` (§12.1). `CKD90`'s CI is 2.708–639.506. **This table cannot be published as written.**  |
+| **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `rebuild_comparison.py` + `stats_vs_ml_comparison.ipynb`. Jaccard 5/35 asserted; figures/tables written to both report trees.                                                                                                                   | Done                                                                                                                                                            | Inputs remain the §8.1 FDR set and §8.6 ML consensus. Re-run the script if either catalogue changes.                                                                                                                          |
+| **B6** [TODO-MI]          | **Re-run** `mutual_info_classif` and re-export Part 5 Table 1 to fill the blank `Fast-Glu` and `ZES` cells.                                                                                                                                                                                  | Seconds — pure sklearn, zero TabPFN calls                                                                                                                       | A published "top 15" with two empty cells is not acceptable (§12.6).                                                                                                                                                          |
+| **B7** [TODO-TABLE1]      | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3).                                                                                     | Low                                                                                                                                                             | A conventional Table 1 already exists in Wang 2020; the repo still needs a verified, ML-complete version.                                                                                                                     |
+| **B8**                    | **Part 2 is a single paper protocol** (no smoke switch): full-cohort discovery, PR-AUC only, independent selectors, top-20 / SHAP 40 / LOCO 60 / FFS 24×12 / 400 rounds. **Re-run on Kaggle** (`USE_CACHE=False`), then refresh Part 3. Stored figures remain the prior reduced export until then. | Kaggle — 7 models × 3 selectors                                                                                                                                 | Until re-export, Part 2/3 cannot support a predictive claim (§4.4).                                                                                                                                                           |
+| **B9**                    | **Optional but strengthens the comparison:** tune the five classic baselines, or drop the ~106 one-hot brand dummies so all six models see comparable input.                                                                                                                                 | Medium                                                                                                                                                          | Right now it is untuned defaults vs high-effort TabPFN (§6.3) on non-identical representations (§6.4). Disclosure is the minimum; tuning is the fix.                                                                          |
+| **B10** [TODO-SCORE]      | **Implement Wang's 8-variable VLST score as a comparator** on the same 5,185 rows (and on Shantou if obtained): DM, previous PCI, AMI as admitting diagnosis, eGFR < 90, 3-vessel disease, stents per lesion, SES, no post-dilation. Report nested-CV PR-AUC/ROC-AUC against TabPFN.         | Low–medium                                                                                                                                                      | This is the published clinical baseline. A paper that claims better prediction on the same cohort without beating this score will be the first reviewer comment. Watch the post-dilation coding (§3.3).                       |
+| **B11** [TODO-EXT]        | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used.                                                                                                                                                                                         | Political, not computational                                                                                                                                    | Without it, state clearly that ML validation is derivation-cohort nested CV only.                                                                                                                                             |
 
 
 ### C. Rewrite or delete — claims that are now known to be wrong
 
-
-| #       | Where                                                                                                                                                                                                    | Action                                                                                                                                                                                                                                                    |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **C1**  | Part 4 Table 1 / Figure 2 stale Brier story                                                                                                                                                              | **[REV4]** Captions rewritten to notebook 0.0060. PNG/CSV re-export still **[TODO-P4]**.                                                                                                                                                                  |
-| **C2**  | Part 4 "TabPFN catches the most events (TP = 77, FN = 15)"                                                                                                                                               | **[REV4]** Caption now quotes notebook pooled 73/19 and nested 66/26. PNG still stale.                                                                                                                                                                    |
-| **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")                                                                                                                 | **[REV4]** Replaced with a note that the notebook *did* print those tables; CSVs are uncommitted; PNGs are mixed stale/current.                                                                                                                            |
-| **C4**  | Part 4 Tables 2–3 operating point                                                                                                                                                                        | **[REV4]** Text now labels the PNG as optimistic pooled F1 and quotes the honest nested counts. Keep both, labelled.                                                                                                                                      |
-| **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                                                                                                                                    | **[REV4]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                                        |
-| **C6**  | Every Part 5 SHAP caption (Figures 3, 5, 6, 7; Table 4)                                                                                                                                                  | **[REV4]** Captions now say 15 VLST cases / not a population measure.                                                                                                                                                                                      |
-| **C7**  | Every Part 5 PDP caption (Figures 1, 2; Table 3)                                                                                                                                                         | **[REV4]** Methods note + Table 3: balanced-prior, not absolute risk.                                                                                                                                                                                     |
-| **C8**  | Part 5 k-SII captions (Figures 8–12)                                                                                                                                                                     | Already said one-row; keep that wording.                                                                                                                                                                                                                  |
-| **C9**  | Part 5 Table 5 caption                                                                                                                                                                                   | **[REV4]** Caption now says MI 0.0 for `Cre` / `No.of stents per lesion` are fill zeros.                                                                                                                                                                   |
-| **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (OR 0.144), `Clopidogrel` (OR 0.464)                                                                                                                | **Delete the word.** Confounding by indication (§12.12).                                                                                                                                                                                                  |
-| **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                                                                                                                                              | Wrong — GPU CatBoost uses **Plain**. Also state `eval_metric="AUC"` here vs `"PRAUC"` in Part 4 (§12.7).                                                                                                                                                  |
-| **C12** | Part 1 Figure 3 / Table 1 effect-size column                                                                                                                                                             | Cohen's d and Mann–Whitney r are mixed on one axis. `WBC` (q = 7.9e-21) shows r = 0.130 next to `LV` (q = 3.3e-16) at d = 1.127. **Split into separate panels** (§7.8).                                                                                   |
-| **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)                                                                                                                    | Pick one estimator or label each column with its estimator (§12.4).                                                                                                                                                                                       |
-| **C14** | `Stent type-SES`                                                                                                                                                                                         | Adopt **one** encoding across all analyses. Wang used a **binary SES class flag**; 9 collapsed brand levels is the next-best choice if brands are kept. Drop or relabel the Part 5 PDP that sweeps brand codes as if they were a continuous axis (§12.5). |
-| **C15** | Any statement of the form "LOCO saturates the 40-feature cap"                                                                                                                                            | That describes the cap, not the data (§5.7).                                                                                                                                                                                                              |
-| **C16** | Part 1 Table S2                                                                                                                                                                                          | Shows 8 of 16 interaction rows with no truncation note. Show all 16 or say it is truncated.                                                                                                                                                               |
+All sixteen items below are **closed in the paper-style reports** (both trees + `paper_results.md`). Remaining work is PNG re-export or encoding unification (B1, B9, C11 image, optional C12 split panels), not more caption edits.
 
 
+| #       | Where                                                                                     | Action                                                                                                                                                                                                                                                         |
+| ------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C1**  | Part 4 Table 1 / Figure 2 stale Brier story                                               | **[REV4/closed in reports]** Captions rewritten to notebook 0.0060. PNG/CSV re-export still **[TODO-P4]**.                                                                                                                                                     |
+| **C2**  | Part 4 "TabPFN catches the most events (TP = 77, FN = 15)"                                | **[REV4/closed in reports]** Caption now quotes notebook pooled 73/19 and nested 66/26. PNG still stale.                                                                                                                                                       |
+| **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")  | **[REV4/closed in reports]** Replaced with a note that the notebook *did* print those tables; CSVs are uncommitted; PNGs are mixed stale/current.                                                                                                              |
+| **C4**  | Part 4 Tables 2–3 operating point                                                         | **[REV4/closed in reports]** Text now labels the PNG as optimistic pooled F1 and quotes the honest nested counts. Keep both, labelled.                                                                                                                         |
+| **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
+| **C6**  | Every Part 5 SHAP caption (Figures 3, 5, 6, 7; Table 4)                                   | **[REV4/closed in reports]** Captions now say 15 VLST cases / not a population measure.                                                                                                                                                                        |
+| **C7**  | Every Part 5 PDP caption (Figures 1, 2; Table 3)                                          | **[REV4/closed in reports]** Methods note + Table 3: balanced-prior, not absolute risk.                                                                                                                                                                        |
+| **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
+| **C9**  | Part 5 Table 5 caption                                                                    | **[REV4/closed in reports]** Caption now says MI 0.0 for `Cre` / `No.of stents per lesion` are fill zeros.                                                                                                                                                     |
+| **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (OR 0.144), `Clopidogrel` (OR 0.464) | **[REV4/closed in reports]** Word removed from paper-style reports (Parts 1, 3, 5 and the concatenated bundle). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). Audit text below still names the banned word.          |
+| **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV4/closed in reports]** Markdown + CSV: GPU **Plain**, `eval_metric=PRAUC` (aligned with Part 4). Table 0 **PNG** still stale until re-export (§12.7).                                                                                                    |
+| **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
+| **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[REV4/closed in reports]** Labelled: Table 2 = 2×2/Fisher (**6.49**); Table 4 univariate column = unweighted logit (**6.46**); Table S4 joint-domain univariate (**6.73**). Do not pick one number without naming the estimator.                             |
+| **C14** | `Stent type-SES`                                                                          | **[REV4/closed in reports]** Three encodings disclosed (EDA 9 collapsed levels; Part 2/4 raw 106 one-hot; Part 5 integer codes; Wang binary SES flag). Part 5 Fig 1: the SES PDP sweep is **not** a nominal brand contrast. Unifying encodings remains **B9**. |
+| **C15** | Any statement of the form "LOCO saturates the 40-feature cap"                             | **[REV4/closed in reports]** Part 2 Fig 1 already says the stored run evaluated a 40-column prefix, not that 40 features were independently important.                                                                                                         |
+| **C16** | Part 1 Table S2                                                                           | **[REV4/closed in reports]** All **16** pairs from `domain_interaction_screen.csv` are shown; only LV×eGFR and Men×eGFR pass FDR.                                                                                                                              |
 
 
-### D. Content that must be written from scratch (items W1–W5, to avoid clashing with the scope decisions D1–D4)
+### D. Content that must be written from scratch (items W1–W5, to avoid clashing with the scope decisions D1, D2, D4)
 
 
-| #                  | Item                                                                                                                                                                                                                                                                                                                                                                                                               | Notes                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
-| **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative. | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
-| **W2**             | **Clinical motivation and citations.** Wang 2020 now supplies VLST definition, incidence/mortality citations, the LST-score gap, and this cohort's protocol. Still to write: why TabPFN, what "personalised" means, and an honest statement of what this paper adds *beyond Wang's already-validated 8-variable score*.                                                                                            | Cite Wang; do not write as if no VLST score exists. |
-| **W3**             | **Limitations section**, covering at minimum: ML models have no external/temporal validation (Wang's score does, on Shantou data we did not use); binary classification vs the published Cox analysis; EPV ≈ 5.4; TabPFN client non-determinism despite `random_state=42`; TabPFN as a remote service whose version is unrecorded; DAPT columns are post-baseline; WBC was excluded by the original investigators. | §4.2, §6.6, §12.9, §12.10.                          |
-| **W4** [TODO-EPV]  | **EPV stated explicitly** (92 / 17 ≈ 5.4) next to every adjusted odds ratio.                                                                                                                                                                                                                                                                                                                                       | Computed nowhere (§2.2).                            |
-| **W5**             | **Terminology pass** enforcing §12.12: "association" for Part 1 and mutual information, "prediction" for Part 4 OOF results only, "interpretation/attribution" for Parts 2 and 5. Never "risk factor", "causal", "independent predictor", "clinically useful", "validated". Wang's own score *was* externally validated — do not use "validated" for TabPFN by contagion.                                          |                                                     |
-
-
+| #                           | Item                                                                                                                                                                                                                                                                                                                                                                                                               | Notes                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative.                                                           | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
+| **W2**                      | **Clinical motivation and citations.** Wang 2020 now supplies VLST definition, incidence/mortality citations, the LST-score gap, and this cohort's protocol. Still to write: why TabPFN, what "personalised" means, and an honest statement of what this paper adds *beyond Wang's already-validated 8-variable score*.                                                                                            | Cite Wang; do not write as if no VLST score exists.                                       |
+| **W3**                      | **Limitations section**, covering at minimum: ML models have no external/temporal validation (Wang's score does, on Shantou data we did not use); binary classification vs the published Cox analysis; EPV ≈ 5.4; TabPFN client non-determinism despite `random_state=42`; TabPFN as a remote service whose version is unrecorded; DAPT columns are post-baseline; WBC was excluded by the original investigators. | §4.2, §6.6, §12.9, §12.10.                                                                |
+| **W4** [TODO-EPV]           | **EPV stated explicitly** (92 / 17 ≈ 5.4) next to every adjusted odds ratio.                                                                                                                                                                                                                                                                                                                                       | Computed nowhere (§2.2).                                                                  |
+| **W5**                      | **Terminology pass** enforcing §12.12: "association" for Part 1 and mutual information, "prediction" for Part 4 OOF results only, "interpretation/attribution" for Parts 2 and 5. Never "risk factor", "causal", "independent predictor", "clinically useful", "validated". Wang's own score *was* externally validated — do not use "validated" for TabPFN by contagion.                                          |                                                                                           |
 
 
 ### E. Housekeeping
@@ -1776,14 +1666,12 @@ Groups B–E are execution work.
 
 | #      | Item                                                                                                                                                                                     |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **E1** | **Designate one canonical report tree.** Every report exists twice (`paper_results/`** and `code/**`); they will drift.                                                                  |
+| **E1** | **Designate one canonical report tree.** Every report exists twice (`paper_results/`** and `code/`**); they will drift.                                                                  |
 | **E2** | Delete `paper_domain_feature_map.csv` — byte-identical duplicate of `domain_feature_map.csv`.                                                                                            |
 | **E3** | Fix or cut Part 2 Table 5: its rows are string-matching failures (`Age, years` vs `Age` → rank `NaN`), visible in the notebook output itself at L1502–1522. This is a bug, not a result. |
 | **E4** | Pin package versions (`environment.yml` or a lockfile) and record the TabPFN client **and** server-side model version.                                                                   |
 | **E5** | Add data-availability, ethics and consent statements **to this manuscript**, citing Wang 2020 (NCT03491891, ethics 2013-256, written consent, figshare).                                 |
 | **E6** | Cut the redundant items in §11.3 (Part 4 Table 3 and Figure 3; Part 2 Figures 6, 7, S1, S3; Part 5 Figures 10–12, and one of Figures 3/6).                                               |
-
-
 
 
 ### Suggested order
@@ -1792,6 +1680,6 @@ Groups B–E are execution work.
 2. **B10** (Wang score as comparator) as soon as Part 4 exports are clean — same 5,185 rows, no new data required.
 3. **B11** (Shantou file) as a data-access ask, not a compute task.
 4. **B4, B6, B7** — all cheap, all independent. B7 is now "rebuild and verify against Wang Table 1," not "invent from nothing." (B5 / Part 3 notebook is done.)
-5. **C1–C4** immediately after B1, since they are the claims that are actually false today.
-6. **B8** decision, then the rest of C and D.
+5. **C1–C16 report wording is done.** Remaining C-related work is PNG re-export: B1 (Part 4 TabPFN panels), C11 Table 0 image, optional C12 split-axis Figure 3. Encoding unification is B9, not a caption fix.
+6. **B8** re-run on Kaggle, then refresh Part 3; then W2–W5 (limitations, EPV, terminology in the manuscript itself).
 

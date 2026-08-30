@@ -1,6 +1,6 @@
 # TabPFN interpretability — paper figures and tables
 
-This document gathers publication-oriented figures and tables from the TabPFN interpretability notebook [tabpfn_interpretability.ipynb](tabpfn_interpretability.ipynb).
+This document gathers publication-oriented figures and tables from the TabPFN interpretability notebook `tabpfn_interpretability.ipynb`.
 
 **Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline predictor). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” Text columns are coded as integer categoricals (no scaling / one-hot). That is the TabPFN-native representation; `Stent type-SES` is treated as a numeric code, so a PDP sweep across brand integers is not a meaningful nominal contrast. Feature ranking, PDP, and SHAP are **interpretability on the full pool** — not a locked-in feature mask for Part 4.
 
@@ -8,7 +8,7 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 **Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ were intended to use tabpfn-client with thinking (`effort=high`, `metric=average_precision`); the stored run’s client calls failed (`Fitted train set is not ready`), so both fell back to local TabPFN + KV cache. SHAP explains **15 rows** (budget = 256). The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. Those 15 rows are built as `concat(positives, negatives)[:15]` on a stratified 30% test split (28 events) — so they are **15 VLST cases and zero controls**, by construction, not by chance. k-SII / SHAP-IQ pairwise interactions are `X_explain[0]`: **one** of those cases.
 
-**Asset root:** [paper_figures/](paper_figures/) (also at `data/result/modeling_tabpfn/paper_figures/`)
+**Asset root:** [paper_figures/](paper_figures/)
 
 ---
 
@@ -119,7 +119,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 1](paper_figures/paper_fig1_pdp_continuous.png)
 
-**Figure 1.** Average TabPFN predicted risk while sweeping one continuous feature (rug marks show the empirical distribution). `LV`: predicted risk stays low until the mid-40s and then rises steeply toward ~0.6. `eGFR`: the opposite shape — high predicted risk at low filtration, falling toward ~0 as eGFR increases. `Stent type-SES` is nearly flat across its coded range. `Age` is essentially flat (~0.14), matching the SHAP scatter in Figure 4. The LV × SES contour is dominated by vertical (LV) bands: the interaction plot does not show a strong SES-dependent twist once LV is accounted for.
+**Figure 1.** Average TabPFN **balanced-prior** output while sweeping one feature (rug = empirical distribution). `LV`: output stays low until the mid-40s then rises toward ~0.6 on that scale, **not** a 60% absolute risk. `eGFR`: high output at low filtration. `Stent type-SES` is integer-coded here; a sweep across brand codes is **not** a nominal brand contrast (EDA uses 9 collapsed levels; Part 4 one-hots 106 strings). `Age` is essentially flat (~0.14). The LV × SES contour is dominated by vertical (LV) bands.
 
 **Source file:** [paper_figures/paper_fig1_pdp_continuous.png](paper_figures/paper_fig1_pdp_continuous.png)
 
@@ -127,7 +127,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 2](paper_figures/paper_fig2_pdp_binary.png)
 
-**Figure 2.** Average predicted P[Stent thrombosis] when each binary feature is forced to absent (0, blue) vs present (1, orange). The largest shift is `1.1:1Post dilation` (ΔP = −0.086): presence of 1.1:1 post-dilation lowers average predicted risk. `No postdilation` also lowers predicted risk (ΔP = −0.036) but from a higher baseline. `STEMI`, `Staged PCI`, `CKD60`, and `EVS` have small average effects (|ΔP| ≤ 0.013).
+**Figure 2.** Average balanced-prior P[Stent thrombosis] when each binary feature is forced to absent (0, blue) vs present (1, orange). The largest shift is `1.1:1Post dilation` (ΔP = −0.086): the flag is associated with **lower model output**, not a proven treatment effect. `No postdilation` also lowers output (ΔP = −0.036) from a higher baseline. `STEMI`, `Staged PCI`, `CKD60`, and `EVS` have small average effects (|ΔP| ≤ 0.013).
 
 **Source file:** [paper_figures/paper_fig2_pdp_binary.png](paper_figures/paper_fig2_pdp_binary.png)
 
@@ -166,7 +166,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 4](paper_figures/paper_fig4_shap_scatter_age.png)
 
-**Figure 4.** Age versus its SHAP contribution on the explained rows, with a background histogram of Age. Almost all points sit at SHAP = 0; one younger outlier (~age 46) has a small positive attribution (~0.03). This matches the flat Age PDP in Figure 1: Age is stable in SFS (9/10) but is not a strong *attribution* driver for TabPFN on the explained sample.
+**Figure 4.** Age versus its SHAP contribution on the **15 VLST cases**, with a background histogram of Age. Almost all points sit at SHAP = 0; one younger outlier (~age 46) has a small positive attribution (~0.03). This matches the flat Age PDP in Figure 1: Age is stable in SFS (9/10) but is not a strong *attribution* driver on this all-case sample.
 
 **Source file:** [paper_figures/paper_fig4_shap_scatter_age.png](paper_figures/paper_fig4_shap_scatter_age.png)
 
@@ -182,7 +182,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 6](paper_figures/paper_fig6_shap_beeswarm.png)
 
-**Figure 6.** Same 15-row attributions as Figure 3, restricted to the top-9 features plus the residual bundle. High `LV` / `WBC` increase output; high `eGFR` decreases it. `1.1:1Post dilation` shows a strong negative attribution on at least one high-value row.
+**Figure 6.** Same **15 VLST-case** attributions as Figure 3, restricted to the top-9 features plus the residual bundle. High `LV` / `WBC` increase output; high `eGFR` decreases it. `1.1:1Post dilation` shows a strong negative attribution on at least one high-value row.
 
 **Source file:** [paper_figures/paper_fig6_shap_beeswarm.png](paper_figures/paper_fig6_shap_beeswarm.png)
 
@@ -190,7 +190,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 7](paper_figures/paper_fig7_shap_waterfall.png)
 
-**Figure 7.** Additive breakdown for one explained row, from base value E[f(X)] ≈ −5.39 to f(x) ≈ −3.09 (model output scale). This row is pushed up mainly by `LV` = 55 (+2.32) and `WBC` = 17.16 (+1.70), and pulled down by `1.1:1Post dilation` = 1 (−1.07) and `eGFR` = 132 (−0.67). It is a local explanation for one patient, not a global ranking.
+**Figure 7.** Additive breakdown for **one VLST case**, from base value E[f(X)] ≈ −5.39 to f(x) ≈ −3.09 (model output scale). This row is pushed up mainly by `LV` = 55 (+2.32) and `WBC` = 17.16 (+1.70), and pulled down by `1.1:1Post dilation` = 1 (−1.07) and `eGFR` = 132 (−0.67). Local explanation for one patient, not a global ranking and not a treatment effect.
 
 **Source file:** [paper_figures/paper_fig7_shap_waterfall.png](paper_figures/paper_fig7_shap_waterfall.png)
 
@@ -230,7 +230,7 @@ k-SII plots use the **same one positive-class row** as the waterfall (budget = 2
 
 ![Figure 8](paper_figures/paper_fig8_ksii_network.png)
 
-**Figure 8.** Circular k-SII network for the top 20 features by |Shapley value| on one positive-class row. Large red nodes (`LV`, `WBC`) are strong positive main effects; `1.1:1Post dilation` is a large protective (blue) main effect. Thick edges among `LV`, `WBC`, `eGFR`, `LDL`, and post-dilation are the dominant pairwise terms.
+**Figure 8.** Circular k-SII network for the top 20 features by |Shapley value| on **one VLST case**. Large red nodes (`LV`, `WBC`) are strong positive main effects; `1.1:1Post dilation` is a large **negative** (blue) main effect on this row — not a cohort-level benefit. Thick edges among `LV`, `WBC`, `eGFR`, `LDL`, and post-dilation are the dominant pairwise terms **for that patient**.
 
 **Source file:** [paper_figures/paper_fig8_ksii_network.png](paper_figures/paper_fig8_ksii_network.png)
 
