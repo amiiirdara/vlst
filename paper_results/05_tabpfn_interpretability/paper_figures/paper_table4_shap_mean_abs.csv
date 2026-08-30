@@ -1,0 +1,16 @@
+rank,feature,shap_mean_abs
+1,LV,1.236759
+2,WBC,1.164785
+3,LDL,0.640808
+4,eGFR,0.471301
+5,1.1:1Post dilation,0.239164
+6,Stent type-SES,0.229591
+7,No postdilation,0.1779
+8,CaI,0.177856
+9,HbA1c,0.160197
+10,Cre,0.153856
+11,Fiberinogen,0.094188
+12,HGB,0.076019
+13,TCL,0.050013
+14,No.of stents per lesion,0.042381
+15,Visual thrombus,0.038371

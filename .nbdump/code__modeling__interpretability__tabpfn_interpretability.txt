@@ -1,0 +1,1771 @@
+
+########## CELL 0 [markdown] ##########
+# Install TabPFN Extenstions
+
+########## CELL 1 [code] ##########
+import importlib.util
+import sys
+
+def _missing(mod):
+    return importlib.util.find_spec(mod) is None
+
+to_install = []
+# `shap` is only needed for the plotting API in the SHAP section — shapiq
+# (installed via tabpfn-extensions[all]) does the actual computation.
+if _missing("shap"):
+    to_install.append("shap")
+
+if to_install:
+    print("Installing:", to_install)
+    # `-q -q` = silence "Collecting/Downloading" progress lines.
+    # `--no-warn-conflicts` = silence pre-existing Kaggle image conflicts
+    # (google-colab, moviepy, bigframes, ...) that this notebook doesn't touch.
+    get_ipython().run_line_magic("pip", "install -q -q --no-warn-conflicts " + " ".join(to_install))
+    print("Done. If imports fail, restart the kernel and re-run.")
+else:
+    print("shap already available.")
+---OUT---
+shap already available.
+
+
+########## CELL 2 [code] ##########
+print("Installing tabpfn-extensions[interpretability]... (may take ~1 minute)")
+# Only the `interpretability` extra is needed for this notebook.
+# `[all]` also pulls autogluon / hyperopt / llvmlite via `post_hoc_ensembles`
+# + `hpo`, which are ~150 MB of unrelated deps and downgrade `pyarrow`,
+# triggering the pip resolver conflict noise we don't want.
+# `-q -q --no-warn-conflicts` silences "Collecting/Downloading" progress
+# lines and the pre-existing Kaggle image conflict warnings (google-colab,
+# moviepy, bigframes, ...) that this notebook doesn't touch.
+%pip install -q -q --no-warn-conflicts "tabpfn-extensions[interpretability] @ git+https://github.com/PriorLabs/tabpfn-extensions.git"
+%pip install -q -q --no-warn-conflicts "tabpfn-client"
+%pip install -q -q --no-warn-conflicts "tabpfn"
+print("Done. If imports fail, restart the kernel and re-run.")
+---OUT---
+Installing tabpfn-extensions[interpretability]... (may take ~1 minute)
+  Installing build dependencies ... [?25l[?25hdone
+  Getting requirements to build wheel ... [?25l[?25hdone
+  Preparing metadata (pyproject.toml) ... [?25l[?25hdone
+[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m55.1/55.1 kB[0m [31m5.0 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m17.4/17.4 MB[0m [31m67.3 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m727.9/727.9 kB[0m [31m46.7 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m40.3/40.3 kB[0m [31m2.8 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m429.6/429.6 kB[0m [31m28.8 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m6.2 MB/s[0m eta [36m0:00:00[0m
+[?25h  Building wheel for tabpfn-extensions (pyproject.toml) ... [?25l[?25hdone
+Note: you may need to restart the kernel to use updated packages.
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m56.3/56.3 kB[0m [31m2.4 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m47.6/47.6 MB[0m [31m43.5 MB/s[0m eta [36m0:00:00[0m
+[?25hNote: you may need to restart the kernel to use updated packages.
+Note: you may need to restart the kernel to use updated packages.
+Done. If imports fail, restart the kernel and re-run.
+
+
+########## CELL 3 [markdown] ##########
+### Load env
+
+########## CELL 4 [code] ##########
+import os
+import sys
+import warnings
+from contextlib import contextmanager
+from io import StringIO
+
+# Silence noisy third-party warnings that clutter the Kaggle logs but are not
+# actionable here (emitted from deep inside sklearn / hyperopt during the many
+# local TabPFN fits). Set once at import time so it applies to every later cell.
+warnings.filterwarnings(
+    "ignore",
+    message=r"(?s).*remainder.*ColumnTransformer.*",
+    category=FutureWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r"(?s).*ColumnTransformer.*force_int_remainder_cols.*",
+    category=FutureWarning,
+)
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"hyperopt.*")
+warnings.filterwarnings("ignore", category=UserWarning, module=r"hyperopt.*")
+
+# Auto-detect Kaggle.
+is_kaggle_env = os.path.isdir("/kaggle/working")
+
+DEVICE = "cpu"
+DEVICE_NAME = "CPU"
+_gpu_note = ""
+
+try:
+    import torch
+
+    # torch emits noisy "compute capability / sm_XX not supported" UserWarnings
+    # on first CUDA touch for GPUs older than the ones the installed wheel was
+    # built for (e.g. Kaggle's Tesla P100 = sm_60 with a torch built for
+    # sm_70+). We handle the fallback explicitly below, so silence them.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"(?s).*(compute capability|CUDA capability|sm_\d+).*",
+            category=UserWarning,
+        )
+        if torch.cuda.is_available():
+            _major, _minor = torch.cuda.get_device_capability(0)
+            _gpu_name = torch.cuda.get_device_name(0)
+            _supported = torch.cuda.get_arch_list()  # e.g. ['sm_70', ..., 'sm_120']
+            _min_major = min(
+                (int(a.removeprefix("sm_")[:-1]) for a in _supported if a.startswith("sm_")),
+                default=7,
+            )
+            if _major >= _min_major:
+                DEVICE = "cuda"
+                DEVICE_NAME = _gpu_name
+            else:
+                # Kernel launch would crash -- fall back to CPU with a hint.
+                _gpu_note = (
+                    f" | note: GPU {_gpu_name} (sm_{_major}{_minor}) is below "
+                    f"the installed torch build's minimum (sm_{_min_major}0) -- "
+                    f"switch the Kaggle accelerator to T4 x2 for a working GPU"
+                )
+except Exception:
+    pass
+
+
+def _load_tabpfn_tokens():
+    hf = os.environ.get("HF_TOKEN", "").strip()
+    tabpfn = os.environ.get("TABPFN_TOKEN", "").strip()
+    if tabpfn:
+        return hf, tabpfn
+    if is_kaggle_env:
+        from kaggle_secrets import UserSecretsClient
+        secrets = UserSecretsClient()
+        hf = secrets.get_secret("HF_TOKEN")
+        tabpfn = secrets.get_secret("FADIA_DARA_6909_TABPFN_TOKEN") or secrets.get_secret("TABPFN_TOKEN")
+        return hf, tabpfn
+    return hf, tabpfn
+
+_hf_token, _tabpfn_token = _load_tabpfn_tokens()
+if _tabpfn_token:
+    os.environ["TABPFN_TOKEN"] = _tabpfn_token
+if _hf_token:
+    os.environ["HF_TOKEN"] = _hf_token
+
+os.environ["USE_TABPFN_LOCAL"] = "false"
+
+# Quota knobs (tabpfn-client free tier, as of 2026):
+#   - 20 thinking fits
+#   - 50M prediction cells / day
+#   - 200M prediction cells / month
+# Hybrid backend:
+#   - FS + PDP: local `tabpfn` (0 client API; PDP needs local-only KV cache).
+#   - SHAP / SHAP-IQ: prefer tabpfn-client + thinking (~2 thinking fits);
+#     on client failure (e.g. "Re-fitting is needed but all attempts failed")
+#     fall back to local tabpfn + KV cache.
+# USE_TABPFN_LOCAL=false keeps tabpfn_extensions on the client if imported
+# elsewhere; the FS cell imports `from tabpfn import TabPFNClassifier` directly.
+FS_THINKING_MODE = False
+INTERP_THINKING_MODE = True
+INTERP_THINKING_EFFORT = "high"
+INTERP_THINKING_METRIC = "average_precision"
+
+
+def _silence_client_progress(clf):
+    """Prefer the official switch when present (tabpfn-client show_progress)."""
+    if hasattr(clf, "show_progress"):
+        clf.show_progress = False
+    return clf
+
+
+@contextmanager
+def _quiet_tabpfn_client():
+    """Discard tabpfn-client Fitting/Predicting spinner writes to stdout.
+
+    Does not silence our own print() trackers -- only wrap fit/predict/explain
+    blocks that trigger the client's run_task spinner.
+    """
+    _real_stdout = sys.stdout
+    try:
+        sys.stdout = StringIO()
+        yield
+    finally:
+        sys.stdout = _real_stdout
+
+
+# --- Plot helpers (readable PDP / k-SII networks) ---------------------------
+KSII_NETWORK_TOP_K = 20          # only plot the top-|SV| features in networks
+KSII_NETWORK_FIGSIZE = (18, 18)  # large canvas so labels do not collide
+KSII_NETWORK_DPI = 200
+
+
+def _polish_figure(fig, *, title: str | None = None, fontsize: int = 12):
+    """Enlarge a matplotlib figure and make titles/labels readable."""
+    import matplotlib.pyplot as plt
+
+    if fig is None:
+        fig = plt.gcf()
+    w, h = fig.get_size_inches()
+    fig.set_size_inches(max(w, 10), max(h, 7))
+    if title:
+        fig.suptitle(title, fontsize=fontsize + 2, y=1.02)
+    for ax in fig.axes:
+        ax.title.set_fontsize(fontsize)
+        ax.xaxis.label.set_fontsize(fontsize)
+        ax.yaxis.label.set_fontsize(fontsize)
+        ax.tick_params(axis="both", labelsize=fontsize - 1)
+        for lbl in ax.get_xticklabels() + ax.get_yticklabels():
+            lbl.set_fontsize(fontsize - 1)
+    fig.tight_layout()
+    return fig
+
+
+def _ksii_subset_for_plot(iv, names: list[str], k: int = KSII_NETWORK_TOP_K):
+    """Keep top-k features by |first-order SV| and remap indices to 0..k-1.
+
+    shapiq's ``get_subset`` keeps original player ids and has a buggy
+    ``n_players``; remapping avoids empty slots and label collisions.
+    """
+    import numpy as np
+    from shapiq import InteractionValues
+
+    fo = np.abs(iv.get_n_order_values(1))
+    k = int(min(k, fo.size))
+    top = np.argsort(fo)[::-1][:k].tolist()
+    remap = {old: new for new, old in enumerate(top)}
+    top_names = [names[i] for i in top]
+
+    new_lookup: dict = {}
+    new_values: list = []
+    for key, val in iv.dict_values.items():
+        if not all(p in remap for p in key):
+            continue
+        new_key = tuple(sorted(remap[p] for p in key))
+        if new_key in new_lookup:
+            continue
+        new_lookup[new_key] = len(new_values)
+        new_values.append(float(val))
+
+    sub = InteractionValues(
+        values=np.asarray(new_values, dtype=float),
+        interaction_lookup=new_lookup,
+        index=iv.index,
+        max_order=iv.max_order,
+        n_players=k,
+        min_order=iv.min_order,
+        baseline_value=iv.baseline_value,
+        estimated=getattr(iv, "estimated", True),
+        estimation_budget=getattr(iv, "estimation_budget", None),
+    )
+    return sub, top_names, top
+
+
+def _plot_ksii_network_readable(
+    iv,
+    names: list[str],
+    out_path,
+    *,
+    k: int = KSII_NETWORK_TOP_K,
+    title: str | None = None,
+):
+    """Large k-SII network with only the top-k features (readable labels)."""
+    import matplotlib.pyplot as plt
+
+    sub, top_names, top_idx = _ksii_subset_for_plot(iv, names, k=k)
+    print(
+        f"k-SII network: showing top {len(top_names)} features by |SV|: {top_names}"
+    )
+    result = sub.plot_network(
+        feature_names=top_names,
+        show=False,
+        n_interactions=min(40, len(top_names) * 3),
+        size_factor=1.6,
+        node_size_scaling=1.4,
+    )
+    if result is None:
+        fig, ax = plt.gcf(), plt.gca()
+    else:
+        fig, ax = result
+    fig.set_size_inches(*KSII_NETWORK_FIGSIZE)
+    for t in ax.texts:
+        t.set_fontsize(11)
+        t.set_fontweight("bold")
+    _title = title or (
+        f"k-SII interaction network — top {len(top_names)} features by |SV| "
+        f"(P[Stent thrombosis], one row)"
+    )
+    fig.suptitle(_title, fontsize=14, y=0.98)
+    # Extra margin so radial labels are not clipped
+    fig.subplots_adjust(left=0.08, right=0.92, top=0.92, bottom=0.08)
+    fig.savefig(out_path, dpi=KSII_NETWORK_DPI, bbox_inches="tight", pad_inches=0.4)
+    plt.show()
+    print(f"Saved: {out_path}")
+    return top_names, top_idx
+
+
+def _plot_ksii_upset_readable(
+    iv,
+    names: list[str],
+    out_path,
+    *,
+    n_interactions: int = 20,
+    title: str | None = None,
+):
+    """Tall, readable k-SII UpSet plot (only features in the top interactions).
+
+    Key: ``all_features=False`` — otherwise ~81 y-labels collide. Leave height
+    automatic (``figsize=(width, None)``) so shapiq uses
+    ``height ≈ 5 + n_features * 0.75`` like the library's own examples.
+    """
+    import matplotlib.pyplot as plt
+
+    _title = title or (
+        f"k-SII upset — top {n_interactions} main effects & pairwise "
+        "interactions (one row; rows = features in those interactions only)"
+    )
+    # Width fixed; height=None → shapiq auto-scales for readable row labels.
+    fig = iv.plot_upset(
+        feature_names=list(names),
+        n_interactions=n_interactions,
+        all_features=False,
+        figsize=(14, None),
+        show=False,
+    )
+    if fig is None:
+        fig = plt.gcf()
+    fig.suptitle(_title, fontsize=14, y=1.01)
+    for ax in fig.axes:
+        ax.tick_params(axis="y", labelsize=11)
+        for lbl in ax.get_yticklabels():
+            lbl.set_fontsize(11)
+            lbl.set_fontweight("bold")
+    fig.savefig(out_path, dpi=KSII_NETWORK_DPI, bbox_inches="tight", pad_inches=0.35)
+    plt.show()
+    print(f"Saved: {out_path}  (size={fig.get_size_inches()})")
+    return fig
+
+
+print(
+    f"Runtime: {'Kaggle' if is_kaggle_env else 'local'} | "
+    f"TabPFN device: {DEVICE} ({DEVICE_NAME}) | "
+    f"Tokens: {bool(_tabpfn_token) and bool(_hf_token)}"
+    f"{_gpu_note}"
+)
+print(
+    "Quota (client): 20 thinking fits | 50M cells/day | 200M cells/month"
+)
+print(
+    "This notebook intends ~2 client thinking fits (SHAP, SHAP-IQ primary); "
+    "FS + PDP use local tabpfn. SHAP/SHAP-IQ fall back to local on client failure."
+)
+print(
+    f"Thinking: FS={FS_THINKING_MODE} (local) | "
+    f"SHAP/SHAP-IQ primary={INTERP_THINKING_MODE} "
+    f"(effort={INTERP_THINKING_EFFORT}, metric={INTERP_THINKING_METRIC})"
+)
+
+
+---OUT---
+Runtime: Kaggle | TabPFN device: cuda (Tesla T4) | Tokens: True
+Quota (client): 20 thinking fits | 50M cells/day | 200M cells/month
+This notebook intends ~2 client thinking fits (SHAP, SHAP-IQ primary); FS + PDP use local tabpfn. SHAP/SHAP-IQ fall back to local on client failure.
+Thinking: FS=False (local) | SHAP/SHAP-IQ primary=True (effort=high, metric=average_precision)
+
+
+########## CELL 5 [markdown] ##########
+### Load data
+
+########## CELL 6 [code] ##########
+from pathlib import Path
+import pandas as pd
+import numpy as np
+
+DATA_MODE = "raw"            # "raw" (spec default) or "processed"
+
+TARGET_COL = "Stent thrombosis"
+DROP_FEATURES = ["Time since stent implantation"]   # leakage control
+ID_COLS = ["NO.", "Name"]
+RANDOM_STATE = 42
+TEST_SIZE = 0.3
+
+KAGGLE_RAW_CSV = "/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"
+KAGGLE_PROCESSED_DIR = "/kaggle/input/datasets/amirmahdidaraei/preprocessed-data"
+KAGGLE_RESULT_SUBDIR = "modeling_tabpfn"
+RESULT_DIR = None  # resolved in the load cell
+
+def _find_repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for d in (here, *here.parents):
+        if (d / "data" / "raw" / "VLST.csv").is_file():
+            return d
+    raise FileNotFoundError(
+        "Could not locate data/raw/VLST.csv above the current working directory."
+    )
+
+
+def _discover_vlst_csv() -> Path:
+    """Resolve VLST.csv on Kaggle (env override, then recursive search under /kaggle/input)."""
+    env = os.environ.get("VLST_RAW_CSV")
+    if env and Path(env).is_file():
+        return Path(env)
+
+    candidates = [
+        Path(KAGGLE_RAW_CSV),
+        Path("/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"),
+        Path("/kaggle/input/vlst-data/VLST.csv"),
+        Path("/kaggle/input/VLST_data/VLST.csv"),
+        Path("/kaggle/input/datasets/amirinho661/vlst-figshare-7409606/VLST.csv")
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+
+    base = Path("/kaggle/input")
+    if base.is_dir():
+        for p in base.rglob("VLST.csv"):
+            if p.is_file():
+                return p
+
+    raise FileNotFoundError(
+        "VLST.csv not found on Kaggle. Upload it as a dataset (see §0) or set "
+        "os.environ['VLST_RAW_CSV'] = '/kaggle/input/<dataset>/VLST.csv'."
+    )
+
+
+def _resolve_paths():
+    """Return (raw_path, processed_dir, result_dir, label) for local or Kaggle."""
+    if is_kaggle_env:
+        raw = _discover_vlst_csv()
+        processed = Path(
+            os.environ.get("VLST_PROCESSED_DIR", KAGGLE_PROCESSED_DIR)
+        )
+        result = Path(
+            os.environ.get(
+                "VLST_RESULT_DIR",
+                str(Path("/kaggle/working") / KAGGLE_RESULT_SUBDIR),
+            )
+        )
+        return raw, processed, result, f"Kaggle | raw={raw}"
+
+    repo = _find_repo_root()
+    return (
+        repo / "data" / "raw" / "VLST.csv",
+        repo / "data" / "processed",
+        repo / "data" / "result" / "modeling_tabpfn",
+        f"local | repo={repo}",
+    )
+
+
+RAW_PATH, PROCESSED_DIR, RESULT_DIR, _path_label = _resolve_paths()
+RESULT_DIR = Path(RESULT_DIR)
+PROCESSED_DIR = Path(PROCESSED_DIR)
+RAW_PATH = Path(RAW_PATH)
+RESULT_DIR.mkdir(parents=True, exist_ok=True)
+print(_path_label)
+print("RAW_PATH:", RAW_PATH)
+print("PROCESSED_DIR:", PROCESSED_DIR)
+print("RESULT_DIR:", RESULT_DIR)
+
+
+def load_raw():
+    """Minimal, TabPFN-native handling: keep NaNs, code text columns, no scaling/one-hot."""
+    df = pd.read_csv(RAW_PATH)
+    df = df.drop(columns=[c for c in ID_COLS if c in df.columns])
+    y = df[TARGET_COL].astype(int).to_numpy()
+    drop = [TARGET_COL] + [c for c in DROP_FEATURES if c in df.columns]
+    X_df = df.drop(columns=drop)
+    for c in X_df.columns:
+        if X_df[c].dtype == object:
+            coerced = pd.to_numeric(X_df[c].astype(str).str.strip(), errors="coerce")
+            if coerced.notna().mean() >= 0.5:        # genuinely numeric (e.g. "21.00 ")
+                X_df[c] = coerced
+            else:                                     # categorical text -> integer codes (NOT one-hot)
+                codes = X_df[c].astype("category").cat.codes.astype(float)
+                X_df[c] = codes.where(codes >= 0, np.nan)
+    return X_df.to_numpy(dtype=float), y, list(X_df.columns)
+
+X_all, y_all, feature_names = load_raw()
+print("Loaded RAW VLST.csv")
+
+print(f"X: {X_all.shape} | y: {y_all.shape} | Features: {len(feature_names)}")
+---OUT---
+Kaggle | raw=/kaggle/input/datasets/amirinho661/vlst-figshare-7409606/VLST.csv
+RAW_PATH: /kaggle/input/datasets/amirinho661/vlst-figshare-7409606/VLST.csv
+PROCESSED_DIR: /kaggle/input/datasets/amirmahdidaraei/preprocessed-data
+RESULT_DIR: /kaggle/working/modeling_tabpfn
+Loaded RAW VLST.csv
+X: (5185, 81) | y: (5185,) | Features: 81
+
+
+########## CELL 7 [markdown] ##########
+### Feature selection — [1/5]
+
+Local rankings (0 tabpfn-client calls):
+
+1. **mutual_info_classif** — fast univariate screen → `interpretability_mutual_info_ranking.csv`
+2. **Stability selection** — forward SFS repeated over `STABILITY_N_SEEDS` resamples; per-feature selection frequency → `interpretability_feature_stability.csv` (the honesty signal for the [5/5] report)
+
+A single forward SFS run is omitted on purpose — it is noisy on this cohort and is already covered (more honestly) by the stability loop.
+
+
+########## CELL 8 [code] ##########
+"""Feature selection for VLST interpretability — local methods.
+
+1. mutual_info_classif — fast univariate ranking (seconds, 0 TabPFN calls).
+2. Stability selection — forward SFS repeated over STABILITY_N_SEEDS resamples
+   (different shuffled CV splits + seeds); we count how often each feature is
+   selected. Stable features are the honest ones; a single SFS run is noisy on
+   a ~2% prevalence cohort and is intentionally omitted (it would duplicate
+   ~1x the cost of one stability seed without adding reliability).
+
+TabPFN SFS on the *client* burns the 50M daily quota; local tabpfn avoids that.
+n_jobs=1, n_estimators=1 keeps wall time manageable on a T4.
+
+CAUTION — data leakage if you reuse these features downstream:
+All steps rank on the full (X_all, y_all) pool for *interpretability only*.
+Treat the CSVs as exploratory guidance, not a locked-in feature mask.
+PDP / report prefer stability (+ MI), not a single forward SFS mask.
+"""
+
+from __future__ import annotations
+
+import time
+
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.model_selection import StratifiedKFold
+from tabpfn import TabPFNClassifier
+from tabpfn_extensions import interpretability
+
+print("=" * 60)
+print("[1/5] Feature selection (mutual_info + stability)")
+print("=" * 60)
+
+SKIP_FS_IF_EXISTS = True
+
+_mi_csv = RESULT_DIR / "interpretability_mutual_info_ranking.csv"
+_stab_csv = RESULT_DIR / "interpretability_feature_stability.csv"
+
+N_MI_RANK = min(15, X_all.shape[1])
+STABILITY_N_SEEDS = 10                       # resamples for stability selection
+STABILITY_K = min(10, X_all.shape[1])       # features kept per resample
+FS_CV = 5
+FS_N_JOBS = 1
+FS_N_ESTIMATORS = 1
+
+_t0 = time.perf_counter()
+
+# --- 1a. Mutual information (univariate) ---------------------------------
+print("\n--- [1a] mutual_info_classif ---")
+if SKIP_FS_IF_EXISTS and _mi_csv.is_file():
+    print(f"Skipping MI ranking — already saved at {_mi_csv}")
+    print("(Delete the CSV to re-run.)")
+    _mi_ranked = pd.read_csv(_mi_csv)
+else:
+    print(
+        f"Ranking {X_all.shape[1]} features with mutual_info_classif "
+        f"(top {N_MI_RANK})..."
+    )
+    _col_med = np.nanmedian(X_all, axis=0)
+    _X_mi = np.where(np.isnan(X_all), _col_med, X_all)
+    _mi = mutual_info_classif(
+        _X_mi,
+        y_all,
+        discrete_features=False,
+        random_state=RANDOM_STATE,
+    )
+    _order = np.argsort(_mi)[::-1]
+    _top = _order[:N_MI_RANK]
+    _mi_ranked = pd.DataFrame(
+        {
+            "rank": range(1, len(_top) + 1),
+            "feature": [feature_names[i] for i in _top],
+            "mutual_info": [_mi[i] for i in _top],
+        },
+    )
+    _mi_ranked.to_csv(_mi_csv, index=False)
+    print(f"Top {N_MI_RANK}: {_mi_ranked['feature'].tolist()}")
+    print(f"Saved: {_mi_csv}")
+
+# --- 1b. Stability selection: repeated forward SFS -----------------------
+# Repeat forward SFS over STABILITY_N_SEEDS resamples (shuffled stratified CV
+# + varied estimator seed) and count how often each feature is selected.
+# Selection frequency is the honest "is this feature reliably important?"
+# signal — a single SFS run is noisy on a small, imbalanced cohort.
+print("\n--- [1b] stability selection (repeated forward SFS) ---")
+if SKIP_FS_IF_EXISTS and _stab_csv.is_file():
+    print(f"Skipping stability selection — already saved at {_stab_csv}")
+    print("(Delete the CSV to re-run.)")
+    _stability = pd.read_csv(_stab_csv)
+    print(f"Loaded stability for {len(_stability)} features from existing CSV.")
+else:
+    print(
+        f"Repeating forward SFS over {STABILITY_N_SEEDS} resamples "
+        f"(select {STABILITY_K} of {X_all.shape[1]}, cv={FS_CV}, device={DEVICE}). "
+        f"Cost ≈ {STABILITY_N_SEEDS}x one forward SFS — local tabpfn, "
+        f"0 client API calls."
+    )
+    _counts = np.zeros(X_all.shape[1], dtype=int)
+    for _s in range(STABILITY_N_SEEDS):
+        _seed = RANDOM_STATE + _s
+        _cv = StratifiedKFold(n_splits=FS_CV, shuffle=True, random_state=_seed)
+        _clf = TabPFNClassifier(
+            device=DEVICE,
+            n_estimators=FS_N_ESTIMATORS,
+            balance_probabilities=True,
+            ignore_pretraining_limits=True,
+            random_state=_seed,
+        )
+        _res = interpretability.feature_selection.feature_selection(
+            estimator=_clf,
+            X=X_all,
+            y=y_all,
+            n_features_to_select=STABILITY_K,
+            feature_names=list(feature_names),
+            cv=_cv,
+            scoring="average_precision",
+            direction="forward",
+            n_jobs=FS_N_JOBS,
+            verbose=False,
+        )
+        _counts[_res.selected_indices] += 1
+        print(
+            f"  seed {_s + 1}/{STABILITY_N_SEEDS} (rs={_seed}): "
+            f"{_res.selected_names}"
+        )
+
+    _stability = pd.DataFrame(
+        {
+            "feature": list(feature_names),
+            "times_selected": _counts,
+            "selection_freq": _counts / STABILITY_N_SEEDS,
+        },
+    )
+    _stability = (
+        _stability[_stability["times_selected"] > 0]
+        .sort_values(["selection_freq", "feature"], ascending=[False, True])
+        .reset_index(drop=True)
+    )
+    _stability.insert(0, "rank", range(1, len(_stability) + 1))
+    _stability.to_csv(_stab_csv, index=False)
+    print(f"Saved per-feature stability: {_stab_csv}")
+
+# Breakdown: how many features were kept in exactly k of the STABILITY_N_SEEDS
+# runs (printed whether freshly computed or loaded), plus a summary CSV.
+_stab_summary_csv = RESULT_DIR / "interpretability_feature_stability_summary.csv"
+print(f"\nSelection-frequency breakdown (out of {STABILITY_N_SEEDS} runs):")
+_summary_rows = []
+for _k in range(STABILITY_N_SEEDS, 0, -1):
+    _feats = _stability.loc[_stability["times_selected"] == _k, "feature"].tolist()
+    print(f"  selected {_k}/{STABILITY_N_SEEDS}x  ({len(_feats)} features): {_feats}")
+    _summary_rows.append(
+        {
+            "times_selected": _k,
+            "n_features": len(_feats),
+            "features": "; ".join(_feats),
+        },
+    )
+pd.DataFrame(_summary_rows).to_csv(_stab_summary_csv, index=False)
+print(f"Saved breakdown: {_stab_summary_csv}")
+
+_elapsed = time.perf_counter() - _t0
+print(
+    f"\n[1/5] done in {_elapsed:.1f}s | "
+    f"MI: {_mi_csv} | stability: {_stab_csv}"
+)
+
+---OUT---
+============================================================
+[1/5] Feature selection (mutual_info + stability)
+============================================================
+
+--- [1a] mutual_info_classif ---
+Ranking 81 features with mutual_info_classif (top 15)...
+Top 15: ['CaI', 'WBC', 'LV', 'Stent type-SES', 'eGFR', '1.1:1Post dilation', 'LDL', 'No postdilation', 'HbA1c', 'HGB', 'Fast-Glu', 'TCL', 'Fiberinogen', 'ZES', 'Visual thrombus']
+Saved: /kaggle/working/modeling_tabpfn/interpretability_mutual_info_ranking.csv
+
+--- [1b] stability selection (repeated forward SFS) ---
+Repeating forward SFS over 10 resamples (select 10 of 81, cv=5, device=cuda). Cost ≈ 10x one forward SFS — local tabpfn, 0 client API calls.
+
+tabpfn-v3-classifier-v3_default.ckpt:   0%|          | 0.00/213M [00:00<?, ?B/s]
+config.json:   0%|          | 0.00/33.0 [00:00<?, ?B/s]
+  seed 1/10 (rs=42): ['Age', 'Stent type-SES', 'EVS', 'LV', 'LVEF', 'WBC', 'Cre', 'eGFR', 'CKD60', 'HbA1c']
+  seed 2/10 (rs=43): ['History of peripheral vascualr disease', 'Visual thrombus', 'Staged PCI', 'Stent type-SES', 'PES', 'No postdilation', 'LV', 'LVEF', 'WBC', 'eGFR']
+  seed 3/10 (rs=44): ['Age', 'STEMI', 'Stent type-SES', 'EVS', 'No postdilation', 'LV', 'LVEF', 'WBC', 'Cre', 'eGFR']
+  seed 4/10 (rs=45): ['Age', 'Initial diagnosis-AMI', 'STEMI', 'Single-vessel disease', 'Stent type-SES', '1.1:1Post dilation', 'LV', 'WBC', 'Cre', 'eGFR']
+  seed 5/10 (rs=46): ['Age', 'STEMI', 'Stent type-SES', 'No.of stents per lesion', 'No postdilation', 'LV', 'WBC', 'Cre', 'eGFR', 'CKD5']
+  seed 6/10 (rs=47): ['Age', 'STEMI', 'Staged PCI', 'Stent type-SES', 'No postdilation', 'LV', 'WBC', 'Cre', 'eGFR', 'HbA1c']
+  seed 7/10 (rs=48): ['Age', 'STEMI', 'Stent type-SES', '1.1:1Post dilation', 'LV', 'WBC', 'Cre', 'eGFR', 'CKD5', 'HbA1c']
+  seed 8/10 (rs=49): ['Age', 'STEMI', 'Staged PCI', 'Stent type-SES', 'No postdilation', 'LV', 'WBC', 'Cre', 'eGFR', 'CKD60']
+  seed 9/10 (rs=50): ['Age', 'Stent type-SES', 'No.of stents per lesion', 'No postdilation', 'LV', 'LVEF', 'WBC', 'Cre', 'eGFR', 'HbA1c']
+  seed 10/10 (rs=51): ['Age', 'Current drinking', 'Stent type-SES', 'No.of stents per lesion', 'No postdilation', 'LV', 'LVEF', 'Cre', 'eGFR', 'HbA1c']
+Saved per-feature stability: /kaggle/working/modeling_tabpfn/interpretability_feature_stability.csv
+
+Selection-frequency breakdown (out of 10 runs):
+  selected 10/10x  (3 features): ['LV', 'Stent type-SES', 'eGFR']
+  selected 9/10x  (3 features): ['Age', 'Cre', 'WBC']
+  selected 8/10x  (0 features): []
+  selected 7/10x  (1 features): ['No postdilation']
+  selected 6/10x  (1 features): ['STEMI']
+  selected 5/10x  (2 features): ['HbA1c', 'LVEF']
+  selected 4/10x  (0 features): []
+  selected 3/10x  (2 features): ['No.of stents per lesion', 'Staged PCI']
+  selected 2/10x  (4 features): ['1.1:1Post dilation', 'CKD5', 'CKD60', 'EVS']
+  selected 1/10x  (6 features): ['Current drinking', 'History of peripheral vascualr disease', 'Initial diagnosis-AMI', 'PES', 'Single-vessel disease', 'Visual thrombus']
+Saved breakdown: /kaggle/working/modeling_tabpfn/interpretability_feature_stability_summary.csv
+
+[1/5] done in 30823.1s | MI: /kaggle/working/modeling_tabpfn/interpretability_mutual_info_ranking.csv | stability: /kaggle/working/modeling_tabpfn/interpretability_feature_stability.csv
+
+
+########## CELL 9 [markdown] ##########
+### PDP (Partial Dependence Plot) Part
+
+########## CELL 10 [code] ##########
+"""Partial dependence plots for the VLST TabPFN classifier — LOCAL tabpfn.
+
+PDP runs on the local `tabpfn` package (KV cache; 0 client thinking fits).
+
+Feature picking (why you may previously have seen only WBC):
+  Forward SFS often returns mostly *binary* flags. Sklearn's brute PDP crashes
+  on binary features for binary classifiers (`cannot reshape ... into shape (2)`),
+  so we only feed continuous (>2 unique values) features into sklearn PDP.
+  Ranking priority for continuous curves: stability frequency → MI.
+  Binary important features get a separate bar-chart PDP (manual 0/1 predict),
+  which avoids the sklearn bug.
+
+Artifacts:
+  - interpretability_pdp.png          — continuous 1-D curves (+ optional 2-D)
+  - interpretability_pdp_binary.png   — bar PD for top stable binary features
+"""
+
+from __future__ import annotations
+
+import time
+import traceback
+import warnings
+
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+
+from tabpfn import TabPFNClassifier
+from tabpfn_extensions.interpretability.pdp import partial_dependence_plots
+
+print("=" * 60)
+print("[2/5] PDP (Partial Dependence Plots)")
+print("=" * 60)
+
+SKIP_PDP_IF_EXISTS = True
+pdp_out = RESULT_DIR / "interpretability_pdp.png"
+pdp_binary_out = RESULT_DIR / "interpretability_pdp_binary.png"
+PDP_N_CONTINUOUS = 4
+PDP_N_BINARY = 6
+
+_t0 = time.perf_counter()
+
+if SKIP_PDP_IF_EXISTS and pdp_out.is_file() and pdp_binary_out.is_file():
+    print(f"Skipping PDP -- already saved at {pdp_out} and {pdp_binary_out}")
+else:
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_all, y_all,
+            test_size=TEST_SIZE,
+            stratify=y_all,
+            random_state=RANDOM_STATE,
+        )
+
+        def _make_pdp_clf(**extra):
+            return TabPFNClassifier(
+                device=DEVICE,
+                balance_probabilities=True,
+                ignore_pretraining_limits=True,
+                random_state=RANDOM_STATE,
+                **extra,
+            )
+
+        print("Fitting local TabPFN for PDP (KV cache; 0 client thinking fits)...")
+        try:
+            clf = _silence_client_progress(_make_pdp_clf(fit_mode="fit_with_cache"))
+            with _quiet_tabpfn_client():
+                clf.fit(X_train, y_train)
+            if hasattr(clf, "executor_"):
+                clf.executor_.keep_cache_on_device = True
+        except (TypeError, ValueError, NotImplementedError):
+            warnings.warn(
+                "PDP would benefit substantially from the KV cache, but this "
+                "tabpfn version doesn't support fit_mode='fit_with_cache'. "
+                "Falling back to the default constructor.",
+                UserWarning,
+                stacklevel=2,
+            )
+            clf = _silence_client_progress(_make_pdp_clf())
+            with _quiet_tabpfn_client():
+                clf.fit(X_train, y_train)
+
+        def _n_unique(name: str) -> int:
+            col = X_test[:, feature_names.index(name)]
+            return int(np.unique(col[~np.isnan(col)]).size)
+
+        # Rank candidates: stability (freq desc) → MI → rest.
+        _ranked: list[str] = []
+        for _csv, _cols in (
+            (RESULT_DIR / "interpretability_feature_stability.csv", None),
+            (RESULT_DIR / "interpretability_mutual_info_ranking.csv", None),
+        ):
+            if not _csv.is_file():
+                continue
+            _df = pd.read_csv(_csv)
+            if "selection_freq" in _df.columns:
+                _names = (
+                    _df.sort_values("selection_freq", ascending=False)["feature"]
+                    .tolist()
+                )
+            else:
+                _names = _df["feature"].tolist()
+            for _n in _names:
+                if _n not in _ranked and _n in feature_names:
+                    _ranked.append(_n)
+        for _n in feature_names:
+            if _n not in _ranked:
+                _ranked.append(_n)
+
+        _cont = [n for n in _ranked if _n_unique(n) > 2]
+        _bin = [n for n in _ranked if _n_unique(n) <= 2]
+        print(
+            f"PDP candidates — continuous (≥3 unique): {len(_cont)}; "
+            f"binary (≤2 unique): {len(_bin)}"
+        )
+
+        # --- Continuous 1-D curves (+ optional 2-D interaction) via sklearn ---
+        if not _cont:
+            print("WARN: no continuous features for sklearn PDP curves.")
+        else:
+            _pd_names = _cont[:PDP_N_CONTINUOUS]
+            _pd_idx = [feature_names.index(n) for n in _pd_names]
+            pd_features: list = list(_pd_idx)
+            _interact_partner = None
+            if len(_cont) >= 2:
+                _interact_partner = _cont[1]
+                pd_features = _pd_idx + [
+                    (_pd_idx[0], feature_names.index(_interact_partner))
+                ]
+
+            _msg = f"Computing continuous PDP: features={_pd_names}"
+            if _interact_partner is not None:
+                _msg += f" + interaction ({_pd_names[0]}, {_interact_partner})"
+            print(_msg + f", grid_resolution=30...")
+
+            with _quiet_tabpfn_client():
+                disp = partial_dependence_plots(
+                    estimator=clf,
+                    X=X_test,
+                    features=pd_features,
+                    grid_resolution=30,
+                    kind="average",
+                    target_class=1,
+                    feature_names=list(feature_names),
+                )
+            fig = disp.figure_
+            fig.set_size_inches(16, 10)
+            # Titles must come from sklearn's plot axes only — fig.axes also
+            # includes the contour colorbar, which shifted every title by one.
+            if getattr(disp, "axes_", None) is not None:
+                _plot_axes = [ax for ax in np.ravel(disp.axes_) if ax is not None]
+            else:
+                _plot_axes = [
+                    ax for ax in fig.axes if ax.get_label() != "<colorbar>"
+                ]
+            # Sync title to sklearn's already-correct axis labels (no hand list).
+            for _ax in _plot_axes:
+                _xl = (_ax.get_xlabel() or "").strip()
+                _yl = (_ax.get_ylabel() or "").strip()
+                _yl_l = _yl.lower()
+                _is_2d = bool(
+                    _xl
+                    and _yl
+                    and not _yl_l.startswith(("partial", "average", "predicted"))
+                )
+                if _is_2d:
+                    _ax.set_title(
+                        f"{_xl} × {_yl}", fontsize=13, fontweight="bold", pad=8
+                    )
+                elif _xl:
+                    _ax.set_title(_xl, fontsize=13, fontweight="bold", pad=8)
+                    _ax.set_ylabel(
+                        "Partial dependence\nP[Stent thrombosis]", fontsize=11
+                    )
+                if _xl:
+                    _ax.set_xlabel(_xl, fontsize=12)
+                _ax.tick_params(axis="both", labelsize=11)
+            fig.suptitle(
+                "Partial dependence (continuous) — VLST (P[Stent thrombosis])\n"
+                "Each panel: average predicted risk while varying that feature",
+                fontsize=14,
+                y=1.02,
+            )
+            fig.tight_layout(h_pad=2.5, w_pad=2.0)
+            fig.savefig(pdp_out, dpi=200, bbox_inches="tight")
+            plt.show()
+            print(f"Saved: {pdp_out}")
+
+        # --- Binary bar PDPs (manual; sklearn crashes on 2-point grids) ------
+        _bin_top = _bin[:PDP_N_BINARY]
+        if not _bin_top:
+            print("WARN: no binary features for bar PDP.")
+        else:
+            print(f"Computing binary bar PDP: features={_bin_top}...")
+            _bar_vals = []
+            for _name in _bin_top:
+                _j = feature_names.index(_name)
+                _X0 = X_test.copy()
+                _X1 = X_test.copy()
+                _X0[:, _j] = 0.0
+                _X1[:, _j] = 1.0
+                with _quiet_tabpfn_client():
+                    _p0 = float(clf.predict_proba(_X0)[:, 1].mean())
+                    _p1 = float(clf.predict_proba(_X1)[:, 1].mean())
+                _bar_vals.append((_name, _p0, _p1, _p1 - _p0))
+                print(f"  {_name}: P(y=1|0)={_p0:.4f}  P(y=1|1)={_p1:.4f}  Δ={_p1 - _p0:+.4f}")
+
+            _n = len(_bar_vals)
+            fig, axes = plt.subplots(1, _n, figsize=(3.4 * _n, 4.5), sharey=True)
+            if _n == 1:
+                axes = [axes]
+            for ax, (_name, _p0, _p1, _delta) in zip(axes, _bar_vals):
+                ax.bar([0, 1], [_p0, _p1], color=["#4C72B0", "#DD8452"], width=0.6)
+                ax.set_xticks([0, 1])
+                ax.set_xticklabels(["absent (0)", "present (1)"], fontsize=10)
+                ax.set_title(
+                    f"{_name}\nΔ P = {_delta:+.3f}",
+                    fontsize=12,
+                    fontweight="bold",
+                    pad=8,
+                )
+                ax.set_xlabel("Feature value", fontsize=11)
+                ax.tick_params(axis="y", labelsize=11)
+            axes[0].set_ylabel(
+                "Partial dependence\nP[Stent thrombosis]", fontsize=12
+            )
+            fig.suptitle(
+                "Partial dependence (binary) — VLST (P[Stent thrombosis])\n"
+                "Bar height = average predicted risk when the feature is forced to 0 vs 1",
+                fontsize=13,
+                y=1.05,
+            )
+            fig.tight_layout()
+            fig.savefig(pdp_binary_out, dpi=200, bbox_inches="tight")
+            plt.show()
+            print(f"Saved: {pdp_binary_out}")
+
+    except Exception as _pdp_err:
+        print(
+            f"[2/5] PDP FAILED — logging and continuing to the next section. "
+            f"{type(_pdp_err).__name__}: {_pdp_err}"
+        )
+        traceback.print_exc()
+
+_elapsed = time.perf_counter() - _t0
+print(
+    f"[2/5] done in {_elapsed:.1f}s | artifacts: {pdp_out}, {pdp_binary_out}"
+)
+
+
+
+---OUT---
+============================================================
+[2/5] PDP (Partial Dependence Plots)
+============================================================
+Fitting local TabPFN for PDP (KV cache; 0 client thinking fits)...
+PDP candidates — continuous (≥3 unique): 24; binary (≤2 unique): 57
+Computing continuous PDP: features=['LV', 'Stent type-SES', 'eGFR', 'Age'] + interaction (LV, Stent type-SES), grid_resolution=30...
+
+<Figure size 1600x1000 with 6 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/interpretability_pdp.png
+Computing binary bar PDP: features=['No postdilation', 'STEMI', 'Staged PCI', '1.1:1Post dilation', 'CKD60', 'EVS']...
+  No postdilation: P(y=1|0)=0.2430  P(y=1|1)=0.2067  Δ=-0.0363
+  STEMI: P(y=1|0)=0.1401  P(y=1|1)=0.1271  Δ=-0.0130
+  Staged PCI: P(y=1|0)=0.1334  P(y=1|1)=0.1303  Δ=-0.0031
+  1.1:1Post dilation: P(y=1|0)=0.2643  P(y=1|1)=0.1781  Δ=-0.0862
+  CKD60: P(y=1|0)=0.1359  P(y=1|1)=0.1234  Δ=-0.0124
+  EVS: P(y=1|0)=0.1328  P(y=1|1)=0.1354  Δ=+0.0026
+
+<Figure size 2040x450 with 6 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/interpretability_pdp_binary.png
+[2/5] done in 1098.3s | artifacts: /kaggle/working/modeling_tabpfn/interpretability_pdp.png, /kaggle/working/modeling_tabpfn/interpretability_pdp_binary.png
+
+
+########## CELL 11 [markdown] ##########
+### SHAP Part
+
+########## CELL 12 [code] ##########
+"""SHAP values for the VLST TabPFN classifier via shapiq.
+
+Primary backend: tabpfn-client + thinking (~1 thinking fit).
+Backup: local `tabpfn` + `fit_mode='fit_with_cache'` if the client fails
+(common: `Re-fitting is needed but all attempts failed` under shapiq's
+repeated predict_proba / imputation validates).
+
+We wrap shapiq output in `shap.Explanation` for the mature plotting API.
+k-SII uses shapiq's native `plot_network` / `plot_upset`.
+Outer try/except: a total failure only logs and lets [4/5] / [5/5] run.
+"""
+
+from __future__ import annotations
+
+import time
+import traceback
+import warnings
+
+import matplotlib.pyplot as plt
+import shap
+from sklearn.model_selection import train_test_split
+
+from tabpfn import TabPFNClassifier as LocalTabPFNClassifier
+from tabpfn_client import TabPFNClassifier as ClientTabPFNClassifier
+from tabpfn_extensions.interpretability import shapiq as tabpfn_shapiq
+
+print("=" * 60)
+print("[3/5] SHAP (SV + one-row k-SII)")
+print("=" * 60)
+
+SKIP_SHAP_IF_EXISTS = True
+_shap_meanabs_csv = RESULT_DIR / "interpretability_shap_mean_abs.csv"
+_shap_plots = [
+    RESULT_DIR / "sv_interpretability_shap_summary.png",
+    RESULT_DIR / "sv_interpretability_shap_scatter_f0.png",
+    RESULT_DIR / "sv_interpretability_shap_bar.png",
+    RESULT_DIR / "sv_interpretability_shap_beeswarm.png",
+    RESULT_DIR / "sv_interpretability_shap_waterfall_row0.png",
+    RESULT_DIR / "k_ssi_interpretability_network_top15.png",
+    RESULT_DIR / "k_ssi_interpretability_upset.png",
+    _shap_meanabs_csv,
+]
+
+_t0 = time.perf_counter()
+
+if SKIP_SHAP_IF_EXISTS and all(p.is_file() for p in _shap_plots):
+    print(
+        "Skipping SHAP -- all plot artifacts already exist under "
+        f"{RESULT_DIR}"
+    )
+else:
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_all, y_all,
+            test_size=TEST_SIZE,
+            stratify=y_all,
+            random_state=RANDOM_STATE,
+        )
+
+        _pos_idx = np.where(y_test == 1)[0]
+        _neg_idx = np.where(y_test == 0)[0]
+        SHAP_N_EXPLAIN = min(15, X_test.shape[0])
+        _order = np.concatenate([_pos_idx, _neg_idx])[:SHAP_N_EXPLAIN]
+        X_explain = X_test[_order]
+        SHAPIQ_BUDGET = 256
+        KSII_BUDGET = 256
+
+        def _fit_client_clf():
+            clf = _silence_client_progress(
+                ClientTabPFNClassifier(
+                    balance_probabilities=True,
+                    thinking_mode=INTERP_THINKING_MODE,
+                    thinking_effort=INTERP_THINKING_EFFORT,
+                    thinking_metric=INTERP_THINKING_METRIC,
+                    random_state=42,
+                )
+            )
+            with _quiet_tabpfn_client():
+                clf.fit(X_train, y_train)
+            # Probe: client often dies here (or at first explainer validate),
+            # not at fit time.
+            with _quiet_tabpfn_client():
+                clf.predict_proba(X_train[: min(8, len(X_train))])
+            return clf
+
+        def _fit_local_clf():
+            try:
+                clf = _silence_client_progress(
+                    LocalTabPFNClassifier(
+                        device=DEVICE,
+                        balance_probabilities=True,
+                        ignore_pretraining_limits=True,
+                        random_state=RANDOM_STATE,
+                        fit_mode="fit_with_cache",
+                    )
+                )
+                with _quiet_tabpfn_client():
+                    clf.fit(X_train, y_train)
+                if hasattr(clf, "executor_"):
+                    clf.executor_.keep_cache_on_device = True
+            except (TypeError, ValueError, NotImplementedError):
+                warnings.warn(
+                    "Local KV cache unavailable; falling back to default "
+                    "local TabPFNClassifier constructor.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                clf = _silence_client_progress(
+                    LocalTabPFNClassifier(
+                        device=DEVICE,
+                        balance_probabilities=True,
+                        ignore_pretraining_limits=True,
+                        random_state=RANDOM_STATE,
+                    )
+                )
+                with _quiet_tabpfn_client():
+                    clf.fit(X_train, y_train)
+            return clf
+
+        def _run_shap(clf, backend_label: str):
+            print(f"SHAP backend: {backend_label}")
+            explainer = tabpfn_shapiq.get_tabpfn_imputation_explainer(
+                model=clf,
+                data=X_train,
+                index="SV",
+                imputer="baseline",
+                max_order=1,
+            )
+            print(
+                f"Explaining {SHAP_N_EXPLAIN}/{SHAP_N_EXPLAIN} rows, "
+                f"budget={SHAPIQ_BUDGET}, imputer=baseline..."
+            )
+            _ivs = []
+            for _i in range(SHAP_N_EXPLAIN):
+                with _quiet_tabpfn_client():
+                    _ivs.append(
+                        explainer.explain(x=X_explain[_i], budget=SHAPIQ_BUDGET)
+                    )
+                print(f"SHAP row {_i + 1}/{SHAP_N_EXPLAIN} done")
+
+            _values = np.stack([iv.get_n_order_values(1) for iv in _ivs])
+            _base_values = np.array([iv.baseline_value for iv in _ivs])
+            explanation = shap.Explanation(
+                values=_values,
+                base_values=_base_values,
+                data=X_explain,
+                feature_names=list(feature_names),
+            )
+
+            _shap_meanabs = (
+                pd.DataFrame(
+                    {
+                        "feature": list(feature_names),
+                        "shap_mean_abs": np.abs(_values).mean(axis=0),
+                    },
+                )
+                .sort_values("shap_mean_abs", ascending=False)
+                .reset_index(drop=True)
+            )
+            _shap_meanabs.insert(0, "rank", range(1, len(_shap_meanabs) + 1))
+            _shap_meanabs.to_csv(_shap_meanabs_csv, index=False)
+            print(f"Saved SHAP mean(|SV|) ranking: {_shap_meanabs_csv}")
+
+            def _save_shap(path, title: str):
+                fig = plt.gcf()
+                _polish_figure(fig, title=title, fontsize=12)
+                fig.savefig(path, dpi=200, bbox_inches="tight")
+                plt.show()
+                print(f"Saved: {path}")
+
+            shap.summary_plot(explanation, show=False)
+            _save_shap(
+                RESULT_DIR / "sv_interpretability_shap_summary.png",
+                "SHAP summary — feature impact on P[Stent thrombosis] "
+                f"(n={SHAP_N_EXPLAIN} explained rows)",
+            )
+
+            shap.plots.scatter(explanation[:, 0], show=False)
+            _save_shap(
+                RESULT_DIR / "sv_interpretability_shap_scatter_f0.png",
+                f"SHAP scatter — {feature_names[0]} value vs. SHAP contribution",
+            )
+
+            shap.plots.bar(explanation, show=False)
+            _save_shap(
+                RESULT_DIR / "sv_interpretability_shap_bar.png",
+                "SHAP bar — mean(|SHAP|) global feature importance",
+            )
+
+            shap.plots.beeswarm(explanation, show=False)
+            _save_shap(
+                RESULT_DIR / "sv_interpretability_shap_beeswarm.png",
+                "SHAP beeswarm — per-row attributions (color = feature value)",
+            )
+
+            shap.plots.waterfall(explanation[0], show=False)
+            _save_shap(
+                RESULT_DIR / "sv_interpretability_shap_waterfall_row0.png",
+                "SHAP waterfall — one-row breakdown "
+                "(baseline → predicted P[Stent thrombosis])",
+            )
+            print(f"SHAP plots saved under: {RESULT_DIR}")
+
+            interaction_explainer = tabpfn_shapiq.get_tabpfn_imputation_explainer(
+                model=clf,
+                data=X_train,
+                index="k-SII",
+                imputer="baseline",
+                max_order=2,
+            )
+            print(
+                f"Computing pairwise Shapley interactions "
+                f"(k-SII, budget={KSII_BUDGET})..."
+            )
+            with _quiet_tabpfn_client():
+                iv_ksii = interaction_explainer.explain(
+                    x=X_explain[0], budget=KSII_BUDGET
+                )
+
+            _plot_ksii_network_readable(
+                iv_ksii,
+                list(feature_names),
+                RESULT_DIR / "k_ssi_interpretability_network_top15.png",
+                k=KSII_NETWORK_TOP_K,
+                title=(
+                    f"k-SII network — top {KSII_NETWORK_TOP_K} features by |SV| "
+                    "(one positive-class row; node size = main effect, "
+                    "edge = pairwise interaction)"
+                ),
+            )
+
+            _plot_ksii_upset_readable(
+                iv_ksii,
+                list(feature_names),
+                RESULT_DIR / "k_ssi_interpretability_upset.png",
+                n_interactions=20,
+                title=(
+                    "k-SII upset — top 20 main effects & pairwise interactions "
+                    "(one row; only features that appear in those interactions)"
+                ),
+            )
+            print(f"k-SII interaction plots saved under: {RESULT_DIR}")
+
+        # --- primary: client + thinking; backup: local + KV cache ----------
+        try:
+            print(
+                f"Primary: fitting tabpfn-client "
+                f"(thinking={INTERP_THINKING_MODE})..."
+            )
+            _clf = _fit_client_clf()
+            _run_shap(_clf, "tabpfn-client + thinking")
+        except Exception as _client_err:
+            print(
+                f"Client SHAP failed ({type(_client_err).__name__}: {_client_err}). "
+                f"Backup: local tabpfn + KV cache (0 thinking fits)..."
+            )
+            traceback.print_exc()
+            _clf = _fit_local_clf()
+            _run_shap(_clf, "local tabpfn + KV cache")
+
+    except Exception as _shap_err:
+        print(
+            f"[3/5] SHAP FAILED — logging and continuing to the next section. "
+            f"{type(_shap_err).__name__}: {_shap_err}"
+        )
+        traceback.print_exc()
+
+_elapsed = time.perf_counter() - _t0
+print(f"[3/5] done in {_elapsed:.1f}s | artifacts under: {RESULT_DIR}")
+
+---OUT---
+============================================================
+[3/5] SHAP (SV + one-row k-SII)
+============================================================
+Primary: fitting tabpfn-client (thinking=True)...
+
+[1;32mFound existing access token, reusing it for authentication.[0m
+
+The provided train set hashes match previously uploaded train sets.
+
+Client SHAP failed (RuntimeError: Fail to call prepare_test_set_upload with error: 422, Fitted train set is not ready, still pending or failed). Backup: local tabpfn + KV cache (0 thinking fits)...
+
+Traceback (most recent call last):
+  File "/tmp/ipykernel_23/3522139054.py", line 250, in <cell line: 0>
+    _clf = _fit_client_clf()
+           ^^^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_23/3522139054.py", line 83, in _fit_client_clf
+    clf.predict_proba(X_train[: min(8, len(X_train))])
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 398, in predict_proba
+    return self._predict(X, output_type="probas")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 458, in _predict
+    result = run_task(predict_task, "Predicting")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 1050, in run_task
+    result = future.result()
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 435, in predict_task
+    return InferenceClient.predict(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/service_wrapper.py", line 308, in predict
+    return ServiceClient.predict(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/client.py", line 538, in predict
+    cls._validate_response(
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/client.py", line 796, in _validate_response
+    raise RuntimeError(
+RuntimeError: Fail to call prepare_test_set_upload with error: 422, Fitted train set is not ready, still pending or failed
+
+SHAP backend: local tabpfn + KV cache
+Explaining 15/15 rows, budget=256, imputer=baseline...
+SHAP row 1/15 done
+SHAP row 2/15 done
+SHAP row 3/15 done
+SHAP row 4/15 done
+SHAP row 5/15 done
+SHAP row 6/15 done
+SHAP row 7/15 done
+SHAP row 8/15 done
+SHAP row 9/15 done
+SHAP row 10/15 done
+SHAP row 11/15 done
+SHAP row 12/15 done
+SHAP row 13/15 done
+SHAP row 14/15 done
+SHAP row 15/15 done
+Saved SHAP mean(|SV|) ranking: /kaggle/working/modeling_tabpfn/interpretability_shap_mean_abs.csv
+
+<Figure size 1000x950 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/sv_interpretability_shap_summary.png
+
+<Figure size 1000x700 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/sv_interpretability_shap_scatter_f0.png
+
+<Figure size 1000x700 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/sv_interpretability_shap_bar.png
+
+<Figure size 1000x700 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/sv_interpretability_shap_beeswarm.png
+
+<Figure size 1000x700 with 3 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/sv_interpretability_shap_waterfall_row0.png
+SHAP plots saved under: /kaggle/working/modeling_tabpfn
+Computing pairwise Shapley interactions (k-SII, budget=256)...
+k-SII network: showing top 20 features by |SV|: ['LV', 'WBC', '1.1:1Post dilation', 'LDL', 'eGFR', 'No postdilation', 'Fast-Glu', 'TIMI-2', 'Hypertension', 'Previous PCI', 'Previous CABG', 'History of peripheral vascualr disease', 'Stent type-SES', 'CKD5', 'Clopidogrel', 'TIMI-0', 'History of HF', 'Diabetes', 'P-LM', 'Cre']
+
+<Figure size 1800x1800 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/k_ssi_interpretability_network_top15.png
+
+<Figure size 1400x1550 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/k_ssi_interpretability_upset.png  (size=[14.  15.5])
+k-SII interaction plots saved under: /kaggle/working/modeling_tabpfn
+[3/5] done in 3326.6s | artifacts under: /kaggle/working/modeling_tabpfn
+
+
+########## CELL 13 [markdown] ##########
+### SHAP-IQ Part
+
+########## CELL 14 [code] ##########
+"""Shapley values + pairwise Shapley interactions via shapiq.
+
+Primary backend: tabpfn-client + thinking (~1 thinking fit).
+Backup: local `tabpfn` + KV cache if the client fails under repeated
+predicts (e.g. `Re-fitting is needed but all attempts failed`).
+One-row native shapiq plots only (force / network / upset).
+Outer try/except: a total failure only logs and lets [5/5] run.
+"""
+
+from __future__ import annotations
+
+import time
+import traceback
+import warnings
+
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+
+from tabpfn import TabPFNClassifier as LocalTabPFNClassifier
+from tabpfn_client import TabPFNClassifier as ClientTabPFNClassifier
+from tabpfn_extensions.interpretability import shapiq as tabpfn_shapiq
+
+print("=" * 60)
+print("[4/5] SHAP-IQ (native shapiq plots)")
+print("=" * 60)
+
+_t0 = time.perf_counter()
+
+try:
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_all, y_all,
+        test_size=TEST_SIZE,
+        stratify=y_all,
+        random_state=RANDOM_STATE,
+    )
+
+    _pos = np.where(y_test == 1)[0]
+    x_explain = X_test[_pos[0] if len(_pos) else 0]
+    SV_BUDGET = 256
+    KSII_BUDGET = 256
+
+    def _fit_client_clf():
+        clf = _silence_client_progress(
+            ClientTabPFNClassifier(
+                balance_probabilities=True,
+                thinking_mode=INTERP_THINKING_MODE,
+                thinking_effort=INTERP_THINKING_EFFORT,
+                thinking_metric=INTERP_THINKING_METRIC,
+                random_state=42,
+            )
+        )
+        with _quiet_tabpfn_client():
+            clf.fit(X_train, y_train)
+        with _quiet_tabpfn_client():
+            clf.predict_proba(X_train[: min(8, len(X_train))])
+        return clf
+
+    def _fit_local_clf():
+        try:
+            clf = _silence_client_progress(
+                LocalTabPFNClassifier(
+                    device=DEVICE,
+                    balance_probabilities=True,
+                    ignore_pretraining_limits=True,
+                    random_state=RANDOM_STATE,
+                    fit_mode="fit_with_cache",
+                )
+            )
+            with _quiet_tabpfn_client():
+                clf.fit(X_train, y_train)
+            if hasattr(clf, "executor_"):
+                clf.executor_.keep_cache_on_device = True
+        except (TypeError, ValueError, NotImplementedError):
+            warnings.warn(
+                "Local KV cache unavailable; falling back to default "
+                "local TabPFNClassifier constructor.",
+                UserWarning,
+                stacklevel=2,
+            )
+            clf = _silence_client_progress(
+                LocalTabPFNClassifier(
+                    device=DEVICE,
+                    balance_probabilities=True,
+                    ignore_pretraining_limits=True,
+                    random_state=RANDOM_STATE,
+                )
+            )
+            with _quiet_tabpfn_client():
+                clf.fit(X_train, y_train)
+        return clf
+
+    def _run_iq(clf, backend_label: str):
+        print(f"SHAP-IQ backend: {backend_label}")
+        imputation_explainer = tabpfn_shapiq.get_tabpfn_imputation_explainer(
+            model=clf,
+            data=X_train,
+            index="SV",
+            imputer="baseline",
+            max_order=1,
+        )
+        print(
+            f"Computing imputation-based Shapley values "
+            f"(1 row, budget={SV_BUDGET})..."
+        )
+        with _quiet_tabpfn_client():
+            sv_imp = imputation_explainer.explain(x=x_explain, budget=SV_BUDGET)
+        sv_imp.plot_force(feature_names=list(feature_names))
+
+        interaction_explainer = tabpfn_shapiq.get_tabpfn_imputation_explainer(
+            model=clf,
+            data=X_train,
+            index="k-SII",
+            imputer="baseline",
+            max_order=2,
+        )
+        print(
+            f"Computing pairwise Shapley interactions "
+            f"(k-SII, 1 row, budget={KSII_BUDGET})..."
+        )
+        with _quiet_tabpfn_client():
+            iv_interactions = interaction_explainer.explain(
+                x=x_explain, budget=KSII_BUDGET
+            )
+        _plot_ksii_network_readable(
+            iv_interactions,
+            list(feature_names),
+            RESULT_DIR / "k_ssi_shapiq_network_top15.png",
+            k=KSII_NETWORK_TOP_K,
+            title=(
+                f"SHAP-IQ k-SII network — top {KSII_NETWORK_TOP_K} features by |SV| "
+                "(one positive-class row; node size = main effect, "
+                "edge = pairwise interaction)"
+            ),
+        )
+        _plot_ksii_upset_readable(
+            iv_interactions,
+            list(feature_names),
+            RESULT_DIR / "k_ssi_shapiq_upset.png",
+            n_interactions=20,
+            title=(
+                "SHAP-IQ k-SII upset — top 20 main effects & pairwise interactions "
+                "(one row; only features that appear in those interactions)"
+            ),
+        )
+
+    try:
+        print(
+            f"Primary: fitting tabpfn-client "
+            f"(thinking={INTERP_THINKING_MODE})..."
+        )
+        _clf = _fit_client_clf()
+        _run_iq(_clf, "tabpfn-client + thinking")
+    except Exception as _client_err:
+        print(
+            f"Client SHAP-IQ failed ({type(_client_err).__name__}: {_client_err}). "
+            f"Backup: local tabpfn + KV cache (0 thinking fits)..."
+        )
+        traceback.print_exc()
+        _clf = _fit_local_clf()
+        _run_iq(_clf, "local tabpfn + KV cache")
+
+except Exception as _iq_err:
+    print(
+        f"[4/5] SHAP-IQ FAILED — logging and continuing to the next section. "
+        f"{type(_iq_err).__name__}: {_iq_err}"
+    )
+    traceback.print_exc()
+
+_elapsed = time.perf_counter() - _t0
+print(f"[4/5] done in {_elapsed:.1f}s")
+
+---OUT---
+============================================================
+[4/5] SHAP-IQ (native shapiq plots)
+============================================================
+Primary: fitting tabpfn-client (thinking=True)...
+
+The provided train set hashes match previously uploaded train sets.
+
+Client SHAP-IQ failed (RuntimeError: Fail to call prepare_test_set_upload with error: 422, Fitted train set is not ready, still pending or failed). Backup: local tabpfn + KV cache (0 thinking fits)...
+
+Traceback (most recent call last):
+  File "/tmp/ipykernel_23/577015109.py", line 151, in <cell line: 0>
+    _clf = _fit_client_clf()
+           ^^^^^^^^^^^^^^^^^
+  File "/tmp/ipykernel_23/577015109.py", line 55, in _fit_client_clf
+    clf.predict_proba(X_train[: min(8, len(X_train))])
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 398, in predict_proba
+    return self._predict(X, output_type="probas")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 458, in _predict
+    result = run_task(predict_task, "Predicting")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 1050, in run_task
+    result = future.result()
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/estimator.py", line 435, in predict_task
+    return InferenceClient.predict(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/service_wrapper.py", line 308, in predict
+    return ServiceClient.predict(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/client.py", line 538, in predict
+    cls._validate_response(
+  File "/usr/local/lib/python3.12/dist-packages/tabpfn_client/client.py", line 796, in _validate_response
+    raise RuntimeError(
+RuntimeError: Fail to call prepare_test_set_upload with error: 422, Fitted train set is not ready, still pending or failed
+
+SHAP-IQ backend: local tabpfn + KV cache
+Computing imputation-based Shapley values (1 row, budget=256)...
+
+<Figure size 1500x400 with 1 Axes>
+<PNG image>
+Computing pairwise Shapley interactions (k-SII, 1 row, budget=256)...
+k-SII network: showing top 20 features by |SV|: ['LV', 'WBC', '1.1:1Post dilation', 'LDL', 'eGFR', 'No postdilation', 'Fast-Glu', 'TIMI-2', 'Hypertension', 'Previous PCI', 'Previous CABG', 'History of peripheral vascualr disease', 'Stent type-SES', 'CKD5', 'Clopidogrel', 'TIMI-0', 'History of HF', 'Diabetes', 'P-LM', 'Cre']
+
+<Figure size 1800x1800 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/k_ssi_shapiq_network_top15.png
+
+<Figure size 1400x1550 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/k_ssi_shapiq_upset.png  (size=[14.  15.5])
+[4/5] done in 3311.4s
+
+
+########## CELL 15 [markdown] ##########
+### Feature importance report — [5/5]
+
+Honest, consensus ranking of the most important features. No single method is
+trusted alone — we aggregate the local signals computed above:
+
+1. **mutual_info_classif** — univariate association
+2. **Stability selection frequency** — how often forward SFS keeps a feature
+   across `STABILITY_N_SEEDS` resamples (the reliability signal)
+3. **SHAP mean(|value|)** — model attribution magnitude on held-out rows
+
+Ranking uses **Borda-style mean of normalized ranks** across the available
+continuous signals (robust to any one noisy method), with `n_methods` (out of
+3) as a consensus column. Report the **top 15** as *associations* with stent
+thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort.
+→ `interpretability_feature_importance_report.csv` + `.png`
+
+
+########## CELL 16 [code] ##########
+"""Honest feature-importance report for VLST — consensus of local signals.
+
+Combines mutual_info, stability-selection frequency, and SHAP mean(|value|)
+into one ranked table. Ranking = Borda-style mean of
+normalized ranks over the available continuous signals; `n_methods` counts how
+many methods flag each feature. Report the TOP_K as *associations* with stent
+thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort.
+Reads only CSV artifacts, so it costs 0 thinking fits and can be re-run freely.
+"""
+
+from __future__ import annotations
+
+import matplotlib.pyplot as plt
+
+print("=" * 60)
+print("[5/5] Feature importance report (consensus)")
+print("=" * 60)
+
+TOP_K = 15
+
+_report_csv = RESULT_DIR / "interpretability_feature_importance_report.csv"
+_report_png = RESULT_DIR / "interpretability_feature_importance_report.png"
+
+_mi_csv = RESULT_DIR / "interpretability_mutual_info_ranking.csv"
+_stab_csv = RESULT_DIR / "interpretability_feature_stability.csv"
+_shap_csv = RESULT_DIR / "interpretability_shap_mean_abs.csv"
+
+_report = pd.DataFrame({"feature": list(feature_names)})
+_signals = []  # continuous columns used for rank aggregation
+
+# --- mutual information ---------------------------------------------------
+if _mi_csv.is_file():
+    _mi = pd.read_csv(_mi_csv)[["feature", "mutual_info"]]
+    _report = _report.merge(_mi, on="feature", how="left")
+    _report["mutual_info"] = _report["mutual_info"].fillna(0.0)
+    _report["in_mi_top"] = _report["feature"].isin(_mi["feature"])
+    _signals.append("mutual_info")
+else:
+    print(f"WARN: {_mi_csv.name} missing — run [1/5] first.")
+    _report["mutual_info"] = 0.0
+    _report["in_mi_top"] = False
+
+# --- stability selection frequency ---------------------------------------
+if _stab_csv.is_file():
+    _stab = pd.read_csv(_stab_csv)[["feature", "selection_freq"]]
+    _report = _report.merge(_stab, on="feature", how="left")
+    _report["selection_freq"] = _report["selection_freq"].fillna(0.0)
+    _signals.append("selection_freq")
+else:
+    print(f"WARN: {_stab_csv.name} missing — run [1/5] stability step first.")
+    _report["selection_freq"] = 0.0
+
+# --- SHAP mean(|value|) --------------------------------------------------
+if _shap_csv.is_file():
+    _shap = pd.read_csv(_shap_csv)[["feature", "shap_mean_abs"]]
+    _report = _report.merge(_shap, on="feature", how="left")
+    _report["shap_mean_abs"] = _report["shap_mean_abs"].fillna(0.0)
+    _shap_top = set(
+        _shap.sort_values("shap_mean_abs", ascending=False).head(TOP_K)["feature"]
+    )
+    _report["in_shap_top"] = _report["feature"].isin(_shap_top)
+    _signals.append("shap_mean_abs")
+else:
+    print(f"WARN: {_shap_csv.name} missing — run [3/5] SHAP first.")
+    _report["shap_mean_abs"] = 0.0
+    _report["in_shap_top"] = False
+
+# --- consensus count (out of 4 methods) ----------------------------------
+_report["n_methods"] = (
+    _report["in_mi_top"].astype(int)
+    + (_report["selection_freq"] >= 0.5).astype(int)
+    + _report["in_shap_top"].astype(int)
+)
+
+# --- Borda rank aggregation over available continuous signals ------------
+if _signals:
+    _norm = []
+    for _c in _signals:
+        _r = _report[_c].rank(method="average", ascending=True)  # 1 = best
+        _norm.append((_r - 1) / max(len(_report) - 1, 1))
+    _report["importance_score"] = np.mean(_norm, axis=0)
+else:
+    print("WARN: no continuous signals available — cannot rank.")
+    _report["importance_score"] = 0.0
+
+_report = _report.sort_values(
+    ["importance_score", "n_methods"], ascending=[False, False]
+).reset_index(drop=True)
+_report.insert(0, "rank", range(1, len(_report) + 1))
+
+_cols = [
+    "rank", "feature", "importance_score", "n_methods",
+    "selection_freq", "shap_mean_abs", "mutual_info",
+    "in_mi_top", "in_shap_top",
+]
+_report = _report[[c for c in _cols if c in _report.columns]]
+_report.to_csv(_report_csv, index=False)
+
+_topk = _report.head(TOP_K)
+print(f"\nAggregated from signals: {_signals}")
+print(f"\nTop {TOP_K} features (honest consensus ranking):")
+print(_topk.to_string(index=False))
+print(f"\nSaved: {_report_csv}")
+
+# --- horizontal bar chart of top-k --------------------------------------
+_bars = _topk.iloc[::-1]
+fig, ax = plt.subplots(figsize=(9, 0.45 * len(_bars) + 1))
+ax.barh(_bars["feature"], _bars["importance_score"], color="#4C72B0")
+for _i, (_score, _n) in enumerate(zip(_bars["importance_score"], _bars["n_methods"])):
+    ax.text(_score, _i, f"  {_n}/3 methods", va="center", fontsize=8, color="#333")
+ax.set_xlabel("Aggregated importance (mean normalized rank, 1 = strongest)")
+ax.set_title(f"VLST — top {TOP_K} features by consensus ranking")
+ax.margins(x=0.15)
+fig.tight_layout()
+fig.savefig(_report_png, dpi=150, bbox_inches="tight")
+plt.show()
+print(f"Saved: {_report_png}")
+
+---OUT---
+============================================================
+[5/5] Feature importance report (consensus)
+============================================================
+
+Aggregated from signals: ['mutual_info', 'selection_freq', 'shap_mean_abs']
+
+Top 15 features (honest consensus ranking):
+ rank                 feature  importance_score  n_methods  selection_freq  shap_mean_abs  mutual_info  in_mi_top  in_shap_top
+    1                      LV          0.987500          3             1.0       1.236759     0.015178       True         True
+    2                     WBC          0.975000          3             0.9       1.164785     0.018360       True         True
+    3                    eGFR          0.966667          3             1.0       0.471301     0.009931       True         True
+    4          Stent type-SES          0.962500          3             1.0       0.229591     0.011357       True         True
+    5         No postdilation          0.920833          3             0.7       0.177900     0.007535       True         True
+    6      1.1:1Post dilation          0.906250          2             0.2       0.239164     0.007932       True         True
+    7                   HbA1c          0.897917          3             0.5       0.160197     0.007439       True         True
+    8         Visual thrombus          0.785417          1             0.1       0.038371     0.003707       True        False
+    9                     CaI          0.758333          2             0.0       0.177856     0.019224       True         True
+   10                     LDL          0.754167          2             0.0       0.640808     0.007693       True         True
+   11                     Cre          0.747917          2             0.9       0.153856     0.000000      False         True
+   12                     HGB          0.695833          2             0.0       0.076019     0.004606       True         True
+   13             Fiberinogen          0.687500          2             0.0       0.094188     0.004040       True         True
+   14 No.of stents per lesion          0.683333          0             0.3       0.042381     0.000000      False        False
+   15                     TCL          0.679167          1             0.0       0.050013     0.004257       True        False
+
+Saved: /kaggle/working/modeling_tabpfn/interpretability_feature_importance_report.csv
+
+<Figure size 900x775 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/interpretability_feature_importance_report.png

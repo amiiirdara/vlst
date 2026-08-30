@@ -1,0 +1,4046 @@
+
+########## CELL 0 [markdown] ##########
+## 1. Paths and imports
+
+
+########## CELL 1 [markdown] ##########
+# TabPFN FP follow-up (VLST): ratio sweep + dual evaluation matrices
+
+**Split policy (retrospective design, forward loop):** **split_b is fixed** across all registered FP CSVs (`REGISTERED_FP_SETS`, overridable via `VLST_FP_REGISTRY`). Built once from the **union of each set’s 20% FP test holdout** (capped to split_b budget; common test-holdout ids prioritized (train-holdout FPs never on split_b)). Same **19 test positives**, same **814 plain TNs**, same **FP-candidate pool** row ids for every run. Per run: **active fp_test** = `(this CSV ids) ∩ fp_candidate_pool`; pool rows from other sets (or unused pool slots) are **plain TN on split_b**. §2 prints **common** FP count across registered sets. **split_a(r_max)** equals **split_b**; for smaller **r**, only the TN prefix shrinks. **Train(r)** adds TNs from `tn_train_ordered` (all train FPs from the active CSV). **Val** = held-out train-pool positives + `tn_val_ix`.
+
+**Fixed TN budget:** Mined FPs must be unique VLST TNs (`y=0`); carved from the pool, not added. §2 prints `TN budget:` and `Split disjointness OK`.
+
+**Ratio schedule:** `n_neg_target = n_pos_ratio × r` (default **`n_pos_ratio` = train positives**). `max_r = floor((n_fp_fit + n_tn_train_pool) / n_pos_ratio)`.
+
+§3 TabPFN sweep · §5 curves · §6 MaxFP CSV · §7 MaxFP-46 (92 pos : 46 FP subset).
+
+
+########## CELL 2 [code] ##########
+import os
+import warnings
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import train_test_split
+
+warnings.filterwarnings("ignore", category=UserWarning)
+
+RANDOM_STATE = int(os.environ.get("VLST_TABPFN_FOLLOWUP_SEED", "42"))
+
+FULL_DATA_PATH = os.environ.get(
+    "VLST_FULL_DATA_PATH",
+    "/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv",
+)
+
+
+def pick_output_dir_modeling_fp() -> str:
+    out = os.environ.get("VLST_FP_FOLLOWUP_OUT_DIR")
+    if out:
+        return os.path.expanduser(out.rstrip(os.sep))
+    if os.path.isdir("/kaggle/working"):
+        return "/kaggle/working/vlst_fp_followup_output"
+    return os.path.normpath(os.path.join("..", "..", "data", "result", "modeling_fp"))
+
+
+OUTPUT_DIR = pick_output_dir_modeling_fp()
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def pick_fp_mining_output_dir() -> str:
+    out = os.environ.get("VLST_FP_OUTPUT_DIR") or os.environ.get("VLST_FP_MINING_OUT")
+    if not out:
+        kaggle_fp_out = "/kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output"
+        if os.path.isdir(kaggle_fp_out):
+            out = kaggle_fp_out
+    if out:
+        out = os.path.expanduser(out.rstrip(os.sep))
+    elif os.path.isdir("/kaggle/working"):
+        out = "/kaggle/working/vlst_fp_mining_output"
+    else:
+        repo_modeling_fp = os.path.normpath(
+            os.path.join("..", "..", "data", "result", "modeling_fp")
+        )
+        if os.path.isfile(os.path.join(repo_modeling_fp, "false_positives_union_test.csv")):
+            out = repo_modeling_fp
+        else:
+            out = os.path.normpath(
+                os.path.join("..", "..", "data", "result", "modeling_advanced", "fp_mining")
+            )
+    tag = os.environ.get("VLST_FP_RUN_TAG", "").strip()
+    if tag:
+        out = os.path.join(out, tag)
+    return out
+
+
+FP_MINING_OUT = pick_fp_mining_output_dir()
+UNION_CSV = os.path.join(FP_MINING_OUT, "false_positives_union_test.csv")
+MAXFP_CSV = os.path.join(
+    FP_MINING_OUT, "false_positives_tabpfn_maxfp_cal_threshold_test.csv"
+)
+
+
+def pick_fp_derived_output_dir() -> str:
+    """Writable dir for generated FP CSVs (never /kaggle/input)."""
+    out = os.environ.get("VLST_FP_DERIVED_OUT", "").strip()
+    if out:
+        out = os.path.expanduser(out.rstrip(os.sep))
+    elif os.path.isdir("/kaggle/working"):
+        out = "/kaggle/working/vlst_fp_mining_output"
+    else:
+        _mining = os.path.normpath(FP_MINING_OUT)
+        if _mining.startswith("/kaggle/input") or not os.access(
+            _mining if os.path.isdir(_mining) else os.path.dirname(_mining) or ".",
+            os.W_OK,
+        ):
+            out = os.path.join(OUTPUT_DIR, "fp_derived")
+        else:
+            out = _mining
+    os.makedirs(out, exist_ok=True)
+    return out
+
+
+FP_DERIVED_OUT = pick_fp_derived_output_dir()
+MAXFP_46_N = int(os.environ.get("VLST_MAXFP_46_N", "46"))
+MAXFP_46_CSV = os.path.join(
+    FP_DERIVED_OUT, "false_positives_maxfp46_subset_test.csv"
+)
+
+
+def ensure_maxfp_46_csv(
+    source_csv: str = MAXFP_CSV,
+    out_csv: str = MAXFP_46_CSV,
+    n_fp: int = MAXFP_46_N,
+    seed: int = RANDOM_STATE,
+) -> str:
+    """Reproducible n_fp-row subset of MaxFP CSV (default 46 FPs, 2:1 vs 92 VLST positives)."""
+    n_fp = int(n_fp)
+    if os.path.isfile(out_csv):
+        df_chk = pd.read_csv(out_csv, low_memory=False)
+        if int(len(df_chk)) == n_fp:
+            return str(out_csv)
+    if not os.path.isfile(source_csv):
+        raise FileNotFoundError(f"MaxFP source CSV missing: {source_csv}")
+    df_src = pd.read_csv(source_csv, low_memory=False)
+    if int(len(df_src)) <= n_fp:
+        df_out = df_src.copy()
+    else:
+        _rng = np.random.RandomState(int(seed))
+        _pick = _rng.choice(int(len(df_src)), size=n_fp, replace=False)
+        df_out = df_src.iloc[_pick].reset_index(drop=True)
+    os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
+    df_out.to_csv(out_csv, index=False)
+    print(
+        f"MaxFP-46 subset CSV: {out_csv} | n={len(df_out)} "
+        f"(sampled from source n={len(df_src)}, seed={seed})"
+    )
+    return str(out_csv)
+
+
+MAXFP_46_CSV = ensure_maxfp_46_csv()
+
+
+def _parse_fp_registry_env():
+    """Optional VLST_FP_REGISTRY='label1=/path/a.csv;label2=/path/b.csv'."""
+    raw = os.environ.get("VLST_FP_REGISTRY", "").strip()
+    if not raw:
+        return None
+    out = []
+    for part in raw.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" not in part:
+            raise ValueError(
+                f"VLST_FP_REGISTRY entries must be label=path (got {part!r})."
+            )
+        label, path = part.split("=", 1)
+        out.append((label.strip(), os.path.expanduser(path.strip())))
+    if not out:
+        raise ValueError("VLST_FP_REGISTRY is set but empty.")
+    return out
+
+
+def default_registered_fp_sets():
+    return [
+        ("union", UNION_CSV),
+        ("maxfp", MAXFP_CSV),
+        ("maxfp46", MAXFP_46_CSV),
+    ]
+
+
+REGISTERED_FP_SETS = _parse_fp_registry_env() or default_registered_fp_sets()
+FIXED_SPLIT_B_CANONICAL_FP_CSV = os.environ.get(
+    "VLST_FIXED_SPLIT_B_FP_CSV", MAXFP_CSV
+)
+
+print("FULL_DATA_PATH:", FULL_DATA_PATH)
+print("Follow-up artifacts dir (OUTPUT_DIR):", OUTPUT_DIR)
+print("FP mining outputs (union CSV):", FP_MINING_OUT)
+print("FP derived (writable) dir:", FP_DERIVED_OUT)
+print("Union CSV:", UNION_CSV)
+print("MaxFP CSV:", MAXFP_CSV)
+print("MaxFP-46 subset CSV:", MAXFP_46_CSV)
+print("Registered FP sets:", [(l, p) for l, p in REGISTERED_FP_SETS])
+
+---OUT---
+MaxFP-46 subset CSV: /kaggle/working/vlst_fp_mining_output/false_positives_maxfp46_subset_test.csv | n=46 (sampled from source n=1019, seed=42)
+FULL_DATA_PATH: /kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv
+Follow-up artifacts dir (OUTPUT_DIR): /kaggle/working/vlst_fp_followup_output
+FP mining outputs (union CSV): /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output
+FP derived (writable) dir: /kaggle/working/vlst_fp_mining_output
+Union CSV: /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_union_test.csv
+MaxFP CSV: /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_tabpfn_maxfp_cal_threshold_test.csv
+MaxFP-46 subset CSV: /kaggle/working/vlst_fp_mining_output/false_positives_maxfp46_subset_test.csv
+Registered FP sets: [('union', '/kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_union_test.csv'), ('maxfp', '/kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_tabpfn_maxfp_cal_threshold_test.csv'), ('maxfp46', '/kaggle/working/vlst_fp_mining_output/false_positives_maxfp46_subset_test.csv')]
+
+
+########## CELL 3 [code] ##########
+!pip install -U tabpfn-client
+---OUT---
+Collecting tabpfn-client
+  Downloading tabpfn_client-0.3.1-py3-none-any.whl.metadata (14 kB)
+Collecting backoff<=2.2.1,>=2.2.0 (from tabpfn-client)
+  Downloading backoff-2.2.1-py3-none-any.whl.metadata (14 kB)
+Requirement already satisfied: google-crc32c<=1.8.0,>=1.5.0 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (1.8.0)
+Requirement already satisfied: httpx<=0.28.1,>=0.25.0 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (0.28.1)
+Requirement already satisfied: omegaconf<=2.3.0,>=2.1.2 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (2.3.0)
+Requirement already satisfied: pandas<=2.3.3,>=2.1.2 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (2.3.3)
+Collecting password-strength<=0.0.3.post2,>=0.0.3.post2 (from tabpfn-client)
+  Downloading password_strength-0.0.3.post2-py2.py3-none-any.whl.metadata (10 kB)
+Collecting pyarrow<=23.0.1,>=14.0.0 (from tabpfn-client)
+  Downloading pyarrow-23.0.1-cp312-cp312-manylinux_2_28_x86_64.whl.metadata (3.1 kB)
+Requirement already satisfied: pydantic<=2.13.4,>=2.11.7 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (2.12.3)
+Requirement already satisfied: rich<=15.0.0,>=13.7.0 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (13.9.4)
+Requirement already satisfied: scikit-learn<=1.6.1,>=1.3.1 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (1.6.1)
+Collecting sseclient-py<=1.9.0,>=1.8.0 (from tabpfn-client)
+  Downloading sseclient_py-1.9.0-py3-none-any.whl.metadata (1.9 kB)
+Collecting tabpfn-common-utils<=0.2.19,>=0.2.10 (from tabpfn-client)
+  Downloading tabpfn_common_utils-0.2.19-py3-none-any.whl.metadata (5.4 kB)
+Requirement already satisfied: tqdm<=4.67.3,>=4.63.0 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (4.67.3)
+Requirement already satisfied: typing-extensions<=4.15.0,>=4.12.2 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (4.15.0)
+Requirement already satisfied: xxhash<=3.6.0,>=1.1.0 in /usr/local/lib/python3.12/dist-packages (from tabpfn-client) (3.6.0)
+Requirement already satisfied: anyio in /usr/local/lib/python3.12/dist-packages (from httpx<=0.28.1,>=0.25.0->tabpfn-client) (4.13.0)
+Requirement already satisfied: certifi in /usr/local/lib/python3.12/dist-packages (from httpx<=0.28.1,>=0.25.0->tabpfn-client) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.12/dist-packages (from httpx<=0.28.1,>=0.25.0->tabpfn-client) (1.0.9)
+Requirement already satisfied: idna in /usr/local/lib/python3.12/dist-packages (from httpx<=0.28.1,>=0.25.0->tabpfn-client) (3.11)
+Requirement already satisfied: h11>=0.16 in /usr/local/lib/python3.12/dist-packages (from httpcore==1.*->httpx<=0.28.1,>=0.25.0->tabpfn-client) (0.16.0)
+Requirement already satisfied: antlr4-python3-runtime==4.9.* in /usr/local/lib/python3.12/dist-packages (from omegaconf<=2.3.0,>=2.1.2->tabpfn-client) (4.9.3)
+Requirement already satisfied: PyYAML>=5.1.0 in /usr/local/lib/python3.12/dist-packages (from omegaconf<=2.3.0,>=2.1.2->tabpfn-client) (6.0.3)
+Requirement already satisfied: numpy>=1.26.0 in /usr/local/lib/python3.12/dist-packages (from pandas<=2.3.3,>=2.1.2->tabpfn-client) (2.4.6)
+Requirement already satisfied: python-dateutil>=2.8.2 in /usr/local/lib/python3.12/dist-packages (from pandas<=2.3.3,>=2.1.2->tabpfn-client) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in /usr/local/lib/python3.12/dist-packages (from pandas<=2.3.3,>=2.1.2->tabpfn-client) (2025.2)
+Requirement already satisfied: tzdata>=2022.7 in /usr/local/lib/python3.12/dist-packages (from pandas<=2.3.3,>=2.1.2->tabpfn-client) (2026.1)
+Requirement already satisfied: six in /usr/local/lib/python3.12/dist-packages (from password-strength<=0.0.3.post2,>=0.0.3.post2->tabpfn-client) (1.17.0)
+Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.12/dist-packages (from pydantic<=2.13.4,>=2.11.7->tabpfn-client) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.4 in /usr/local/lib/python3.12/dist-packages (from pydantic<=2.13.4,>=2.11.7->tabpfn-client) (2.41.4)
+Requirement already satisfied: typing-inspection>=0.4.2 in /usr/local/lib/python3.12/dist-packages (from pydantic<=2.13.4,>=2.11.7->tabpfn-client) (0.4.2)
+Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/local/lib/python3.12/dist-packages (from rich<=15.0.0,>=13.7.0->tabpfn-client) (4.0.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.12/dist-packages (from rich<=15.0.0,>=13.7.0->tabpfn-client) (2.20.0)
+Requirement already satisfied: scipy>=1.6.0 in /usr/local/lib/python3.12/dist-packages (from scikit-learn<=1.6.1,>=1.3.1->tabpfn-client) (1.16.3)
+Requirement already satisfied: joblib>=1.2.0 in /usr/local/lib/python3.12/dist-packages (from scikit-learn<=1.6.1,>=1.3.1->tabpfn-client) (1.5.3)
+Requirement already satisfied: threadpoolctl>=3.1.0 in /usr/local/lib/python3.12/dist-packages (from scikit-learn<=1.6.1,>=1.3.1->tabpfn-client) (3.6.0)
+Requirement already satisfied: filelock>=3.19.1 in /usr/local/lib/python3.12/dist-packages (from tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (3.25.2)
+Requirement already satisfied: nvidia-ml-py>=13.590.48 in /usr/local/lib/python3.12/dist-packages (from tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (13.595.45)
+Requirement already satisfied: platformdirs>=4 in /usr/local/lib/python3.12/dist-packages (from tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (4.9.6)
+Collecting posthog>=6.7 (from tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client)
+  Downloading posthog-7.18.1-py3-none-any.whl.metadata (4.7 kB)
+Collecting requests>=2.32.5 (from tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client)
+  Downloading requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)
+Requirement already satisfied: ruff>=0.11.6 in /usr/local/lib/python3.12/dist-packages (from tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (0.15.10)
+Requirement already satisfied: mdurl~=0.1 in /usr/local/lib/python3.12/dist-packages (from markdown-it-py>=2.2.0->rich<=15.0.0,>=13.7.0->tabpfn-client) (0.1.2)
+Requirement already satisfied: distro>=1.5.0 in /usr/local/lib/python3.12/dist-packages (from posthog>=6.7->tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (1.9.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.5->tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (3.4.7)
+Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.5->tabpfn-common-utils<=0.2.19,>=0.2.10->tabpfn-client) (2.5.0)
+Downloading tabpfn_client-0.3.1-py3-none-any.whl (50 kB)
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m51.0/51.0 kB[0m [31m1.3 MB/s[0m eta [36m0:00:00[0m
+[?25hDownloading backoff-2.2.1-py3-none-any.whl (15 kB)
+Downloading password_strength-0.0.3.post2-py2.py3-none-any.whl (12 kB)
+Downloading pyarrow-23.0.1-cp312-cp312-manylinux_2_28_x86_64.whl (47.6 MB)
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m47.6/47.6 MB[0m [31m39.5 MB/s[0m eta [36m0:00:00[0m
+[?25hDownloading sseclient_py-1.9.0-py3-none-any.whl (8.4 kB)
+Downloading tabpfn_common_utils-0.2.19-py3-none-any.whl (37 kB)
+Downloading posthog-7.18.1-py3-none-any.whl (270 kB)
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m270.8/270.8 kB[0m [31m11.5 MB/s[0m eta [36m0:00:00[0m
+[?25hDownloading requests-2.34.2-py3-none-any.whl (73 kB)
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m4.8 MB/s[0m eta [36m0:00:00[0m
+[?25hInstalling collected packages: sseclient-py, requests, pyarrow, password-strength, backoff, posthog, tabpfn-common-utils, tabpfn-client
+  Attempting uninstall: requests
+    Found existing installation: requests 2.32.4
+    Uninstalling requests-2.32.4:
+      Successfully uninstalled requests-2.32.4
+  Attempting uninstall: pyarrow
+    Found existing installation: pyarrow 24.0.0
+    Uninstalling pyarrow-24.0.0:
+      Successfully uninstalled pyarrow-24.0.0
+[31mERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+bigframes 2.39.0 requires google-cloud-bigquery-storage<3.0.0,>=2.30.0, which is not installed.
+google-adk 1.29.0 requires google-cloud-bigquery-storage>=2.0.0, which is not installed.
+ydata-profiling 4.18.4 requires numba<0.63,>=0.60, but you have numba 0.65.1 which is incompatible.
+ydata-profiling 4.18.4 requires numpy<2.4,>=1.22, but you have numpy 2.4.6 which is incompatible.
+google-colab 1.0.0 requires jupyter-server==2.14.0, but you have jupyter-server 2.12.5 which is incompatible.
+google-colab 1.0.0 requires pandas==2.2.2, but you have pandas 2.3.3 which is incompatible.
+google-colab 1.0.0 requires requests==2.32.4, but you have requests 2.34.2 which is incompatible.
+moviepy 1.0.3 requires decorator<5.0,>=4.0.2, but you have decorator 5.3.1 which is incompatible.
+tensorflow 2.19.0 requires numpy<2.2.0,>=1.26.0, but you have numpy 2.4.6 which is incompatible.
+cudf-cu12 26.2.1 requires numba<0.62.0,>=0.60.0, but you have numba 0.65.1 which is incompatible.
+cudf-cu12 26.2.1 requires numba-cuda[cu12]<0.23.0,>=0.22.2, but you have numba-cuda 0.30.2 which is incompatible.[0m[31m
+[0mSuccessfully installed backoff-2.2.1 password-strength-0.0.3.post2 posthog-7.18.1 pyarrow-23.0.1 requests-2.34.2 sseclient-py-1.9.0 tabpfn-client-0.3.1 tabpfn-common-utils-0.2.19
+
+
+########## CELL 4 [code] ##########
+from tabpfn_client import set_access_token
+
+_KAGGLE_SECRET_NAME = "TABPFN_TOKEN_H"
+
+_token = os.environ.get("TABPFN_TOKEN", "").strip()
+if not _token:
+    _token = os.environ.get("TABPFN_TOKEN_H", "").strip()
+if not _token:
+    try:
+        from kaggle_secrets import UserSecretsClient
+
+        _token = str(UserSecretsClient().get_secret(_KAGGLE_SECRET_NAME)).strip()
+    except Exception:
+        pass
+
+if _token:
+    os.environ["TABPFN_TOKEN"] = _token  # downstream cells read TABPFN_TOKEN
+    set_access_token(_token)
+    print("TabPFN client: access token configured (value hidden).")
+else:
+    print(
+        f"Set TABPFN_TOKEN / TABPFN_TOKEN_H (env) or Kaggle secret {_KAGGLE_SECRET_NAME!r} before §3. "
+        "Get a key at https://ux.priorlabs.ai/account"
+    )
+
+---OUT---
+TabPFN client: access token configured (value hidden).
+
+
+########## CELL 5 [markdown] ##########
+## 2. Load data, align features, train/test pools, ratio schedule
+
+
+########## CELL 6 [code] ##########
+SPLIT_LOGIC_REV = "2026-06-09_holdout_pool_v4"
+print("Notebook split logic:", SPLIT_LOGIC_REV)
+
+if not os.path.isfile(FULL_DATA_PATH):
+    raise FileNotFoundError(
+        f"Missing full dataset at {FULL_DATA_PATH}. Set VLST_FULL_DATA_PATH before running."
+    )
+df_full = pd.read_csv(FULL_DATA_PATH, low_memory=False)
+def _norm_col(s: str) -> str:
+    return "".join(ch.lower() for ch in str(s).strip() if ch.isalnum())
+
+
+col_map = {_norm_col(c): c for c in df_full.columns}
+
+forced_target = os.environ.get("VLST_FULLDATA_TARGET_COL", "").strip()
+if forced_target:
+    fk = _norm_col(forced_target)
+    if fk not in col_map:
+        raise ValueError(
+            f"VLST_FULLDATA_TARGET_COL={forced_target!r} not found. "
+            f"Available columns include: {list(df_full.columns)[:12]} ..."
+        )
+    target_col = col_map[fk]
+else:
+    preferred = [
+        "Stent thrombosis",
+        "stent_thrombosis",
+        "StentThrombosis",
+        "target",
+        "label",
+        "y",
+        "class",
+        "Outcome",
+        "VLST",
+    ]
+    target_col = None
+    for c in preferred:
+        k = _norm_col(c)
+        if k in col_map:
+            cand = col_map[k]
+            vals = set(
+                pd.to_numeric(df_full[cand], errors="coerce")
+                .dropna()
+                .astype(int)
+                .unique()
+                .tolist()
+            )
+            if vals.issubset({0, 1}) and len(vals) >= 1:
+                target_col = cand
+                break
+    if target_col is None:
+        raise ValueError(
+            "Could not confidently infer target column. "
+            "Set VLST_FULLDATA_TARGET_COL='Stent thrombosis' (or your label column name)."
+        )
+
+print("Using target column from full data:", target_col)
+
+y_full = pd.to_numeric(df_full[target_col], errors="coerce").fillna(0).astype(int).to_numpy()
+if not set(np.unique(y_full)).issubset({0, 1}):
+    raise ValueError("Target column must be binary (0/1).")
+
+X_full_df = df_full.drop(columns=[target_col]).copy()
+
+_drop_ids = os.environ.get("VLST_DROP_ROW_ID_COLS", "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+)
+if _drop_ids:
+    _id_cols = [c for c in ("NO.", "Name") if c in X_full_df.columns]
+    if _id_cols:
+        X_full_df = X_full_df.drop(columns=_id_cols)
+        print("Dropped row-identifier columns from features:", _id_cols)
+
+
+def _norm_name(s: str) -> str:
+    return "".join(ch.lower() for ch in str(s) if ch.isalnum())
+
+
+_drop_norm = {
+    _norm_name("Time since stent implantation"),
+    _norm_name("time_since_implantation"),
+    _norm_name("time since implantation"),
+}
+_drop_cols = [c for c in X_full_df.columns if _norm_name(c) in _drop_norm]
+if _drop_cols:
+    X_full_df = X_full_df.drop(columns=_drop_cols)
+    print("Dropped leakage-style feature(s):", _drop_cols)
+
+for c in X_full_df.columns:
+    X_full_df[c] = pd.to_numeric(X_full_df[c], errors="coerce")
+
+meta_cols = {
+    "test_row_id",
+    "y_true",
+    "p_winner",
+    "p_tabpfn",
+    "fp_winner",
+    "fp_tabpfn_legacy_t",
+    "fp_tabpfn_any_grid_t",
+    "source",
+    "threshold",
+}
+shared_features = [c for c in X_full_df.columns if c not in meta_cols]
+if not shared_features:
+    raise ValueError("No feature columns in full dataset after exclusions.")
+
+X_full_use = X_full_df[shared_features].copy()
+for c in shared_features:
+    X_full_use[c] = pd.to_numeric(X_full_use[c], errors="coerce")
+
+med = X_full_use.median(numeric_only=True)
+X_full_use = X_full_use.fillna(med)
+
+rng = np.random.RandomState(RANDOM_STATE)
+pos_idx = np.flatnonzero(y_full == 1)
+tn_pool_idx = np.flatnonzero(y_full == 0)
+if pos_idx.size == 0:
+    raise ValueError("No positives in full dataset.")
+
+HOLDOUT_FRAC = float(
+    os.environ.get(
+        "VLST_FP_FOLLOWUP_HOLDOUT_FRAC",
+        os.environ.get("VLST_PREPROCESS_TEST_SIZE", "0.2"),
+    )
+)
+SPLIT_SEED = int(os.environ.get("VLST_FP_FOLLOWUP_SPLIT_SEED", str(RANDOM_STATE)))
+POS_HOLDOUT_FRAC = float(os.environ.get("VLST_FP_FOLLOWUP_POS_HOLDOUT_FRAC", "0.2"))
+FP_HOLDOUT_FRAC = float(os.environ.get("VLST_FP_FOLLOWUP_FP_HOLDOUT_FRAC", "0.2"))
+UNION_ROW_ID_MODE = os.environ.get("VLST_UNION_ROW_ID_MODE", "auto").strip().lower()
+for _name, _val in (
+    ("HOLDOUT_FRAC", HOLDOUT_FRAC),
+    ("POS_HOLDOUT_FRAC", POS_HOLDOUT_FRAC),
+    ("FP_HOLDOUT_FRAC", FP_HOLDOUT_FRAC),
+):
+    if not (0.0 < _val < 0.5):
+        raise ValueError(f"{_name} must be in (0, 0.5).")
+
+_n_full = int(len(y_full))
+_all_ix = np.arange(_n_full, dtype=int)
+_, _split_b_size_ref = train_test_split(
+    _all_ix,
+    test_size=HOLDOUT_FRAC,
+    random_state=SPLIT_SEED,
+    shuffle=True,
+    stratify=y_full,
+)
+split_b_target_n = int(_split_b_size_ref.size)
+_, holdout_ix = train_test_split(
+    _all_ix,
+    test_size=HOLDOUT_FRAC,
+    random_state=SPLIT_SEED,
+    shuffle=True,
+    stratify=y_full,
+)
+holdout_ix = np.asarray(holdout_ix, dtype=int)
+_n_holdout = int(holdout_ix.size)
+
+_FIXED_SPLIT_B_READY = False
+_fp_candidate_pool_ix = None
+_fp_candidate_pool_set = frozenset()
+_fixed_split_b_full_ix = None
+_fixed_split_b_meta = {}
+_REGISTERED_FP_ID_SETS = {}
+_REGISTERED_FP_META = {}
+_FP_COMMON_IDS = frozenset()
+_all_registered_fp_ids = frozenset()
+
+
+
+def k_train_tn_for_neg_target(n_neg_target: int) -> int:
+    need_after_fp = max(0, int(n_neg_target) - int(n_fp_fit))
+    return int(min(len(tn_train_ordered), need_after_fp))
+
+
+def k_test_a_tn_for_neg_target(n_neg_target: int) -> int:
+    """split_a test TN prefix grows with train TN prefix; at max ratio equals split_b."""
+    k_tr = k_train_tn_for_neg_target(n_neg_target)
+    if len(tn_test_shared) == 0:
+        return 0
+    if len(tn_train_ordered) == 0:
+        return 0
+    if k_tr >= len(tn_train_ordered):
+        return int(len(tn_test_shared))
+    frac = float(k_tr) / float(len(tn_train_ordered))
+    return int(min(len(tn_test_shared), max(0, round(frac * len(tn_test_shared)))))
+
+
+def split_a_indices_for_ratio(n_neg_target: int) -> np.ndarray:
+    k_a = k_test_a_tn_for_neg_target(n_neg_target)
+    parts = [test_core_ix]
+    if k_a > 0:
+        parts.append(tn_test_shared[:k_a])
+    return np.sort(np.concatenate(parts).astype(np.int64))
+
+
+def split_a_core_only_indices() -> np.ndarray:
+    return test_core_ix.copy()
+
+
+def build_train_arrays(n_neg_target: int, rng_step: np.random.RandomState):
+    """Nested train: fixed pos_train + all fp_fit + growing tn_train_ordered prefix."""
+    _ = rng_step
+    n_fp_take = int(n_fp_fit)
+    tn_take = k_train_tn_for_neg_target(n_neg_target)
+    X_fp_part = fp_mat_fit if n_fp_take > 0 else np.empty((0, fp_mat_fit.shape[1]), dtype=np.float32)
+    if tn_take > 0:
+        tn_idx_used = tn_train_ordered[:tn_take]
+        X_tn_part = X_full_use.iloc[tn_idx_used].to_numpy(dtype=np.float32)
+    else:
+        tn_idx_used = np.array([], dtype=int)
+        X_tn_part = np.empty((0, fp_mat_fit.shape[1]), dtype=np.float32)
+    full_ix_list = (
+        [int(i) for i in pos_train_ix.tolist()]
+        + [int(union_full_ix_fit[j]) for j in range(n_fp_take)]
+        + [int(i) for i in tn_idx_used.tolist()]
+    )
+    X_all = np.vstack([X_pos_fit, X_fp_part, X_tn_part]).astype(np.float32)
+    y_all = np.concatenate(
+        [y_pos_fit_vec, np.zeros(n_fp_take, dtype=int), np.zeros(tn_take, dtype=int)]
+    )
+    full_ix = np.asarray(full_ix_list, dtype=np.int64)
+    return X_all, y_all, full_ix, n_fp_take, tn_idx_used
+
+
+def Xy_for_full_indices(indices: np.ndarray):
+    indices = np.asarray(indices, dtype=int)
+    Xb = X_full_use.iloc[indices].to_numpy(dtype=np.float32)
+    yb = y_full[indices].astype(int)
+    return Xb, yb
+
+
+def matrix_b_indices(train_fit_full_idx: set):
+    _ = train_fit_full_idx
+    return split_b_full_ix.copy()
+
+
+
+
+
+def _resolve_fp_csv_to_full_ix(df_fp, holdout_ix_arr, n_full, n_holdout, row_id_mode):
+    """Map FP CSV test_row_id → full-table indices (no TN filter)."""
+    if "test_row_id" not in df_fp.columns:
+        raise ValueError("FP CSV must contain test_row_id.")
+    _pos = pd.to_numeric(df_fp["test_row_id"], errors="coerce").to_numpy(dtype=np.int64)
+    if not np.all(np.isfinite(_pos.astype(float))):
+        raise ValueError("FP CSV test_row_id must be numeric.")
+    _pos = _pos.astype(np.int64)
+
+    def _resolve(mode: str):
+        mode = mode.strip().lower()
+        if mode == "auto":
+            if int(_pos.max()) < n_holdout and int(_pos.min()) >= 0:
+                mode = "holdout_position"
+            elif int(_pos.max()) < n_full and int(_pos.min()) >= 0:
+                mode = "full_table_row"
+            else:
+                raise ValueError(
+                    "auto union id: test_row_id must be holdout positions "
+                    f"[0, {n_holdout}) or full-table ids [0, {n_full})."
+                )
+        if mode == "holdout_position":
+            if int(_pos.max()) >= n_holdout or int(_pos.min()) < 0:
+                raise ValueError("holdout_position: test_row_id out of holdout range.")
+            return holdout_ix_arr[_pos].astype(np.int64), mode
+        if mode == "full_table_row":
+            if int(_pos.max()) >= n_full or int(_pos.min()) < 0:
+                raise ValueError("full_table_row: test_row_id out of full-table range.")
+            return _pos.copy(), mode
+        raise ValueError(f"Unknown VLST_UNION_ROW_ID_MODE={mode!r}.")
+
+    return _resolve(row_id_mode)
+
+
+def _filter_fp_ids_to_tn_pool(full_ix_arr, tn_pool_set):
+    """Keep unique TN-pool ids only (mined FP ⊆ VLST negatives)."""
+    _keep = np.array([int(i) in tn_pool_set for i in full_ix_arr.tolist()], dtype=bool)
+    full_ix_arr = full_ix_arr[_keep]
+    _seen, _uniq = set(), []
+    for _j, _rid in enumerate(full_ix_arr.tolist()):
+        _rid = int(_rid)
+        if _rid in _seen:
+            continue
+        _seen.add(_rid)
+        _uniq.append(_j)
+    full_ix_arr = full_ix_arr[np.asarray(_uniq, dtype=int)]
+    return full_ix_arr, _seen
+
+
+
+
+def _fp_csv_holdout_split(
+    fp_csv_path: str,
+    holdout_ix_arr,
+    n_full: int,
+    n_holdout: int,
+    tn_pool_set,
+    split_seed: int,
+    fp_holdout_frac: float,
+    row_id_mode: str,
+):
+    """Map one FP CSV → unique TN ids + 20% test-holdout ids (same seed as §2)."""
+    if not os.path.isfile(fp_csv_path):
+        raise FileNotFoundError(f"Registered FP CSV missing: {fp_csv_path}")
+    df_fp = pd.read_csv(fp_csv_path, low_memory=False)
+    raw_n = int(len(df_fp))
+    full_ix, id_mode = _resolve_fp_csv_to_full_ix(
+        df_fp, holdout_ix_arr, n_full, n_holdout, row_id_mode
+    )
+    full_ix, id_set = _filter_fp_ids_to_tn_pool(full_ix, tn_pool_set)
+    if not id_set:
+        raise RuntimeError(
+            f"FP CSV has no unique TN-pool ids after filter: {fp_csv_path}"
+        )
+    n_fp = int(len(full_ix))
+    _fp_rel = np.arange(n_fp, dtype=int)
+    if n_fp >= 2:
+        _fp_tr_rel, _fp_te_rel = train_test_split(
+            _fp_rel,
+            test_size=fp_holdout_frac,
+            random_state=split_seed,
+            shuffle=True,
+        )
+    else:
+        _fp_tr_rel, _fp_te_rel = _fp_rel, np.array([], dtype=int)
+    test_holdout = np.sort(full_ix[_fp_te_rel].astype(np.int64))
+    train_ids = frozenset(int(i) for i in full_ix[_fp_tr_rel].tolist())
+    return {
+        "path": str(fp_csv_path),
+        "raw_n": raw_n,
+        "unique_n": int(len(id_set)),
+        "all_ids": frozenset(id_set),
+        "test_holdout_ix": test_holdout,
+        "train_ids": train_ids,
+        "id_mode": id_mode,
+    }
+
+
+def _test_holdout_ids_for_fp_csv(
+    fp_csv_path: str,
+    holdout_ix_arr,
+    n_full: int,
+    n_holdout: int,
+    tn_pool_set,
+    split_seed: int,
+    fp_holdout_frac: float,
+    row_id_mode: str,
+):
+    """This CSV's 20% FP test holdout (matches registry build when path is registered)."""
+    if _REGISTERED_FP_META:
+        for meta in _REGISTERED_FP_META.values():
+            if os.path.normpath(meta["path"]) == os.path.normpath(fp_csv_path):
+                return frozenset(
+                    int(i) for i in meta["test_holdout_ix"].tolist()
+                )
+    meta = _fp_csv_holdout_split(
+        fp_csv_path,
+        holdout_ix_arr,
+        n_full,
+        n_holdout,
+        tn_pool_set,
+        split_seed,
+        fp_holdout_frac,
+        row_id_mode,
+    )
+    return frozenset(int(i) for i in meta["test_holdout_ix"].tolist())
+
+
+def _ensure_fixed_split_b(
+    registered_fp_sets,
+    y_full_arr,
+    tn_pool_idx_arr,
+    pos_test_ix_arr,
+    pos_cohort_ix_arr,
+    split_b_target_n: int,
+    holdout_ix_arr,
+    n_holdout: int,
+    n_full: int,
+    split_seed: int,
+    fp_holdout_frac: float,
+    row_id_mode: str,
+):
+    """Build split_b once from all registered FP CSVs; reused for every run."""
+    global _FIXED_SPLIT_B_READY, _fp_candidate_pool_ix, _fp_candidate_pool_set
+    global _fixed_split_b_full_ix, _fixed_split_b_meta
+    global _REGISTERED_FP_ID_SETS, _REGISTERED_FP_META, _FP_COMMON_IDS, _all_registered_fp_ids
+    global tn_test_shared, test_core_ix, split_b_full_ix, split_b_set
+    global _neg_fill, _neg_need
+
+    if _FIXED_SPLIT_B_READY:
+        if not np.array_equal(split_b_full_ix, _fixed_split_b_full_ix):
+            raise RuntimeError("fixed split_b cache mismatch — restart kernel.")
+        return
+
+    if not registered_fp_sets:
+        raise ValueError("REGISTERED_FP_SETS is empty — add at least one FP CSV.")
+
+    _tn_pool_set = set(int(i) for i in tn_pool_idx_arr.tolist())
+    _REGISTERED_FP_META = {}
+    _REGISTERED_FP_ID_SETS = {}
+    _test_holdout_union = set()
+    _train_ids_union = set()
+    _all_registered_fp_ids = frozenset()
+
+    print("Building fixed split_b from registered FP sets:")
+    for label, fp_path in registered_fp_sets:
+        meta = _fp_csv_holdout_split(
+            fp_path,
+            holdout_ix_arr,
+            n_full,
+            n_holdout,
+            _tn_pool_set,
+            split_seed,
+            fp_holdout_frac,
+            row_id_mode,
+        )
+        _REGISTERED_FP_META[label] = meta
+        _REGISTERED_FP_ID_SETS[label] = meta["all_ids"]
+        _all_registered_fp_ids = _all_registered_fp_ids | meta["all_ids"]
+        _test_holdout_union.update(int(i) for i in meta["test_holdout_ix"].tolist())
+        _train_ids_union.update(meta["train_ids"])
+        print(
+            f"  [{label}] {fp_path} | csv={meta['raw_n']} unique={meta['unique_n']} "
+            f"test_holdout={meta['test_holdout_ix'].size} id_mode={meta['id_mode']}"
+        )
+
+    if _REGISTERED_FP_ID_SETS:
+        _reg_id_vals = list(_REGISTERED_FP_ID_SETS.values())
+        _FP_COMMON_IDS = (
+            _reg_id_vals[0]
+            if len(_reg_id_vals) == 1
+            else frozenset(_reg_id_vals[0].intersection(*_reg_id_vals[1:]))
+        )
+    else:
+        _FP_COMMON_IDS = frozenset()
+
+    # Pool slots = test holdouts only (never train-holdout mined FPs on split_b).
+    _test_holdout_sets = [
+        frozenset(int(i) for i in _REGISTERED_FP_META[_lbl]["test_holdout_ix"].tolist())
+        for _lbl in _REGISTERED_FP_META
+    ]
+    if _test_holdout_sets:
+        _common_test_holdout = _test_holdout_sets[0]
+        for _ths in _test_holdout_sets[1:]:
+            _common_test_holdout = _common_test_holdout & _ths
+    else:
+        _common_test_holdout = frozenset()
+
+    # Exclude ids that are train-holdout in any registry CSV (avoids train/split_b leak).
+    _pool_eligible = set(int(i) for i in _test_holdout_union) - set(
+        int(i) for i in _train_ids_union
+    )
+    _n_pool_excluded_train = int(len(_test_holdout_union) - len(_pool_eligible))
+    _common_test_holdout = frozenset(
+        int(i) for i in _common_test_holdout if int(i) in _pool_eligible
+    )
+
+    _common_list = sorted(int(i) for i in _common_test_holdout)
+    _exclusive_list = sorted(_pool_eligible - set(_common_list))
+    n_pos_test = int(pos_test_ix_arr.size)
+    _max_fp_slots = int(split_b_target_n - n_pos_test)
+    if _max_fp_slots < 0:
+        raise ValueError("Positive test count exceeds split_b target.")
+
+    if len(_common_list) > _max_fp_slots:
+        _rng = np.random.RandomState(split_seed + 17)
+        fp_cand = np.sort(
+            np.asarray(
+                _rng.permutation(_common_list)[:_max_fp_slots], dtype=np.int64
+            )
+        )
+    else:
+        _slots_left = _max_fp_slots - len(_common_list)
+        _rng = np.random.RandomState(split_seed + 17)
+        if len(_exclusive_list) > _slots_left:
+            _exclusive_pick = sorted(
+                int(i)
+                for i in _rng.permutation(_exclusive_list)[:_slots_left].tolist()
+            )
+        else:
+            _exclusive_pick = _exclusive_list
+        fp_cand = np.sort(
+            np.asarray(_common_list + _exclusive_pick, dtype=np.int64)
+        )
+
+    _fp_candidate_pool_ix = fp_cand
+    _fp_candidate_pool_set = frozenset(int(i) for i in fp_cand.tolist())
+
+    split_b_core = set(int(i) for i in pos_test_ix_arr.tolist()) | _fp_candidate_pool_set
+    _train_reserve = (
+        set(int(i) for i in pos_cohort_ix_arr.tolist()) | _train_ids_union
+    )
+    _neg_need = int(split_b_target_n - len(split_b_core))
+    if _neg_need < 0:
+        raise ValueError(
+            f"Fixed split_b core ({len(split_b_core)}) > target ({split_b_target_n})."
+        )
+    _neg_cand = [
+        int(i)
+        for i in tn_pool_idx_arr.tolist()
+        if int(i) not in split_b_core
+        and int(i) not in _train_reserve
+        and int(i) not in _all_registered_fp_ids
+    ]
+    if len(_neg_cand) < _neg_need:
+        raise ValueError(
+            f"Fixed split_b: need {_neg_need} plain TNs, have {len(_neg_cand)} candidates."
+        )
+    _rng_neg = np.random.RandomState(split_seed + 31)
+    _neg_perm = _rng_neg.permutation(len(_neg_cand))
+    _neg_fill = [_neg_cand[int(i)] for i in _neg_perm[:_neg_need]]
+    tn_test_shared = np.asarray(_neg_fill, dtype=int)
+    test_core_ix = np.sort(
+        np.unique(
+            np.concatenate(
+                [
+                    pos_test_ix_arr.astype(np.int64),
+                    _fp_candidate_pool_ix.astype(np.int64),
+                ]
+            )
+        )
+    )
+    split_b_full_ix = np.sort(
+        np.concatenate([test_core_ix, tn_test_shared]).astype(np.int64)
+    )
+    split_b_set = frozenset(int(i) for i in split_b_full_ix.tolist())
+    if len(split_b_full_ix) != split_b_target_n:
+        raise RuntimeError(
+            f"Fixed split_b size {len(split_b_full_ix)} != target {split_b_target_n}."
+        )
+
+    _fixed_split_b_full_ix = split_b_full_ix.copy()
+    _fixed_split_b_meta = {
+        "registered_fp_sets": [(str(l), str(p)) for l, p in registered_fp_sets],
+        "fp_common_n": int(len(_FP_COMMON_IDS)),
+        "test_holdout_union_n": int(len(_test_holdout_union)),
+        "common_test_holdout_n": int(len(_common_test_holdout)),
+        "pool_excluded_train_holdout_n": int(_n_pool_excluded_train),
+        "fp_candidate_pool_n": int(len(_fp_candidate_pool_ix)),
+        "split_b_n": int(len(split_b_full_ix)),
+        "split_b_pos_n": n_pos_test,
+        "split_b_tn_shared_n": int(len(tn_test_shared)),
+        "all_registered_fp_n": int(len(_all_registered_fp_ids)),
+    }
+    _FIXED_SPLIT_B_READY = True
+    print(f"  common FP ids across {len(_REGISTERED_FP_ID_SETS)} set(s): {len(_FP_COMMON_IDS)}")
+    print(
+        f"  test-holdout union: {len(_test_holdout_union)} | "
+        f"common test holdout: {len(_common_test_holdout)} | "
+        f"excluded (train-holdout in some set): {_n_pool_excluded_train} | "
+        f"pool eligible: {len(_pool_eligible)}"
+    )
+    for label, id_set in _REGISTERED_FP_ID_SETS.items():
+        _only = id_set - _FP_COMMON_IDS
+        _in_pool = id_set & _fp_candidate_pool_set
+        print(
+            f"  [{label}] only_in_set={len(_only)} in_fp_pool={len(_in_pool)} "
+            f"(pool-only-as-TN-for-other-runs={len(_fp_candidate_pool_set - id_set)})"
+        )
+    print(
+        f"  split_b n={len(split_b_full_ix)} | pos={n_pos_test} | "
+        f"fp_candidate_pool={len(_fp_candidate_pool_ix)} | plain_tn={len(tn_test_shared)}"
+    )
+
+
+
+def _assert_disjoint_splits(run_label: str = ""):
+    """Hard checks: test (split_b) shares no row ids with train core or val."""
+    _val_ids = set(int(i) for i in val_full_ix.tolist())
+    _train_core = set(int(i) for i in pos_train_ix.tolist()) | set(
+        int(i) for i in union_full_ix_fit.tolist()
+    )
+    _pos_test = set(int(i) for i in pos_test_ix.tolist())
+    _fp_test = set(int(i) for i in fp_test_ix.tolist())
+    _fp_train = set(int(i) for i in union_full_ix_fit.tolist())
+    _tag = f" ({run_label})" if run_label else ""
+
+    checks = [
+        ("split_b ∩ train_core", split_b_set & _train_core),
+        ("split_b ∩ val", split_b_set & _val_ids),
+        ("val ∩ train_core", _val_ids & _train_core),
+        ("val ∩ mined_fp (any)", _val_ids & union_full_row_ids),
+        ("pos_test ∩ pos_train", _pos_test & set(int(i) for i in pos_train_ix.tolist())),
+        ("pos_test ∩ pos_val", _pos_test & set(int(i) for i in pos_val_ix.tolist())),
+        ("fp_test ∩ fp_train", _fp_test & _fp_train),
+        ("fp_train ∩ split_b", _fp_train & split_b_set),
+        ("fp_test ∩ train_core", _fp_test & _train_core),
+        ("fp_test ⊆ fp_candidate_pool", _fp_test - _fp_candidate_pool_set),
+        ("fp_candidate_pool ⊆ split_b", _fp_candidate_pool_set - split_b_set),
+    ]
+    for name, overlap in checks:
+        if name.startswith("fp_test ⊆") or name.startswith("fp_candidate"):
+            if overlap:
+                raise RuntimeError(
+                    f"Split disjointness failed{_tag}: {name} has {len(overlap)} id(s); "
+                    f"examples: {sorted(overlap)[:8]}"
+                )
+            continue
+        if overlap:
+            raise RuntimeError(
+                f"Split disjointness failed{_tag}: {name} has {len(overlap)} id(s); "
+                f"examples: {sorted(overlap)[:8]}"
+            )
+    print(
+        f"Split disjointness OK{_tag}: split_b n={len(split_b_set)} | "
+        f"val n={len(_val_ids)} | train_core pos={len(pos_train_ix)} fp={len(_fp_train)} | "
+        f"test core pos={len(_pos_test)} fp={len(_fp_test)}"
+    )
+
+
+def init_fp_followup_from_union_csv(union_csv_path: str, run_label: str = "union"):
+    """Rebuild union-dependent splits from another FP CSV (VLST base data must exist)."""
+    global df_union, UNION_CSV, union_full_ix_arr, union_full_row_ids, X_union_use, _union_id_mode
+    global pos_cohort_ix, pos_test_ix, pos_train_ix, pos_val_ix, val_full_ix, fp_mat_train, fp_mat_fit
+    global union_full_ix_train, union_full_ix_fit, n_fp_train, n_fp_fit, n_fp_test, fp_test_ix, fp_test_set
+    global split_b_full_ix, split_b_set, tn_test_shared, test_core_ix, tn_val_ix, tn_train_ordered
+    global _FIXED_SPLIT_B_READY, _fp_candidate_pool_ix, _fp_candidate_pool_set
+    global _fixed_split_b_full_ix, _fixed_split_b_meta
+    global X_val_fixed, y_val_fixed, RATIOS, n_neg_full
+    global split_summary, n_pos, n_pos_ratio, n_pos_cohort, n_pos_train, n_pos_val, n_pos_b, n_fp, max_neg_total, max_r
+    global X_pos_fit, y_pos_fit_vec
+
+    UNION_CSV = str(union_csv_path)
+    if not os.path.isfile(UNION_CSV):
+        raise FileNotFoundError(f"Missing union CSV: {UNION_CSV}")
+    print(f"\n=== init_fp_followup_from_union_csv ({run_label}) ===")
+    print("Union CSV:", UNION_CSV)
+    df_union = pd.read_csv(UNION_CSV, low_memory=False)
+    if "test_row_id" not in df_union.columns:
+        raise ValueError("Union CSV must contain test_row_id.")
+
+
+    def _norm_col(s: str) -> str:
+        return "".join(ch.lower() for ch in str(s).strip() if ch.isalnum())
+
+
+    col_map = {_norm_col(c): c for c in df_full.columns}
+
+    forced_target = os.environ.get("VLST_FULLDATA_TARGET_COL", "").strip()
+    if forced_target:
+        fk = _norm_col(forced_target)
+        if fk not in col_map:
+            raise ValueError(
+                f"VLST_FULLDATA_TARGET_COL={forced_target!r} not found. "
+                f"Available columns include: {list(df_full.columns)[:12]} ..."
+            )
+        target_col = col_map[fk]
+    else:
+        preferred = [
+            "Stent thrombosis",
+            "stent_thrombosis",
+            "StentThrombosis",
+            "target",
+            "label",
+            "y",
+            "class",
+            "Outcome",
+            "VLST",
+        ]
+        target_col = None
+        for c in preferred:
+            k = _norm_col(c)
+            if k in col_map:
+                cand = col_map[k]
+                vals = set(
+                    pd.to_numeric(df_full[cand], errors="coerce")
+                    .dropna()
+                    .astype(int)
+                    .unique()
+                    .tolist()
+                )
+                if vals.issubset({0, 1}) and len(vals) >= 1:
+                    target_col = cand
+                    break
+        if target_col is None:
+            raise ValueError(
+                "Could not confidently infer target column. "
+                "Set VLST_FULLDATA_TARGET_COL='Stent thrombosis' (or your label column name)."
+            )
+
+    print("Using target column from full data:", target_col)
+
+    y_full = pd.to_numeric(df_full[target_col], errors="coerce").fillna(0).astype(int).to_numpy()
+    if not set(np.unique(y_full)).issubset({0, 1}):
+        raise ValueError("Target column must be binary (0/1).")
+
+    X_full_df = df_full.drop(columns=[target_col]).copy()
+
+    _drop_ids = os.environ.get("VLST_DROP_ROW_ID_COLS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    )
+    if _drop_ids:
+        _id_cols = [c for c in ("NO.", "Name") if c in X_full_df.columns]
+        if _id_cols:
+            X_full_df = X_full_df.drop(columns=_id_cols)
+            print("Dropped row-identifier columns from features:", _id_cols)
+
+
+    def _norm_name(s: str) -> str:
+        return "".join(ch.lower() for ch in str(s) if ch.isalnum())
+
+
+    _drop_norm = {
+        _norm_name("Time since stent implantation"),
+        _norm_name("time_since_implantation"),
+        _norm_name("time since implantation"),
+    }
+    _drop_cols = [c for c in X_full_df.columns if _norm_name(c) in _drop_norm]
+    if _drop_cols:
+        X_full_df = X_full_df.drop(columns=_drop_cols)
+        print("Dropped leakage-style feature(s):", _drop_cols)
+
+    for c in X_full_df.columns:
+        X_full_df[c] = pd.to_numeric(X_full_df[c], errors="coerce")
+
+    meta_cols = {
+        "test_row_id",
+        "y_true",
+        "p_winner",
+        "p_tabpfn",
+        "fp_winner",
+        "fp_tabpfn_legacy_t",
+        "fp_tabpfn_any_grid_t",
+        "source",
+        "threshold",
+    }
+    shared_features = [c for c in X_full_df.columns if c not in meta_cols]
+    if not shared_features:
+        raise ValueError("No feature columns in full dataset after exclusions.")
+
+    _union_feat = [c for c in df_union.columns if c not in meta_cols]
+    union_only_cols = [c for c in _union_feat if c not in X_full_df.columns]
+    if union_only_cols:
+        print(
+            "Note: union CSV has",
+            len(union_only_cols),
+            "feature column(s) not in full data (omitted from training schema); examples:",
+            union_only_cols[:12],
+        )
+
+    X_full_use = X_full_df[shared_features].copy()
+    X_union_use = df_union.reindex(columns=shared_features)
+    for c in shared_features:
+        X_union_use[c] = pd.to_numeric(X_union_use[c], errors="coerce")
+
+    med = X_full_use.median(numeric_only=True)
+    X_full_use = X_full_use.fillna(med)
+    X_union_use = X_union_use.fillna(med)
+
+    assert (
+        X_full_use.shape[1] == len(shared_features) == X_union_use.shape[1]
+    ), (X_full_use.shape[1], len(shared_features), X_union_use.shape[1])
+
+    rng = np.random.RandomState(RANDOM_STATE)
+    pos_idx = np.flatnonzero(y_full == 1)
+    tn_pool_idx = np.flatnonzero(y_full == 0)
+    if pos_idx.size == 0:
+        raise ValueError("No positives in full dataset.")
+
+    # Notebook-owned splits on full VLST (no data/processed train|test).
+    HOLDOUT_FRAC = float(
+        os.environ.get(
+            "VLST_FP_FOLLOWUP_HOLDOUT_FRAC",
+            os.environ.get("VLST_PREPROCESS_TEST_SIZE", "0.2"),
+        )
+    )
+    SPLIT_SEED = int(os.environ.get("VLST_FP_FOLLOWUP_SPLIT_SEED", str(RANDOM_STATE)))
+    POS_HOLDOUT_FRAC = float(os.environ.get("VLST_FP_FOLLOWUP_POS_HOLDOUT_FRAC", "0.2"))
+    FP_HOLDOUT_FRAC = float(os.environ.get("VLST_FP_FOLLOWUP_FP_HOLDOUT_FRAC", "0.2"))
+    UNION_ROW_ID_MODE = os.environ.get("VLST_UNION_ROW_ID_MODE", "auto").strip().lower()
+    for _name, _val in (
+        ("HOLDOUT_FRAC", HOLDOUT_FRAC),
+        ("POS_HOLDOUT_FRAC", POS_HOLDOUT_FRAC),
+        ("FP_HOLDOUT_FRAC", FP_HOLDOUT_FRAC),
+    ):
+        if not (0.0 < _val < 0.5):
+            raise ValueError(f"{_name} must be in (0, 0.5).")
+
+    _n_full = int(len(y_full))
+    _all_ix = np.arange(_n_full, dtype=int)
+    # Target |split_b| = HOLDOUT_FRAC × N (stratified count only; composition built below).
+    _, _split_b_size_ref = train_test_split(
+        _all_ix,
+        test_size=HOLDOUT_FRAC,
+        random_state=SPLIT_SEED,
+        shuffle=True,
+        stratify=y_full,
+    )
+    split_b_target_n = int(_split_b_size_ref.size)
+    # Reference holdout row ids — only for mapping union test_row_id (holdout_position mode).
+    _, holdout_ix = train_test_split(
+        _all_ix,
+        test_size=HOLDOUT_FRAC,
+        random_state=SPLIT_SEED,
+        shuffle=True,
+        stratify=y_full,
+    )
+    holdout_ix = np.asarray(holdout_ix, dtype=int)
+    _n_holdout = int(holdout_ix.size)
+
+    # Map this run's FP CSV → full-table row ids (TN pool only).
+    union_full_ix_arr, _union_id_mode = _resolve_fp_csv_to_full_ix(
+        df_union, holdout_ix, _n_full, _n_holdout, UNION_ROW_ID_MODE
+    )
+    _n_union_csv_raw = int(len(df_union))
+    _tn_pool_set = set(int(i) for i in tn_pool_idx.tolist())
+    _pos_in_union = sorted(
+        {int(i) for i in union_full_ix_arr.tolist() if int(i) not in _tn_pool_set}
+    )
+    if _pos_in_union:
+        print(
+            f"WARN: dropping {len(_pos_in_union)} FP CSV row(s) not in TN pool "
+            f"(positive or invalid id); examples: {_pos_in_union[:8]}"
+        )
+    _keep_mask = np.array(
+        [int(i) in _tn_pool_set for i in union_full_ix_arr.tolist()], dtype=bool
+    )
+    union_full_ix_arr = union_full_ix_arr[_keep_mask]
+    df_union = df_union.iloc[np.flatnonzero(_keep_mask)].reset_index(drop=True)
+    X_union_use = X_union_use.iloc[np.flatnonzero(_keep_mask)].reset_index(drop=True)
+    _pre_dedupe_n = int(len(union_full_ix_arr))
+    _dedupe_ix = []
+    _seen2 = set()
+    for _j, _rid in enumerate(union_full_ix_arr.tolist()):
+        _rid = int(_rid)
+        if _rid in _seen2:
+            continue
+        _seen2.add(_rid)
+        _dedupe_ix.append(_j)
+    _n_union_dupes = int(_pre_dedupe_n - len(_dedupe_ix))
+    if _n_union_dupes:
+        print(f"WARN: dropped {_n_union_dupes} duplicate FP CSV row(s) (same TN id)")
+    union_full_ix_arr = union_full_ix_arr[np.asarray(_dedupe_ix, dtype=int)]
+    df_union = df_union.iloc[_dedupe_ix].reset_index(drop=True)
+    X_union_use = X_union_use.iloc[_dedupe_ix].reset_index(drop=True)
+    union_full_row_ids = set(int(i) for i in union_full_ix_arr.tolist())
+    if not union_full_row_ids.issubset(_tn_pool_set):
+        raise RuntimeError("internal: union FP ids must lie inside TN pool")
+
+    print(
+        f"Run FP CSV ({run_label}) id mode: {_union_id_mode} | csv={_n_union_csv_raw} → "
+        f"unique TN FPs={len(union_full_row_ids)} (TN pool n={len(_tn_pool_set)})"
+    )
+
+    _vi = np.arange(len(df_union), dtype=int)
+    X_union_use.iloc[_vi, :] = X_full_use.iloc[union_full_ix_arr.astype(int)].to_numpy(
+        dtype=np.float32, copy=False
+    )
+
+    # 80/20 positives → fixed train core vs split_b (same for every FP CSV).
+    _pos_rel = np.arange(len(pos_idx), dtype=int)
+    _pos_tr_rel, _pos_te_rel = train_test_split(
+        _pos_rel,
+        test_size=POS_HOLDOUT_FRAC,
+        random_state=SPLIT_SEED,
+        shuffle=True,
+        stratify=y_full[pos_idx],
+    )
+    pos_cohort_ix = pos_idx[_pos_tr_rel]
+    pos_test_ix = pos_idx[_pos_te_rel]
+    n_pos_test = int(pos_test_ix.size)
+    n_pos_train = int(pos_cohort_ix.size)
+
+    # --- Fixed split_b (all registered FP CSVs): same row ids for every run ---
+    _ensure_fixed_split_b(
+        REGISTERED_FP_SETS,
+        y_full,
+        tn_pool_idx,
+        pos_test_ix,
+        pos_cohort_ix,
+        split_b_target_n,
+        holdout_ix,
+        _n_holdout,
+        _n_full,
+        SPLIT_SEED,
+        FP_HOLDOUT_FRAC,
+        UNION_ROW_ID_MODE,
+    )
+
+    # Active mined-FP test = this CSV's 20% holdout ∩ fixed fp candidate pool.
+    _run_test_holdout_ids = _test_holdout_ids_for_fp_csv(
+        UNION_CSV,
+        holdout_ix,
+        _n_full,
+        _n_holdout,
+        _tn_pool_set,
+        SPLIT_SEED,
+        FP_HOLDOUT_FRAC,
+        UNION_ROW_ID_MODE,
+    )
+    fp_test_ix = np.sort(
+        np.asarray(
+            sorted(_run_test_holdout_ids & _fp_candidate_pool_set),
+            dtype=np.int64,
+        )
+    )
+    fp_test_set = set(int(i) for i in fp_test_ix.tolist())
+    _pool_only = sorted(_fp_candidate_pool_set - fp_test_set)
+    _pool_as_tn_other_sets = sorted(_fp_candidate_pool_set - union_full_row_ids)
+    print(
+        f"  FP registry common (all registered sets): {len(_FP_COMMON_IDS)} | "
+        f"this run unique ids: {len(union_full_row_ids)} | "
+        f"only_in_this_run: {len(union_full_row_ids - _FP_COMMON_IDS)}"
+    )
+    if _REGISTERED_FP_ID_SETS:
+        for _reg_label, _reg_ids in _REGISTERED_FP_ID_SETS.items():
+            _reg_path = _REGISTERED_FP_META[_reg_label]["path"]
+            if os.path.normpath(_reg_path) == os.path.normpath(UNION_CSV):
+                continue
+            _other_on_pool = sorted((_reg_ids & _fp_candidate_pool_set) - union_full_row_ids)
+            if _other_on_pool:
+                print(
+                    f"  [{_reg_label}] {len(_other_on_pool)} pool row(s) are FP in that set "
+                    f"but plain TN for this run ({run_label})"
+                )
+    if _pool_only:
+        print(
+            f"  fp_candidate_pool has {len(_fp_candidate_pool_set)} fixed rows; "
+            f"this csv test_holdout={len(_run_test_holdout_ids)} | "
+            f"active fp_test ({run_label})={len(fp_test_set)} | "
+            f"{len(_pool_as_tn_other_sets)} pool rows not in this CSV → plain TN on split_b"
+        )
+
+    _fp_train_mask = np.array([int(u) not in fp_test_set for u in union_full_ix_arr], dtype=bool)
+    _fp_train_rel = np.flatnonzero(_fp_train_mask)
+    fp_mat_train = X_union_use.iloc[_fp_train_rel].to_numpy(dtype=np.float32)
+    union_full_ix_train = union_full_ix_arr[_fp_train_rel]
+    n_fp_train = int(fp_mat_train.shape[0])
+    n_fp_test = int(fp_test_ix.size)
+
+    print(
+        f"split_b reused (fixed): n={len(split_b_full_ix)} | pos={n_pos_test} | "
+        f"fp_candidate_pool={len(_fp_candidate_pool_set)} | plain_tn={len(tn_test_shared)} | "
+        f"active fp_test ({run_label})={n_fp_test} | train fp={n_fp_train}"
+    )
+
+    # --- Val / train TN pools (depend on this csv's mined-FP ids) ---
+    _pos_cohort = np.asarray(pos_cohort_ix, dtype=int)
+    VAL_POS_FRAC = float(os.environ.get("VLST_FP_FOLLOWUP_VAL_POS_FRAC", "0.15"))
+    if not (0.0 < VAL_POS_FRAC < 0.5):
+        raise ValueError("VLST_FP_FOLLOWUP_VAL_POS_FRAC must be in (0, 0.5).")
+    _pos_rel = np.arange(len(_pos_cohort), dtype=int)
+    if len(_pos_cohort) >= 2:
+        _pos_tr_rel, _pos_va_rel = train_test_split(
+            _pos_rel,
+            test_size=VAL_POS_FRAC,
+            random_state=SPLIT_SEED + 61,
+            shuffle=True,
+            stratify=y_full[_pos_cohort],
+        )
+    else:
+        _pos_tr_rel, _pos_va_rel = _pos_rel, np.array([], dtype=int)
+    pos_train_ix = _pos_cohort[_pos_tr_rel]
+    pos_val_ix = _pos_cohort[_pos_va_rel]
+    union_full_ix_fit = np.asarray(union_full_ix_train, dtype=int)
+    fp_mat_fit = fp_mat_train
+    n_pos_train = int(pos_train_ix.size)
+    n_pos_val = int(pos_val_ix.size)
+    n_fp_fit = int(union_full_ix_fit.size)
+
+    print(
+        f"shared test core (fixed): pos={n_pos_test} fp_candidate_pool={len(_fp_candidate_pool_set)} | "
+        f"train fit: pos={n_pos_train} fp={n_fp_fit} | val: pos={n_pos_val}"
+    )
+    print(
+        f"split_b fixed n={len(split_b_full_ix)} (tn_shared={len(tn_test_shared)}); "
+        f"split_a(r) = core + growing tn_test_shared prefix"
+    )
+
+    _train_core_ids = set(int(i) for i in pos_train_ix.tolist()) | set(
+        int(i) for i in union_full_ix_fit.tolist()
+    )
+    if _train_core_ids & split_b_set:
+        raise RuntimeError(
+            f"train core overlaps split_b: {len(_train_core_ids & split_b_set)} ids (should be 0)."
+        )
+
+    n_pos_b = int((y_full[split_b_full_ix] == 1).sum())
+    n_pos_cohort = int(pos_cohort_ix.size)
+
+    VAL_TN_FRAC = float(os.environ.get("VLST_FP_FOLLOWUP_VAL_TN_FRAC", "0.12"))
+    tn_elig_list = [
+        int(i)
+        for i in tn_pool_idx.tolist()
+        if int(i) not in split_b_set and int(i) not in union_full_row_ids
+    ]
+    if len(tn_elig_list) < 64:
+        raise RuntimeError(f"TN pool too small ({len(tn_elig_list)}); check splits.")
+    _rng_tn = np.random.RandomState(SPLIT_SEED + 51)
+    tn_elig = np.asarray(tn_elig_list, dtype=int)[_rng_tn.permutation(len(tn_elig_list))]
+    n_val = int(max(32, min(len(tn_elig) - 32, round(VAL_TN_FRAC * len(tn_elig)))))
+    tn_val_ix = tn_elig[:n_val]
+    tn_train_ordered = tn_elig[n_val:]
+
+    n_fp = n_fp_fit
+    n_pos = int(pos_idx.size)
+
+    X_pos_fit = X_full_use.iloc[pos_train_ix].to_numpy(dtype=np.float32)
+    y_pos_fit_vec = np.ones(n_pos_train, dtype=int)
+    val_full_ix = np.sort(
+        np.concatenate([pos_val_ix.astype(np.int64), tn_val_ix.astype(np.int64)])
+    )
+    X_val_fixed = X_full_use.iloc[val_full_ix].to_numpy(dtype=np.float32)
+    y_val_fixed = y_full[val_full_ix].astype(int)
+    _val_ids = set(int(i) for i in val_full_ix.tolist())
+    if _val_ids & split_b_set:
+        raise RuntimeError(f"val overlaps split_b: {len(_val_ids & split_b_set)} ids")
+    if _val_ids & _train_core_ids:
+        raise RuntimeError(f"val overlaps train core: {len(_val_ids & _train_core_ids)} ids")
+    print(
+        f"val fixed: n={len(val_full_ix)} (pos={n_pos_val}, tn={len(tn_val_ix)})"
+    )
+
+    _tn_partition_fp = set(int(i) for i in union_full_row_ids)
+    _tn_partition_plain = (
+        set(int(i) for i in tn_test_shared.tolist())
+        | set(int(i) for i in tn_val_ix.tolist())
+        | set(int(i) for i in tn_train_ordered.tolist())
+    )
+    if _tn_partition_fp & _tn_partition_plain:
+        raise RuntimeError(
+            "TN partition overlap: mined FP ids also used as plain TN fill/val/train"
+        )
+    _tn_partition_all = _tn_partition_fp | _tn_partition_plain
+    if not _tn_partition_all.issubset(_tn_pool_set):
+        raise RuntimeError("TN partition contains non-TN row ids")
+    _n_tn_unassigned = int(len(_tn_pool_set) - len(_tn_partition_all))
+    print(
+        f"TN budget: pool={len(_tn_pool_set)} | mined_fp={len(_tn_partition_fp)} "
+        f"| plain_tn={len(_tn_partition_plain)} (split_b_tn={len(tn_test_shared)}, "
+        f"val_tn={len(tn_val_ix)}, train_tn={len(tn_train_ordered)}) "
+        f"| unassigned={_n_tn_unassigned}"
+    )
+
+    max_neg_total = n_fp_fit + int(tn_train_ordered.size)
+    RATIO_POS_DENOM = os.environ.get("VLST_FP_FOLLOWUP_RATIO_POS_DENOM", "train").strip().lower()
+    if RATIO_POS_DENOM == "full":
+        n_pos_ratio = int(n_pos)
+    elif RATIO_POS_DENOM == "train":
+        n_pos_ratio = int(n_pos_train)
+    else:
+        raise ValueError(
+            "VLST_FP_FOLLOWUP_RATIO_POS_DENOM must be 'train' or 'full', "
+            f"got {RATIO_POS_DENOM!r}"
+        )
+    max_r = int(max_neg_total // n_pos_ratio) if n_pos_ratio else 0
+    ratio_candidates = [1.0] + [float(x) for x in range(5, max(max_r, 5) + 1, 5)]
+    if max_r >= 1 and float(max_r) not in ratio_candidates:
+        ratio_candidates.append(float(max_r))
+    ratio_candidates = sorted(set(float(x) for x in ratio_candidates))
+    RATIOS = []
+    for r in ratio_candidates:
+        need = int(round(n_pos_ratio * float(r)))
+        if need <= max_neg_total:
+            RATIOS.append(float(r))
+    # Canonical MaxFP-46 operating point: 46 train negs per 92 full positives.
+    _fp46_anchor = os.environ.get("VLST_FP_FOLLOWUP_FP46_ANCHOR", "1").strip().lower() not in (
+        "0", "false", "no",
+    )
+    if _fp46_anchor and int(n_pos_ratio) == int(n_pos) and int(len(union_full_row_ids)) == int(
+        MAXFP_46_N
+    ):
+        _anchor_r = float(MAXFP_46_N) / float(n_pos_ratio)
+        _anchor_need = int(round(n_pos_ratio * _anchor_r))
+        if _anchor_need <= max_neg_total and _anchor_r > 0:
+            if not any(abs(float(x) - _anchor_r) < 1e-9 for x in RATIOS):
+                RATIOS.append(_anchor_r)
+            RATIOS = sorted(set(float(x) for x in RATIOS), key=float)
+            print(
+                f"FP46 anchor ratio added: {_anchor_r:g} -> n_neg_target={_anchor_need} "
+                f"(display 46/92)"
+            )
+
+    if not RATIOS:
+        raise RuntimeError("No valid ratio steps (check TN pool and n_fp).")
+
+    n_neg_full = n_fp_fit + int(tn_train_ordered.size)
+    _r_max = float(RATIOS[-1]) if RATIOS else 0.0
+    _k_tr_max = k_train_tn_for_neg_target(int(round(n_pos_ratio * _r_max)))
+    _k_a_max = k_test_a_tn_for_neg_target(int(round(n_pos_ratio * _r_max)))
+    print(
+        "Retrospective anchor (final ratio r=max): "
+        f"split_b = split_a(r_max) | test pos={n_pos_test} neg={len(tn_test_shared) + n_fp_test} "
+        f"(tn_shared={len(tn_test_shared)}, fp_test={n_fp_test}) | "
+        f"train pos={n_pos_train} neg_cap={max_neg_total} (fp={n_fp_fit}, tn_pool={len(tn_train_ordered)}) | "
+        f"ratio denom={n_pos_ratio} -> max_r={max_r} | at r_max: k_train_tn={_k_tr_max} k_test_a_tn={_k_a_max}"
+    )
+    if _k_a_max != len(tn_test_shared) or _k_tr_max != len(tn_train_ordered):
+        print(
+            "  WARN: at max_r, expected full train/test TN prefixes; "
+            f"got k_train={_k_tr_max}/{len(tn_train_ordered)} k_a={_k_a_max}/{len(tn_test_shared)}"
+        )
+
+    split_summary = {
+        "n_pos": n_pos,
+        "n_pos_cohort": n_pos_cohort,
+        "n_pos_split_b": n_pos_b,
+        "split_b_n_fixed": int(split_b_full_ix.size),
+        "split_b_pos_holdout": int(pos_test_ix.size),
+        "split_b_fp_holdout": int(n_fp_test),
+        "split_b_neg_fill": int(len(_neg_fill)),
+        "split_b_n_pos_test": n_pos_test,
+        "split_b_n_fp_test": n_fp_test,
+        "n_fp_test_holdout_this_csv": int(len(_run_test_holdout_ids)),
+        "HOLDOUT_FRAC": HOLDOUT_FRAC,
+        "SPLIT_SEED": SPLIT_SEED,
+        "POS_HOLDOUT_FRAC": POS_HOLDOUT_FRAC,
+        "FP_HOLDOUT_FRAC": FP_HOLDOUT_FRAC,
+        "union_id_mode": _union_id_mode,
+        "n_fp_union_csv_rows": int(_n_union_csv_raw),
+        "n_fp_union_unique_tn": int(len(union_full_row_ids)),
+        "n_fp_train_fixed": int(n_fp_train),
+        "n_tn_pool_fixed": int(len(_tn_pool_set)),
+        "n_union_dropped_non_tn": int(len(_pos_in_union)),
+        "n_union_dropped_dupe": int(_n_union_dupes),
+        "n_tn_plain_partition": int(len(_tn_partition_plain)),
+        "n_tn_unassigned": int(_n_tn_unassigned),
+        "n_fp_fit_fixed": int(n_fp_fit),
+        "n_pos_train": int(n_pos_train),
+        "n_pos_val": int(n_pos_val),
+        "shared_test_core": 1,
+        "fixed_split_b": int(_FIXED_SPLIT_B_READY),
+        "fp_candidate_pool_n": int(len(_fp_candidate_pool_ix)),
+        "active_fp_test_n": int(n_fp_test),
+        "fp_registry_common_n": int(_fixed_split_b_meta.get("fp_common_n", len(_FP_COMMON_IDS))),
+        "split_b_tn_shared": int(len(tn_test_shared)),
+        "tn_val_n": int(len(tn_val_ix)),
+
+        "n_tn_train_pool": int(tn_train_ordered.size),
+        "max_neg_total": max_neg_total,
+        "n_pos_ratio_denom": int(n_pos_ratio),
+        "ratio_pos_denom": RATIO_POS_DENOM,
+        "max_r_neg_ratio": int(max_r),
+        "ratios": RATIOS,
+        "n_neg_full_pool": int(n_neg_full),
+    }
+    _assert_disjoint_splits(run_label)
+    print("Split / ratio summary:", split_summary)
+    print("Features (shared_features):", len(shared_features))
+
+    return split_summary
+
+split_summary = init_fp_followup_from_union_csv(UNION_CSV, run_label="union")
+
+---OUT---
+Notebook split logic: 2026-06-09_holdout_pool_v4
+Using target column from full data: Stent thrombosis
+Dropped row-identifier columns from features: ['NO.', 'Name']
+Dropped leakage-style feature(s): ['Time since stent implantation']
+
+=== init_fp_followup_from_union_csv (union) ===
+Union CSV: /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_union_test.csv
+Using target column from full data: Stent thrombosis
+Dropped row-identifier columns from features: ['NO.', 'Name']
+Dropped leakage-style feature(s): ['Time since stent implantation']
+Note: union CSV has 93 feature column(s) not in full data (omitted from training schema); examples: ['Stent type-SES_Endeavor', 'Stent type-SES_Ex', 'Stent type-SES_Ex/Pa', 'Stent type-SES_Excecl', 'Stent type-SES_Excel', 'Stent type-SES_Excel/Firebird', 'Stent type-SES_Excel/Partner', 'Stent type-SES_Excel:RCA', 'Stent type-SES_Firebid', 'Stent type-SES_Firebird', 'Stent type-SES_LAD:Excel', 'Stent type-SES_LAD:Firebird']
+Run FP CSV (union) id mode: holdout_position | csv=44 → unique TN FPs=44 (TN pool n=5093)
+Building fixed split_b from registered FP sets:
+  [union] /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_union_test.csv | csv=44 unique=44 test_holdout=9 id_mode=holdout_position
+  [maxfp] /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_tabpfn_maxfp_cal_threshold_test.csv | csv=1019 unique=1019 test_holdout=204 id_mode=holdout_position
+  [maxfp46] /kaggle/working/vlst_fp_mining_output/false_positives_maxfp46_subset_test.csv | csv=46 unique=46 test_holdout=10 id_mode=holdout_position
+  common FP ids across 3 set(s): 1
+  test-holdout union: 211 | common test holdout: 0 | excluded (train-holdout in some set): 49 | pool eligible: 162
+  [union] only_in_set=43 in_fp_pool=2 (pool-only-as-TN-for-other-runs=160)
+  [maxfp] only_in_set=1018 in_fp_pool=162 (pool-only-as-TN-for-other-runs=0)
+  [maxfp46] only_in_set=45 in_fp_pool=10 (pool-only-as-TN-for-other-runs=152)
+  split_b n=1037 | pos=19 | fp_candidate_pool=162 | plain_tn=856
+  FP registry common (all registered sets): 1 | this run unique ids: 44 | only_in_this_run: 43
+  [maxfp] 160 pool row(s) are FP in that set but plain TN for this run (union)
+  [maxfp46] 10 pool row(s) are FP in that set but plain TN for this run (union)
+  fp_candidate_pool has 162 fixed rows; this csv test_holdout=9 | active fp_test (union)=2 | 160 pool rows not in this CSV → plain TN on split_b
+split_b reused (fixed): n=1037 | pos=19 | fp_candidate_pool=162 | plain_tn=856 | active fp_test (union)=2 | train fp=42
+shared test core (fixed): pos=19 fp_candidate_pool=162 | train fit: pos=62 fp=42 | val: pos=11
+split_b fixed n=1037 (tn_shared=856); split_a(r) = core + growing tn_test_shared prefix
+val fixed: n=495 (pos=11, tn=484)
+TN budget: pool=5093 | mined_fp=44 | plain_tn=4889 (split_b_tn=856, val_tn=484, train_tn=3549) | unassigned=160
+Retrospective anchor (final ratio r=max): split_b = split_a(r_max) | test pos=19 neg=858 (tn_shared=856, fp_test=2) | train pos=62 neg_cap=3591 (fp=42, tn_pool=3549) | ratio denom=62 -> max_r=57 | at r_max: k_train_tn=3492 k_test_a_tn=842
+  WARN: at max_r, expected full train/test TN prefixes; got k_train=3492/3549 k_a=842/856
+Split disjointness OK (union): split_b n=1037 | val n=495 | train_core pos=62 fp=42 | test core pos=19 fp=2
+Split / ratio summary: {'n_pos': 92, 'n_pos_cohort': 73, 'n_pos_split_b': 19, 'split_b_n_fixed': 1037, 'split_b_pos_holdout': 19, 'split_b_fp_holdout': 2, 'split_b_neg_fill': 856, 'split_b_n_pos_test': 19, 'split_b_n_fp_test': 2, 'n_fp_test_holdout_this_csv': 9, 'HOLDOUT_FRAC': 0.2, 'SPLIT_SEED': 42, 'POS_HOLDOUT_FRAC': 0.2, 'FP_HOLDOUT_FRAC': 0.2, 'union_id_mode': 'holdout_position', 'n_fp_union_csv_rows': 44, 'n_fp_union_unique_tn': 44, 'n_fp_train_fixed': 42, 'n_tn_pool_fixed': 5093, 'n_union_dropped_non_tn': 0, 'n_union_dropped_dupe': 0, 'n_tn_plain_partition': 4889, 'n_tn_unassigned': 160, 'n_fp_fit_fixed': 42, 'n_pos_train': 62, 'n_pos_val': 11, 'shared_test_core': 1, 'fixed_split_b': 1, 'fp_candidate_pool_n': 162, 'active_fp_test_n': 2, 'fp_registry_common_n': 1, 'split_b_tn_shared': 856, 'tn_val_n': 484, 'n_tn_train_pool': 3549, 'max_neg_total': 3591, 'n_pos_ratio_denom': 62, 'ratio_pos_denom': 'train', 'max_r_neg_ratio': 57, 'ratios': [1.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 57.0], 'n_neg_full_pool': 3591}
+Features (shared_features): 81
+
+
+########## CELL 7 [markdown] ##########
+## 3. Ratio sweep — TabPFN, thresholds, dual confusion matrices + CSV
+
+**F-beta on val:** F0.5 / F1 / F2 are kept as reference lines. **F2 weights recall twice as much as precision**, so its optimal threshold is usually **lower** → more predicted positives → **fewer FN, more FP** on split_b. That is expected, not a bug.
+
+**FP-aware operating points (also tuned on val, evaluated on split_a / split_b):**
+
+| Policy | Rule on val |
+|--------|-------------|
+| F0.75 / F1.25 | Maximize F-beta (beta 0.75 or 1.25) — between precision-heavy and recall-heavy |
+| cost | Maximize `-(C_FP·FP + C_FN·FN)` (env `VLST_FP_FOLLOWUP_COST_FP` / `_COST_FN`, default 2 / 5) |
+| R≥R_min minFP | Among thresholds with recall ≥ `VLST_FP_FOLLOWUP_RECALL_MIN` (0.5), minimize FP |
+| FPR≤α | Among thresholds with FPR ≤ `VLST_FP_FOLLOWUP_FPR_MAX` (0.05), maximize recall |
+
+**Recommended default for FP control:** F0.75 or **FPR-capped** threshold; keep F0.5/F1/F2 and split_b oracle (holdout-tuned) as references.
+
+**CSV (per ratio row):** split_b @ val-tuned policies log `b_tval_*_{fpr,fp_per_1k_neg,error_fp_share,fp,fn}` plus confusion cells. Oracle split_b uses holdout-tuned F0.5/F1/F2 only (`b_thold_b_*`).
+
+
+########## CELL 8 [code] ##########
+from tabpfn_client import TabPFNClassifier, set_access_token
+
+_token = os.environ.get("TABPFN_TOKEN", "").strip()
+if not _token:
+    raise RuntimeError(
+        "TABPFN_TOKEN missing. Run the token cell above (Kaggle Secret or env var). "
+        "API key: https://ux.priorlabs.ai/account"
+    )
+set_access_token(_token)
+
+TABPFN_N_ESTIMATORS = int(os.environ.get("TABPFN_N_ESTIMATORS", "8"))
+
+
+def make_tabpfn_classifier(random_state: int) -> TabPFNClassifier:
+    """tabpfn-client API (cloud); no local `device` argument."""
+    return TabPFNClassifier(
+        random_state=random_state,
+        n_estimators=TABPFN_N_ESTIMATORS,
+        ignore_pretraining_limits=True,
+        balance_probabilities=True,
+    )
+
+t_grid = np.arange(0.01, 1.0, 0.01)
+
+
+def best_threshold(y_true, p, grid, metric_fn):
+    best_t, best_v = 0.5, -1.0
+    for t in grid:
+        y_hat = (p >= t).astype(int)
+        v = float(metric_fn(y_true, y_hat))
+        if v > best_v:
+            best_v, best_t = v, float(t)
+    return best_t, best_v
+
+
+def f05m(y, yhat):
+    return fbeta_score(y, yhat, beta=0.5, zero_division=0)
+
+
+def f1m(y, yhat):
+    return f1_score(y, yhat, zero_division=0)
+
+
+def f2m(y, yhat):
+    return fbeta_score(y, yhat, beta=2.0, zero_division=0)
+
+
+def _cm_counts(y_true, y_hat):
+    cm = confusion_matrix(np.asarray(y_true, dtype=int), np.asarray(y_hat, dtype=int), labels=[0, 1])
+    tn, fp, fn, tp = int(cm[0, 0]), int(cm[0, 1]), int(cm[1, 0]), int(cm[1, 1])
+    return tn, fp, fn, tp
+
+
+def _fpr(fp: int, tn: int) -> float:
+    denom = fp + tn
+    return float(fp / denom) if denom > 0 else 0.0
+
+
+def fp_concentration_bundle(y_true, y_hat) -> dict:
+    """FP-focused diagnostics for imbalance / split_b reporting."""
+    tn, fp, fn, tp = _cm_counts(y_true, y_hat)
+    n_neg = tn + fp
+    err = fp + fn
+    return {
+        "fpr": _fpr(fp, tn),
+        "fp_per_1k_neg": float(1000.0 * fp / n_neg) if n_neg > 0 else float("nan"),
+        "error_fp_share": float(fp / err) if err > 0 else float("nan"),
+        "fp": int(fp),
+        "fn": int(fn),
+    }
+
+
+def _fbeta_metric(beta: float):
+    def _m(y, yhat):
+        return fbeta_score(y, yhat, beta=beta, zero_division=0)
+
+    return _m
+
+
+def _cost_metric(c_fp: float, c_fn: float):
+    def _m(y, yhat):
+        _, fp, fn, _ = _cm_counts(y, yhat)
+        return float(-(c_fp * fp + c_fn * fn))
+
+    return _m
+
+
+def best_threshold_min_metric(y_true, p, grid, metric_fn, higher_is_better=True):
+    best_t, best_v = 0.5, -1e18 if higher_is_better else 1e18
+    for t in grid:
+        y_hat = (p >= t).astype(int)
+        v = float(metric_fn(y_true, y_hat))
+        if higher_is_better:
+            if v > best_v:
+                best_v, best_t = v, float(t)
+        else:
+            if v < best_v:
+                best_v, best_t = v, float(t)
+    return best_t, best_v
+
+
+def best_threshold_min_fp_at_recall(y_true, p, grid, recall_min: float = 0.5):
+    y_true = np.asarray(y_true, dtype=int)
+    n_pos = int(y_true.sum())
+    if n_pos == 0:
+        return 0.5, float("nan")
+    best_t, best_fp = 0.99, 10**9
+    found = False
+    for t in grid:
+        y_hat = (p >= t).astype(int)
+        _, fp, fn, tp = _cm_counts(y_true, y_hat)
+        rec = float(tp / n_pos)
+        if rec >= recall_min and fp < best_fp:
+            best_fp, best_t = fp, float(t)
+            found = True
+    if not found:
+        best_t, _ = best_threshold(y_true, p, grid, f2m)
+        _, fp, _, _ = _cm_counts(y_true, (p >= best_t).astype(int))
+        best_fp = fp
+    return best_t, float(best_fp)
+
+
+def best_threshold_max_recall_at_fpr(y_true, p, grid, fpr_max: float = 0.05):
+    y_true = np.asarray(y_true, dtype=int)
+    n_pos = int(y_true.sum())
+    if n_pos == 0:
+        return 0.5, float("nan")
+    best_t, best_rec = 0.99, -1.0
+    found = False
+    for t in grid:
+        y_hat = (p >= t).astype(int)
+        tn, fp, fn, tp = _cm_counts(y_true, y_hat)
+        if _fpr(fp, tn) <= fpr_max + 1e-12:
+            rec = float(tp / n_pos)
+            if rec > best_rec:
+                best_rec, best_t = rec, float(t)
+                found = True
+    if not found:
+        best_t, best_rec = best_threshold(y_true, p, grid, f05m)
+    return best_t, float(best_rec)
+
+
+def tune_thresholds_extended(y_true, p, grid):
+    """Extra threshold policies for FP/FN balance (tuned on val)."""
+    c_fp = float(os.environ.get("VLST_FP_FOLLOWUP_COST_FP", "2"))
+    c_fn = float(os.environ.get("VLST_FP_FOLLOWUP_COST_FN", "5"))
+    recall_min = float(os.environ.get("VLST_FP_FOLLOWUP_RECALL_MIN", "0.5"))
+    fpr_max = float(os.environ.get("VLST_FP_FOLLOWUP_FPR_MAX", "0.05"))
+
+    t_f075, v_f075 = best_threshold(y_true, p, grid, _fbeta_metric(0.75))
+    t_f125, v_f125 = best_threshold(y_true, p, grid, _fbeta_metric(1.25))
+    t_cost, v_cost = best_threshold(y_true, p, grid, _cost_metric(c_fp, c_fn))
+    t_rmin, v_rmin_fp = best_threshold_min_fp_at_recall(y_true, p, grid, recall_min)
+    t_fprc, v_fprc_rec = best_threshold_max_recall_at_fpr(y_true, p, grid, fpr_max)
+
+    return {
+        "t_f075": float(t_f075),
+        "v_f075": float(v_f075),
+        "t_f125": float(t_f125),
+        "v_f125": float(v_f125),
+        "t_cost": float(t_cost),
+        "v_cost": float(-v_cost),
+        "t_recall_min_fp": float(t_rmin),
+        "v_recall_min_fp": float(v_rmin_fp),
+        "t_fpr_cap": float(t_fprc),
+        "v_fpr_cap_recall": float(v_fprc_rec),
+        "cost_fp": c_fp,
+        "cost_fn": c_fn,
+        "recall_min": recall_min,
+        "fpr_max": fpr_max,
+    }
+
+
+def tune_thresholds(y_true, p, grid):
+    """Best cutoff on `grid` for F0.5, F1, and F2."""
+    t_f05, v_f05 = best_threshold(y_true, p, grid, f05m)
+    t_f1, v_f1 = best_threshold(y_true, p, grid, f1m)
+    t_f2, v_f2 = best_threshold(y_true, p, grid, f2m)
+    return {
+        "t_f05": float(t_f05),
+        "v_f05": float(v_f05),
+        "t_f1": float(t_f1),
+        "v_f1": float(v_f1),
+        "t_f2": float(t_f2),
+        "v_f2": float(v_f2),
+    }
+
+
+def tune_val_thresholds(y_va, p_va):
+  out = tune_thresholds(y_va, p_va, t_grid)
+  out.update(tune_thresholds_extended(y_va, p_va, t_grid))
+  return out
+
+
+def tune_hold_thresholds(y_ho, p_ho):
+    return tune_thresholds(y_ho, p_ho, t_grid)
+
+
+def f_scores_at_t(y, p, t):
+    yh = (p >= float(t)).astype(int)
+    return float(f05m(y, yh)), float(f1m(y, yh)), float(f2m(y, yh))
+
+
+def metric_bundle(y_true, y_hat, p):
+    out = {
+        "precision": float(precision_score(y_true, y_hat, zero_division=0)),
+        "recall": float(recall_score(y_true, y_hat, zero_division=0)),
+        "f1": float(f1_score(y_true, y_hat, zero_division=0)),
+        "f05": float(fbeta_score(y_true, y_hat, beta=0.5, zero_division=0)),
+        "f2": float(fbeta_score(y_true, y_hat, beta=2.0, zero_division=0)),
+        "accuracy": float(accuracy_score(y_true, y_hat)),
+    }
+    try:
+        out["roc_auc"] = float(roc_auc_score(y_true, p))
+    except ValueError:
+        out["roc_auc"] = float("nan")
+    try:
+        out["pr_auc"] = float(average_precision_score(y_true, p))
+    except ValueError:
+        out["pr_auc"] = float("nan")
+    return out
+
+
+def print_confusion_compact(cm):
+    cm = np.asarray(cm, dtype=int)
+    if cm.shape == (2, 2):
+        print(
+            f"      TN={cm[0, 0]:>6}  FP={cm[0, 1]:>6}  |  "
+            f"FN={cm[1, 0]:>6}  TP={cm[1, 1]:>6}"
+        )
+    else:
+        print("     ", cm.tolist())
+
+
+def append_eval_row(d, prefix, y_true, p, t_use, label):
+    y_hat = (p >= float(t_use)).astype(int)
+    mb = metric_bundle(y_true, y_hat, p)
+    for k, v in mb.items():
+        d[f"{prefix}_{label}_{k}"] = float(v)
+    cm = confusion_matrix(y_true, y_hat, labels=[0, 1])
+    d[f"{prefix}_{label}_cm00"] = int(cm[0, 0])
+    d[f"{prefix}_{label}_cm01"] = int(cm[0, 1])
+    d[f"{prefix}_{label}_cm10"] = int(cm[1, 0])
+    d[f"{prefix}_{label}_cm11"] = int(cm[1, 1])
+    conc = fp_concentration_bundle(y_true, y_hat)
+    for k, v in conc.items():
+        d[f"{prefix}_{label}_{k}"] = float(v) if k not in ("fp", "fn") else int(v)
+
+
+def append_fp_fn_cols(d, prefix, y_true, p, t_use, label):
+    """Store FP (cm01) and FN (cm10) only — for error-count curves."""
+    y_hat = (p >= float(t_use)).astype(int)
+    cm = confusion_matrix(y_true, y_hat, labels=[0, 1])
+    d[f"{prefix}_{label}_fp"] = int(cm[0, 1])
+    d[f"{prefix}_{label}_fn"] = int(cm[1, 0])
+
+
+def print_split_eval(split_label, y, p, cutoffs):
+    """One eval split: compact metrics + confusion matrix per cutoff."""
+    mb_auc = metric_bundle(y, (p >= 0.5).astype(int), p)
+    print(
+        f"\n  {split_label}  |  n={len(y)}  pos={int(y.sum())}  "
+        f"|  ROC-AUC {mb_auc['roc_auc']:.3f}  PR-AUC {mb_auc['pr_auc']:.3f}"
+    )
+    for tag, t in cutoffs:
+        yh = (p >= float(t)).astype(int)
+        mb = metric_bundle(y, yh, p)
+        print(
+            f"    {tag:<14}  t={float(t):.3f}  "
+            f"P={mb['precision']:.3f}  R={mb['recall']:.3f}  "
+            f"F0.5={mb['f05']:.3f}  F1={mb['f1']:.3f}  F2={mb['f2']:.3f}  acc={mb['accuracy']:.3f}"
+        )
+        print_confusion_compact(confusion_matrix(y, yh, labels=[0, 1]))
+
+
+def append_split_csv_rows(row, prefix, y, p, val_t, hold_t):
+    append_eval_row(row, prefix, y, p, 0.5, "t05")
+    append_eval_row(row, prefix, y, p, val_t["t_f05"], "tval")
+    append_eval_row(row, prefix, y, p, val_t["t_f1"], "tval_f1")
+    append_eval_row(row, prefix, y, p, val_t["t_f2"], "tval_f2")
+    append_eval_row(row, prefix, y, p, val_t["t_f075"], "tval_f075")
+    append_eval_row(row, prefix, y, p, val_t["t_f125"], "tval_f125")
+    append_eval_row(row, prefix, y, p, val_t["t_cost"], "tval_cost")
+    append_eval_row(row, prefix, y, p, val_t["t_recall_min_fp"], "tval_rminfp")
+    append_eval_row(row, prefix, y, p, val_t["t_fpr_cap"], "tval_fprcap")
+    append_eval_row(row, prefix, y, p, hold_t["t_f05"], "thold")
+    append_eval_row(row, prefix, y, p, hold_t["t_f1"], "thold_f1")
+    append_eval_row(row, prefix, y, p, hold_t["t_f2"], "thold_f2")
+
+
+def print_ratio_eval(step_label, y_a, p_a, y_b, p_b, val_t, hold_t):
+    cutoffs = [
+        ("fixed 0.5", 0.5),
+        ("val | F0.5", val_t["t_f05"]),
+        ("val | F1", val_t["t_f1"]),
+        ("val | F2", val_t["t_f2"]),
+        ("hold|F0.5*", hold_t["t_f05"]),
+        ("hold|F1*", hold_t["t_f1"]),
+        ("hold|F2*", hold_t["t_f2"]),
+    ]
+    print(f"\n{'=' * 72}")
+    print(
+        f"{step_label}  |  val t:  F0.5={val_t['t_f05']:.3f}  F1={val_t['t_f1']:.3f}  F2={val_t['t_f2']:.3f}"
+        f"  F0.75={val_t['t_f075']:.3f}  cost={val_t['t_cost']:.3f}"
+        f"  R>={val_t['recall_min']:.2f}->minFP t={val_t['t_recall_min_fp']:.3f}"
+        f"  FPR<={val_t['fpr_max']:.2f} t={val_t['t_fpr_cap']:.3f}"
+    )
+    print(
+        f"  holdout* t:  F0.5={hold_t['t_f05']:.3f}  F1={hold_t['t_f1']:.3f}  F2={hold_t['t_f2']:.3f}"
+    )
+    print_split_eval(
+        "split_a  growing (shared test core + TN prefix coupled to train)",
+        y_a,
+        p_a,
+        cutoffs,
+    )
+    print_split_eval(
+        "split_b  fixed (shared test core + full tn_test_shared)",
+        y_b,
+        p_b,
+        cutoffs,
+    )
+
+
+def threshold_curve_meta(
+    val_t, hold_a_t, hold_b_t, y_va, p_va, y_a, p_a, y_b, p_b,
+    n_neg_target, n_fp_take, tn_used, X_tr, X_va,
+):
+    vf05, vf1, vf2 = f_scores_at_t(y_va, p_va, 0.5)
+    hf05, hf1, hf2 = f_scores_at_t(y_a, p_a, 0.5)
+    bf05, bf1, bf2 = f_scores_at_t(y_b, p_b, 0.5)
+    mb_va = metric_bundle(y_va, (p_va >= 0.5).astype(int), p_va)
+    val_n_pos = int(np.asarray(y_va, dtype=int).sum())
+    mb_ho = metric_bundle(y_a, (p_a >= 0.5).astype(int), p_a)
+    mb_b = metric_bundle(y_b, (p_b >= 0.5).astype(int), p_b)
+    return {
+        "n_neg_target": int(n_neg_target),
+        "n_fp_in_constructed": int(n_fp_take),
+        "n_tn_in_constructed": int(len(tn_used)),
+        "n_fit_train": int(X_tr.shape[0]),
+        "n_fit_val": int(X_va.shape[0]),
+        "t_val_best_f05": val_t["t_f05"],
+        "val_roc_auc": mb_va["roc_auc"],
+        "val_pr_auc": mb_va["pr_auc"],
+        "hold_a_roc_auc": mb_ho["roc_auc"],
+        "hold_a_pr_auc": mb_ho["pr_auc"],
+        "split_b_roc_auc": mb_b["roc_auc"],
+        "split_b_pr_auc": mb_b["pr_auc"],
+        "val_n_pos": val_n_pos,
+        "val_f05_at_t_val": val_t["v_f05"],
+        "t_val_best_f1": val_t["t_f1"],
+        "val_f1_at_t_val_f1": val_t["v_f1"],
+        "t_val_best_f2": val_t["t_f2"],
+        "val_f2_at_t_val_f2": val_t["v_f2"],
+        "t_val_best_f075": val_t["t_f075"],
+        "val_f075_at_t_val": val_t["v_f075"],
+        "t_val_best_f125": val_t["t_f125"],
+        "val_f125_at_t_val": val_t["v_f125"],
+        "t_val_best_cost": val_t["t_cost"],
+        "val_cost_at_t_val": val_t["v_cost"],
+        "t_val_recall_min_fp": val_t["t_recall_min_fp"],
+        "val_recall_min_fp_at_t": val_t["v_recall_min_fp"],
+        "t_val_fpr_cap": val_t["t_fpr_cap"],
+        "val_fpr_cap_recall_at_t": val_t["v_fpr_cap_recall"],
+        "val_f05_at_t05": vf05,
+        "val_f1_at_t05": vf1,
+        "val_f2_at_t05": vf2,
+        "t_hold_oracle_best_f05": hold_a_t["t_f05"],
+        "hold_f05_at_t_hold": hold_a_t["v_f05"],
+        "t_hold_oracle_best_f1": hold_a_t["t_f1"],
+        "hold_f1_at_t_hold_f1": hold_a_t["v_f1"],
+        "t_hold_oracle_best_f2": hold_a_t["t_f2"],
+        "hold_f2_at_t_hold_f2": hold_a_t["v_f2"],
+        "hold_f05_at_t05": hf05,
+        "hold_f1_at_t05": hf1,
+        "hold_f2_at_t05": hf2,
+        "t_hold_b_oracle_best_f05": hold_b_t["t_f05"],
+        "b_hold_f05_at_oracle": hold_b_t["v_f05"],
+        "t_hold_b_oracle_best_f1": hold_b_t["t_f1"],
+        "b_hold_f1_at_oracle": hold_b_t["v_f1"],
+        "t_hold_b_oracle_best_f2": hold_b_t["t_f2"],
+        "b_hold_f2_at_oracle": hold_b_t["v_f2"],
+        "b_hold_f05_at_t05": bf05,
+        "b_hold_f1_at_t05": bf1,
+        "b_hold_f2_at_t05": bf2,
+        "split_a_n": int(len(y_a)),
+        "split_a_pos": int(y_a.sum()),
+        "split_b_n": int(len(y_b)),
+        "split_b_pos": int(y_b.sum()),
+        "split_b_is_fixed_set": 1.0,
+    }
+
+
+def ratio_display_label(r, step_kind: str = "ratio") -> str:
+    if step_kind == "full_pool":
+        return "full"
+    r = float(r)
+    if (
+        int(n_pos_ratio) == int(n_pos)
+        and abs(r - float(MAXFP_46_N) / float(n_pos_ratio)) < 1e-9
+    ):
+        return f"{int(MAXFP_46_N)}/{int(n_pos_ratio)}"
+    ri = int(round(r))
+    if abs(r - ri) < 1e-9:
+        return str(ri)
+    return f"{r:g}"
+
+
+def run_one_sweep_step(step_label, step_kind, ratio_requested, n_neg_target, rs_seed, split_seed):
+    rs = np.random.RandomState(rs_seed)
+    X_tr, y_tr, full_ix, n_fp_take, tn_used = build_train_arrays(n_neg_target, rs)
+    train_fit_ix = set(int(x) for x in full_ix.tolist())
+    X_va, y_va = X_val_fixed, y_val_fixed
+    k_tr = int(len(tn_used))
+    k_a = int(k_test_a_tn_for_neg_target(n_neg_target))
+
+    _ov_train_b = train_fit_ix & split_b_set
+    _ov_train_v = train_fit_ix & set(int(i) for i in val_full_ix.tolist())
+    if _ov_train_b or _ov_train_v:
+        raise RuntimeError(
+            f"{step_label}: train overlaps test/val: b={len(_ov_train_b)} val={len(_ov_train_v)}"
+        )
+    a_ix = split_a_indices_for_ratio(n_neg_target)
+    if not set(int(i) for i in a_ix.tolist()).issubset(split_b_set):
+        raise RuntimeError(f"{step_label}: split_a(r) not subset of split_b")
+
+    clf = make_tabpfn_classifier(split_seed)
+    clf.fit(X_tr, y_tr)
+    p_va = clf.predict_proba(X_va)[:, 1]
+    val_t = tune_val_thresholds(y_va, p_va)
+
+    X_a, y_a = Xy_for_full_indices(a_ix)
+    p_a = clf.predict_proba(X_a)[:, 1]
+    hold_a_t = tune_hold_thresholds(y_a, p_a)
+
+    b_ix = matrix_b_indices(train_fit_ix)
+    X_b, y_b = Xy_for_full_indices(b_ix)
+    p_b = clf.predict_proba(X_b)[:, 1]
+    hold_b_t = tune_hold_thresholds(y_b, p_b)
+
+    print_ratio_eval(step_label, y_a, p_a, y_b, p_b, val_t, hold_a_t)
+
+    row = {
+        "step_kind": step_kind,
+        "ratio_requested": float(ratio_requested),
+        "ratio_display": ratio_display_label(ratio_requested, step_kind),
+        "k_train_tn": k_tr,
+        "k_test_a_tn": k_a,
+        "shared_test_core": 1.0,
+        **threshold_curve_meta(
+            val_t,
+            hold_a_t,
+            hold_b_t,
+            y_va,
+            p_va,
+            y_a,
+            p_a,
+            y_b,
+            p_b,
+            n_neg_target,
+            n_fp_take,
+            tn_used,
+            X_tr,
+            X_va,
+        ),
+    }
+    append_fp_fn_cols(row, "val", y_va, p_va, 0.5, "t05")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_f05"], "tval")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_f1"], "tval_f1")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_f2"], "tval_f2")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_f075"], "tval_f075")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_f125"], "tval_f125")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_cost"], "tval_cost")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_recall_min_fp"], "tval_rminfp")
+    append_fp_fn_cols(row, "val", y_va, p_va, val_t["t_fpr_cap"], "tval_fprcap")
+    for prefix, yv, pv in (("a", y_a, p_a), ("b", y_b, p_b)):
+        append_split_csv_rows(row, prefix, yv, pv, val_t, hold_a_t)
+    append_eval_row(row, "b", y_b, p_b, hold_b_t["t_f05"], "thold_b")
+    append_eval_row(row, "b", y_b, p_b, hold_b_t["t_f1"], "thold_b_f1")
+    append_eval_row(row, "b", y_b, p_b, hold_b_t["t_f2"], "thold_b_f2")
+    return row
+
+
+
+
+def run_fp_followup_ratio_sweep(
+    csv_name: str = "fp_followup_ratio_sweep.csv",
+    sweep_rows_out: list | None = None,
+):
+    """Run TabPFN ratio sweep using current split globals; return DataFrame."""
+    print(
+        "Thresholds: 0.5 | val→F0.5/F1/F2 + F0.75/F1.25/cost/R-minFP/FPR-cap | hold→F0.5/F1/F2* (oracle)"
+    )
+    sweep_rows = [] if sweep_rows_out is None else sweep_rows_out
+    step_i = 0
+
+    for r in RATIOS:
+        _r = float(r)
+        n_neg_target = int(round(n_pos_ratio * _r))
+        _disp = ratio_display_label(_r, "ratio")
+        sweep_rows.append(
+            run_one_sweep_step(
+                f"ratio={_disp}",
+                "ratio",
+                r,
+                n_neg_target,
+                RANDOM_STATE + step_i * 9973,
+                RANDOM_STATE + step_i,
+            )
+        )
+        step_i += 1
+
+    rs = np.random.RandomState(RANDOM_STATE + step_i * 9973)
+    X_all_f, y_all_f, full_ix_f, n_fp_f, tn_used_f = build_train_arrays(n_neg_full, rs)
+    last_same = False
+    if sweep_rows:
+        last = sweep_rows[-1]
+        last_same = (
+            int(last["n_fp_in_constructed"]) == int(n_fp_f)
+            and int(last["n_tn_in_constructed"]) == int(len(tn_used_f))
+        )
+    if not last_same:
+        sweep_rows.append(
+            run_one_sweep_step(
+                "full_pool",
+                "full_pool",
+                -1,
+                n_neg_full,
+                RANDOM_STATE + step_i * 9973,
+                RANDOM_STATE + step_i,
+            )
+        )
+    else:
+        print("Full-pool step skipped (identical to last ratio iteration).")
+
+    sweep_df = pd.DataFrame(sweep_rows)
+    _sweep_path = os.path.join(OUTPUT_DIR, csv_name)
+    sweep_df.to_csv(_sweep_path, index=False)
+    print("\nTabPFN backend: tabpfn-client (cloud API)")
+    print("Saved:", _sweep_path, "rows:", len(sweep_df))
+    return sweep_df
+
+
+sweep_df = run_fp_followup_ratio_sweep("fp_followup_ratio_sweep.csv")
+
+---OUT---
+Thresholds: 0.5 | val→F0.5/F1/F2 + F0.75/F1.25/cost/R-minFP/FPR-cap | hold→F0.5/F1/F2* (oracle)
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=1  |  val t:  F0.5=0.760  F1=0.640  F2=0.640  F0.75=0.640  cost=0.500  R>=0.50->minFP t=0.470  FPR<=0.05 t=0.630
+  holdout* t:  F0.5=0.580  F1=0.480  F2=0.470
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=186  pos=19  |  ROC-AUC 0.920  PR-AUC 0.607
+    fixed 0.5       t=0.500  P=0.464  R=0.684  F0.5=0.496  F1=0.553  F2=0.625  acc=0.887
+      TN=   152  FP=    15  |  FN=     6  TP=    13
+    val | F0.5      t=0.760  P=1.000  R=0.105  F0.5=0.370  F1=0.190  F2=0.128  acc=0.909
+      TN=   167  FP=     0  |  FN=    17  TP=     2
+    val | F1        t=0.640  P=0.500  R=0.316  F0.5=0.448  F1=0.387  F2=0.341  acc=0.898
+      TN=   161  FP=     6  |  FN=    13  TP=     6
+    val | F2        t=0.640  P=0.500  R=0.316  F0.5=0.448  F1=0.387  F2=0.341  acc=0.898
+      TN=   161  FP=     6  |  FN=    13  TP=     6
+    hold|F0.5*      t=0.580  P=0.571  R=0.632  F0.5=0.583  F1=0.600  F2=0.619  acc=0.914
+      TN=   158  FP=     9  |  FN=     7  TP=    12
+    hold|F1*        t=0.480  P=0.484  R=0.789  F0.5=0.524  F1=0.600  F2=0.701  acc=0.892
+      TN=   151  FP=    16  |  FN=     4  TP=    15
+    hold|F2*        t=0.470  P=0.457  R=0.842  F0.5=0.503  F1=0.593  F2=0.721  acc=0.882
+      TN=   148  FP=    19  |  FN=     3  TP=    16
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.886  PR-AUC 0.123
+    fixed 0.5       t=0.500  P=0.075  R=0.684  F0.5=0.091  F1=0.135  F2=0.260  acc=0.839
+      TN=   857  FP=   161  |  FN=     6  TP=    13
+    val | F0.5      t=0.760  P=0.200  R=0.158  F0.5=0.190  F1=0.176  F2=0.165  acc=0.973
+      TN=  1006  FP=    12  |  FN=    16  TP=     3
+    val | F1        t=0.640  P=0.090  R=0.316  F0.5=0.105  F1=0.140  F2=0.210  acc=0.929
+      TN=   957  FP=    61  |  FN=    13  TP=     6
+    val | F2        t=0.640  P=0.090  R=0.316  F0.5=0.105  F1=0.140  F2=0.210  acc=0.929
+      TN=   957  FP=    61  |  FN=    13  TP=     6
+    hold|F0.5*      t=0.580  P=0.106  R=0.632  F0.5=0.127  F1=0.182  F2=0.317  acc=0.896
+      TN=   917  FP=   101  |  FN=     7  TP=    12
+    hold|F1*        t=0.480  P=0.077  R=0.789  F0.5=0.094  F1=0.141  F2=0.278  acc=0.824
+      TN=   839  FP=   179  |  FN=     4  TP=    15
+    hold|F2*        t=0.470  P=0.077  R=0.842  F0.5=0.094  F1=0.140  F2=0.281  acc=0.811
+      TN=   825  FP=   193  |  FN=     3  TP=    16
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=5  |  val t:  F0.5=0.940  F1=0.800  F2=0.690  F0.75=0.940  cost=0.500  R>=0.50->minFP t=0.690  FPR<=0.05 t=0.690
+  holdout* t:  F0.5=0.680  F1=0.680  F2=0.680
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=246  pos=19  |  ROC-AUC 0.978  PR-AUC 0.749
+    fixed 0.5       t=0.500  P=0.462  R=0.947  F0.5=0.514  F1=0.621  F2=0.783  acc=0.911
+      TN=   206  FP=    21  |  FN=     1  TP=    18
+    val | F0.5      t=0.940  P=1.000  R=0.158  F0.5=0.484  F1=0.273  F2=0.190  acc=0.935
+      TN=   227  FP=     0  |  FN=    16  TP=     3
+    val | F1        t=0.800  P=0.706  R=0.632  F0.5=0.690  F1=0.667  F2=0.645  acc=0.951
+      TN=   222  FP=     5  |  FN=     7  TP=    12
+    val | F2        t=0.690  P=0.720  R=0.947  F0.5=0.756  F1=0.818  F2=0.891  acc=0.967
+      TN=   220  FP=     7  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.680  P=0.720  R=0.947  F0.5=0.756  F1=0.818  F2=0.891  acc=0.967
+      TN=   220  FP=     7  |  FN=     1  TP=    18
+    hold|F1*        t=0.680  P=0.720  R=0.947  F0.5=0.756  F1=0.818  F2=0.891  acc=0.967
+      TN=   220  FP=     7  |  FN=     1  TP=    18
+    hold|F2*        t=0.680  P=0.720  R=0.947  F0.5=0.756  F1=0.818  F2=0.891  acc=0.967
+      TN=   220  FP=     7  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.969  PR-AUC 0.362
+    fixed 0.5       t=0.500  P=0.134  R=0.947  F0.5=0.162  F1=0.235  F2=0.429  acc=0.887
+      TN=   902  FP=   116  |  FN=     1  TP=    18
+    val | F0.5      t=0.940  P=0.375  R=0.158  F0.5=0.294  F1=0.222  F2=0.179  acc=0.980
+      TN=  1013  FP=     5  |  FN=    16  TP=     3
+    val | F1        t=0.800  P=0.279  R=0.632  F0.5=0.314  F1=0.387  F2=0.504  acc=0.963
+      TN=   987  FP=    31  |  FN=     7  TP=    12
+    val | F2        t=0.690  P=0.254  R=0.947  F0.5=0.297  F1=0.400  F2=0.612  acc=0.948
+      TN=   965  FP=    53  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.680  P=0.243  R=0.947  F0.5=0.286  F1=0.387  F2=0.600  acc=0.945
+      TN=   962  FP=    56  |  FN=     1  TP=    18
+    hold|F1*        t=0.680  P=0.243  R=0.947  F0.5=0.286  F1=0.387  F2=0.600  acc=0.945
+      TN=   962  FP=    56  |  FN=     1  TP=    18
+    hold|F2*        t=0.680  P=0.243  R=0.947  F0.5=0.286  F1=0.387  F2=0.600  acc=0.945
+      TN=   962  FP=    56  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=10  |  val t:  F0.5=0.960  F1=0.890  F2=0.550  F0.75=0.960  cost=0.500  R>=0.50->minFP t=0.700  FPR<=0.05 t=0.720
+  holdout* t:  F0.5=0.810  F1=0.790  F2=0.730
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=320  pos=19  |  ROC-AUC 0.977  PR-AUC 0.715
+    fixed 0.5       t=0.500  P=0.353  R=0.947  F0.5=0.404  F1=0.514  F2=0.709  acc=0.894
+      TN=   268  FP=    33  |  FN=     1  TP=    18
+    val | F0.5      t=0.960  P=1.000  R=0.158  F0.5=0.484  F1=0.273  F2=0.190  acc=0.950
+      TN=   301  FP=     0  |  FN=    16  TP=     3
+    val | F1        t=0.890  P=0.688  R=0.579  F0.5=0.663  F1=0.629  F2=0.598  acc=0.959
+      TN=   296  FP=     5  |  FN=     8  TP=    11
+    val | F2        t=0.550  P=0.400  R=0.947  F0.5=0.452  F1=0.562  F2=0.744  acc=0.912
+      TN=   274  FP=    27  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.810  P=0.667  R=0.842  F0.5=0.696  F1=0.744  F2=0.800  acc=0.966
+      TN=   293  FP=     8  |  FN=     3  TP=    16
+    hold|F1*        t=0.790  P=0.654  R=0.895  F0.5=0.691  F1=0.756  F2=0.833  acc=0.966
+      TN=   292  FP=     9  |  FN=     2  TP=    17
+    hold|F2*        t=0.730  P=0.600  R=0.947  F0.5=0.647  F1=0.735  F2=0.849  acc=0.959
+      TN=   289  FP=    12  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.973  PR-AUC 0.386
+    fixed 0.5       t=0.500  P=0.135  R=0.947  F0.5=0.163  F1=0.237  F2=0.431  acc=0.888
+      TN=   903  FP=   115  |  FN=     1  TP=    18
+    val | F0.5      t=0.960  P=0.429  R=0.158  F0.5=0.319  F1=0.231  F2=0.181  acc=0.981
+      TN=  1014  FP=     4  |  FN=    16  TP=     3
+    val | F1        t=0.890  P=0.345  R=0.526  F0.5=0.370  F1=0.417  F2=0.476  acc=0.973
+      TN=   999  FP=    19  |  FN=     9  TP=    10
+    val | F2        t=0.550  P=0.148  R=0.947  F0.5=0.178  F1=0.255  F2=0.455  acc=0.899
+      TN=   914  FP=   104  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.810  P=0.312  R=0.789  F0.5=0.355  F1=0.448  F2=0.605  acc=0.964
+      TN=   985  FP=    33  |  FN=     4  TP=    15
+    hold|F1*        t=0.790  P=0.298  R=0.895  F0.5=0.344  F1=0.447  F2=0.639  acc=0.959
+      TN=   978  FP=    40  |  FN=     2  TP=    17
+    hold|F2*        t=0.730  P=0.254  R=0.947  F0.5=0.297  F1=0.400  F2=0.612  acc=0.948
+      TN=   965  FP=    53  |  FN=     1  TP=    18
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=15  |  val t:  F0.5=0.970  F1=0.730  F2=0.730  F0.75=0.880  cost=0.500  R>=0.50->minFP t=0.830  FPR<=0.05 t=0.670
+  holdout* t:  F0.5=0.960  F1=0.810  F2=0.810
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=395  pos=19  |  ROC-AUC 0.983  PR-AUC 0.783
+    fixed 0.5       t=0.500  P=0.316  R=0.947  F0.5=0.364  F1=0.474  F2=0.677  acc=0.899
+      TN=   337  FP=    39  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=1.000  R=0.316  F0.5=0.698  F1=0.480  F2=0.366  acc=0.967
+      TN=   376  FP=     0  |  FN=    13  TP=     6
+    val | F1        t=0.730  P=0.531  R=0.895  F0.5=0.578  F1=0.667  F2=0.787  acc=0.957
+      TN=   361  FP=    15  |  FN=     2  TP=    17
+    val | F2        t=0.730  P=0.531  R=0.895  F0.5=0.578  F1=0.667  F2=0.787  acc=0.957
+      TN=   361  FP=    15  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.960  P=1.000  R=0.368  F0.5=0.745  F1=0.538  F2=0.422  acc=0.970
+      TN=   376  FP=     0  |  FN=    12  TP=     7
+    hold|F1*        t=0.810  P=0.654  R=0.895  F0.5=0.691  F1=0.756  F2=0.833  acc=0.972
+      TN=   367  FP=     9  |  FN=     2  TP=    17
+    hold|F2*        t=0.810  P=0.654  R=0.895  F0.5=0.691  F1=0.756  F2=0.833  acc=0.972
+      TN=   367  FP=     9  |  FN=     2  TP=    17
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.982  PR-AUC 0.581
+    fixed 0.5       t=0.500  P=0.144  R=0.947  F0.5=0.173  F1=0.250  F2=0.448  acc=0.896
+      TN=   911  FP=   107  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=0.750  R=0.316  F0.5=0.588  F1=0.444  F2=0.357  acc=0.986
+      TN=  1016  FP=     2  |  FN=    13  TP=     6
+    val | F1        t=0.730  P=0.279  R=0.895  F0.5=0.323  F1=0.425  F2=0.620  acc=0.956
+      TN=   974  FP=    44  |  FN=     2  TP=    17
+    val | F2        t=0.730  P=0.279  R=0.895  F0.5=0.323  F1=0.425  F2=0.620  acc=0.956
+      TN=   974  FP=    44  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.960  P=0.700  R=0.368  F0.5=0.593  F1=0.483  F2=0.407  acc=0.986
+      TN=  1015  FP=     3  |  FN=    12  TP=     7
+    hold|F1*        t=0.810  P=0.378  R=0.895  F0.5=0.427  F1=0.531  F2=0.702  acc=0.971
+      TN=   990  FP=    28  |  FN=     2  TP=    17
+    hold|F2*        t=0.810  P=0.378  R=0.895  F0.5=0.427  F1=0.531  F2=0.702  acc=0.971
+      TN=   990  FP=    28  |  FN=     2  TP=    17
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=20  |  val t:  F0.5=0.980  F1=0.920  F2=0.740  F0.75=0.920  cost=0.500  R>=0.50->minFP t=0.790  FPR<=0.05 t=0.680
+  holdout* t:  F0.5=0.960  F1=0.870  F2=0.790
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=470  pos=19  |  ROC-AUC 0.984  PR-AUC 0.771
+    fixed 0.5       t=0.500  P=0.290  R=0.947  F0.5=0.337  F1=0.444  F2=0.652  acc=0.904
+      TN=   407  FP=    44  |  FN=     1  TP=    18
+    val | F0.5      t=0.980  P=1.000  R=0.211  F0.5=0.571  F1=0.348  F2=0.250  acc=0.968
+      TN=   451  FP=     0  |  FN=    15  TP=     4
+    val | F1        t=0.920  P=0.667  R=0.632  F0.5=0.659  F1=0.649  F2=0.638  acc=0.972
+      TN=   445  FP=     6  |  FN=     7  TP=    12
+    val | F2        t=0.740  P=0.447  R=0.895  F0.5=0.497  F1=0.596  F2=0.746  acc=0.951
+      TN=   430  FP=    21  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.960  P=0.889  R=0.421  F0.5=0.727  F1=0.571  F2=0.471  acc=0.974
+      TN=   450  FP=     1  |  FN=    11  TP=     8
+    hold|F1*        t=0.870  P=0.625  R=0.789  F0.5=0.652  F1=0.698  F2=0.750  acc=0.972
+      TN=   442  FP=     9  |  FN=     4  TP=    15
+    hold|F2*        t=0.790  P=0.548  R=0.895  F0.5=0.594  F1=0.680  F2=0.794  acc=0.966
+      TN=   437  FP=    14  |  FN=     2  TP=    17
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.981  PR-AUC 0.570
+    fixed 0.5       t=0.500  P=0.145  R=0.947  F0.5=0.175  F1=0.252  F2=0.450  acc=0.897
+      TN=   912  FP=   106  |  FN=     1  TP=    18
+    val | F0.5      t=0.980  P=0.667  R=0.211  F0.5=0.465  F1=0.320  F2=0.244  acc=0.984
+      TN=  1016  FP=     2  |  FN=    15  TP=     4
+    val | F1        t=0.920  P=0.462  R=0.632  F0.5=0.488  F1=0.533  F2=0.588  acc=0.980
+      TN=  1004  FP=    14  |  FN=     7  TP=    12
+    val | F2        t=0.740  P=0.258  R=0.895  F0.5=0.300  F1=0.400  F2=0.599  acc=0.951
+      TN=   969  FP=    49  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.960  P=0.667  R=0.421  F0.5=0.597  F1=0.516  F2=0.455  acc=0.986
+      TN=  1014  FP=     4  |  FN=    11  TP=     8
+    hold|F1*        t=0.870  P=0.395  R=0.789  F0.5=0.439  F1=0.526  F2=0.658  acc=0.974
+      TN=   995  FP=    23  |  FN=     4  TP=    15
+    hold|F2*        t=0.790  P=0.315  R=0.895  F0.5=0.362  F1=0.466  F2=0.654  acc=0.962
+      TN=   981  FP=    37  |  FN=     2  TP=    17
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:02 Predicting... Done!
+
+========================================================================
+ratio=25  |  val t:  F0.5=0.980  F1=0.850  F2=0.850  F0.75=0.850  cost=0.500  R>=0.50->minFP t=0.880  FPR<=0.05 t=0.680
+  holdout* t:  F0.5=0.950  F1=0.810  F2=0.810
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=545  pos=19  |  ROC-AUC 0.981  PR-AUC 0.656
+    fixed 0.5       t=0.500  P=0.244  R=1.000  F0.5=0.287  F1=0.392  F2=0.617  acc=0.892
+      TN=   467  FP=    59  |  FN=     0  TP=    19
+    val | F0.5      t=0.980  P=0.667  R=0.211  F0.5=0.465  F1=0.320  F2=0.244  acc=0.969
+      TN=   524  FP=     2  |  FN=    15  TP=     4
+    val | F1        t=0.850  P=0.500  R=0.737  F0.5=0.534  F1=0.596  F2=0.673  acc=0.965
+      TN=   512  FP=    14  |  FN=     5  TP=    14
+    val | F2        t=0.850  P=0.500  R=0.737  F0.5=0.534  F1=0.596  F2=0.673  acc=0.965
+      TN=   512  FP=    14  |  FN=     5  TP=    14
+    hold|F0.5*      t=0.950  P=0.778  R=0.368  F0.5=0.636  F1=0.500  F2=0.412  acc=0.974
+      TN=   524  FP=     2  |  FN=    12  TP=     7
+    hold|F1*        t=0.810  P=0.485  R=0.842  F0.5=0.530  F1=0.615  F2=0.734  acc=0.963
+      TN=   509  FP=    17  |  FN=     3  TP=    16
+    hold|F2*        t=0.810  P=0.485  R=0.842  F0.5=0.530  F1=0.615  F2=0.734  acc=0.963
+      TN=   509  FP=    17  |  FN=     3  TP=    16
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.980  PR-AUC 0.527
+    fixed 0.5       t=0.500  P=0.139  R=1.000  F0.5=0.168  F1=0.244  F2=0.446  acc=0.886
+      TN=   900  FP=   118  |  FN=     0  TP=    19
+    val | F0.5      t=0.980  P=0.571  R=0.211  F0.5=0.426  F1=0.308  F2=0.241  acc=0.983
+      TN=  1015  FP=     3  |  FN=    15  TP=     4
+    val | F1        t=0.850  P=0.318  R=0.737  F0.5=0.359  F1=0.444  F2=0.583  acc=0.966
+      TN=   988  FP=    30  |  FN=     5  TP=    14
+    val | F2        t=0.850  P=0.318  R=0.737  F0.5=0.359  F1=0.444  F2=0.583  acc=0.966
+      TN=   988  FP=    30  |  FN=     5  TP=    14
+    hold|F0.5*      t=0.950  P=0.538  R=0.368  F0.5=0.493  F1=0.438  F2=0.393  acc=0.983
+      TN=  1012  FP=     6  |  FN=    12  TP=     7
+    hold|F1*        t=0.810  P=0.320  R=0.842  F0.5=0.365  F1=0.464  F2=0.635  acc=0.964
+      TN=   984  FP=    34  |  FN=     3  TP=    16
+    hold|F2*        t=0.810  P=0.320  R=0.842  F0.5=0.365  F1=0.464  F2=0.635  acc=0.964
+      TN=   984  FP=    34  |  FN=     3  TP=    16
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:02 Predicting... Done!
+
+========================================================================
+ratio=30  |  val t:  F0.5=0.870  F1=0.870  F2=0.770  F0.75=0.870  cost=0.500  R>=0.50->minFP t=0.870  FPR<=0.05 t=0.710
+  holdout* t:  F0.5=0.960  F1=0.880  F2=0.680
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=619  pos=19  |  ROC-AUC 0.975  PR-AUC 0.588
+    fixed 0.5       t=0.500  P=0.209  R=1.000  F0.5=0.248  F1=0.345  F2=0.569  acc=0.884
+      TN=   528  FP=    72  |  FN=     0  TP=    19
+    val | F0.5      t=0.870  P=0.448  R=0.684  F0.5=0.481  F1=0.542  F2=0.619  acc=0.964
+      TN=   584  FP=    16  |  FN=     6  TP=    13
+    val | F1        t=0.870  P=0.448  R=0.684  F0.5=0.481  F1=0.542  F2=0.619  acc=0.964
+      TN=   584  FP=    16  |  FN=     6  TP=    13
+    val | F2        t=0.770  P=0.306  R=0.789  F0.5=0.349  F1=0.441  F2=0.600  acc=0.939
+      TN=   566  FP=    34  |  FN=     4  TP=    15
+    hold|F0.5*      t=0.960  P=0.700  R=0.368  F0.5=0.593  F1=0.483  F2=0.407  acc=0.976
+      TN=   597  FP=     3  |  FN=    12  TP=     7
+    hold|F1*        t=0.880  P=0.500  R=0.684  F0.5=0.528  F1=0.578  F2=0.637  acc=0.969
+      TN=   587  FP=    13  |  FN=     6  TP=    13
+    hold|F2*        t=0.680  P=0.275  R=1.000  F0.5=0.322  F1=0.432  F2=0.655  acc=0.919
+      TN=   550  FP=    50  |  FN=     0  TP=    19
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.976  PR-AUC 0.498
+    fixed 0.5       t=0.500  P=0.138  R=1.000  F0.5=0.166  F1=0.242  F2=0.444  acc=0.885
+      TN=   899  FP=   119  |  FN=     0  TP=    19
+    val | F0.5      t=0.870  P=0.317  R=0.684  F0.5=0.355  F1=0.433  F2=0.556  acc=0.967
+      TN=   990  FP=    28  |  FN=     6  TP=    13
+    val | F1        t=0.870  P=0.317  R=0.684  F0.5=0.355  F1=0.433  F2=0.556  acc=0.967
+      TN=   990  FP=    28  |  FN=     6  TP=    13
+    val | F2        t=0.770  P=0.231  R=0.789  F0.5=0.269  F1=0.357  F2=0.532  acc=0.948
+      TN=   968  FP=    50  |  FN=     4  TP=    15
+    hold|F0.5*      t=
+...[OUTPUT TRUNCATED]...
+
+########## CELL 9 [markdown] ##########
+## 6. MaxFP calibrated-threshold union CSV (same protocol)
+
+Repeats the ratio sweep with **`false_positives_tabpfn_maxfp_cal_threshold_test.csv`**. Uses the same **shared test core** and **nested train/val** protocol as §2–§3 (re-`init_fp_followup_from_union_csv` then `run_fp_followup_ratio_sweep`). Artifacts under `maxfp_cal_threshold/`.
+
+
+########## CELL 10 [code] ##########
+MAXFP_UNION_CSV = os.environ.get(
+    "VLST_MAXFP_UNION_CSV",
+    "/kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/"
+    "false_positives_tabpfn_maxfp_cal_threshold_test.csv",
+)
+OUTPUT_DIR_MAXFP = os.path.join(OUTPUT_DIR, "maxfp_cal_threshold")
+os.makedirs(OUTPUT_DIR_MAXFP, exist_ok=True)
+
+_OUTPUT_DIR_UNION = OUTPUT_DIR
+OUTPUT_DIR = OUTPUT_DIR_MAXFP
+
+split_summary_maxfp = init_fp_followup_from_union_csv(
+    MAXFP_UNION_CSV, run_label="maxfp_cal_threshold"
+)
+print("MaxFP split summary:", split_summary_maxfp)
+
+sweep_df_maxfp = run_fp_followup_ratio_sweep(
+    "fp_followup_ratio_sweep_maxfp_cal_threshold.csv"
+)
+
+OUTPUT_DIR = _OUTPUT_DIR_UNION
+print("Restored OUTPUT_DIR:", OUTPUT_DIR)
+
+---OUT---
+
+=== init_fp_followup_from_union_csv (maxfp_cal_threshold) ===
+Union CSV: /kaggle/input/datasets/amirmahdidaraei/fp-output/vlst_fp_mining_output/false_positives_tabpfn_maxfp_cal_threshold_test.csv
+Using target column from full data: Stent thrombosis
+Dropped row-identifier columns from features: ['NO.', 'Name']
+Dropped leakage-style feature(s): ['Time since stent implantation']
+Note: union CSV has 93 feature column(s) not in full data (omitted from training schema); examples: ['Stent type-SES_Endeavor', 'Stent type-SES_Ex', 'Stent type-SES_Ex/Pa', 'Stent type-SES_Excecl', 'Stent type-SES_Excel', 'Stent type-SES_Excel/Firebird', 'Stent type-SES_Excel/Partner', 'Stent type-SES_Excel:RCA', 'Stent type-SES_Firebid', 'Stent type-SES_Firebird', 'Stent type-SES_LAD:Excel', 'Stent type-SES_LAD:Firebird']
+Run FP CSV (maxfp_cal_threshold) id mode: holdout_position | csv=1019 → unique TN FPs=1019 (TN pool n=5093)
+  FP registry common (all registered sets): 1 | this run unique ids: 1019 | only_in_this_run: 1018
+split_b reused (fixed): n=1037 | pos=19 | fp_candidate_pool=162 | plain_tn=856 | active fp_test (maxfp_cal_threshold)=162 | train fp=857
+shared test core (fixed): pos=19 fp_candidate_pool=162 | train fit: pos=62 fp=857 | val: pos=11
+split_b fixed n=1037 (tn_shared=856); split_a(r) = core + growing tn_test_shared prefix
+val fixed: n=397 (pos=11, tn=386)
+TN budget: pool=5093 | mined_fp=1019 | plain_tn=4074 (split_b_tn=856, val_tn=386, train_tn=2832) | unassigned=0
+Retrospective anchor (final ratio r=max): split_b = split_a(r_max) | test pos=19 neg=1018 (tn_shared=856, fp_test=162) | train pos=62 neg_cap=3689 (fp=857, tn_pool=2832) | ratio denom=62 -> max_r=59 | at r_max: k_train_tn=2801 k_test_a_tn=847
+  WARN: at max_r, expected full train/test TN prefixes; got k_train=2801/2832 k_a=847/856
+Split disjointness OK (maxfp_cal_threshold): split_b n=1037 | val n=397 | train_core pos=62 fp=857 | test core pos=19 fp=162
+Split / ratio summary: {'n_pos': 92, 'n_pos_cohort': 73, 'n_pos_split_b': 19, 'split_b_n_fixed': 1037, 'split_b_pos_holdout': 19, 'split_b_fp_holdout': 162, 'split_b_neg_fill': 856, 'split_b_n_pos_test': 19, 'split_b_n_fp_test': 162, 'n_fp_test_holdout_this_csv': 204, 'HOLDOUT_FRAC': 0.2, 'SPLIT_SEED': 42, 'POS_HOLDOUT_FRAC': 0.2, 'FP_HOLDOUT_FRAC': 0.2, 'union_id_mode': 'holdout_position', 'n_fp_union_csv_rows': 1019, 'n_fp_union_unique_tn': 1019, 'n_fp_train_fixed': 857, 'n_tn_pool_fixed': 5093, 'n_union_dropped_non_tn': 0, 'n_union_dropped_dupe': 0, 'n_tn_plain_partition': 4074, 'n_tn_unassigned': 0, 'n_fp_fit_fixed': 857, 'n_pos_train': 62, 'n_pos_val': 11, 'shared_test_core': 1, 'fixed_split_b': 1, 'fp_candidate_pool_n': 162, 'active_fp_test_n': 162, 'fp_registry_common_n': 1, 'split_b_tn_shared': 856, 'tn_val_n': 386, 'n_tn_train_pool': 2832, 'max_neg_total': 3689, 'n_pos_ratio_denom': 62, 'ratio_pos_denom': 'train', 'max_r_neg_ratio': 59, 'ratios': [1.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 59.0], 'n_neg_full_pool': 3689}
+Features (shared_features): 81
+MaxFP split summary: {'n_pos': 92, 'n_pos_cohort': 73, 'n_pos_split_b': 19, 'split_b_n_fixed': 1037, 'split_b_pos_holdout': 19, 'split_b_fp_holdout': 162, 'split_b_neg_fill': 856, 'split_b_n_pos_test': 19, 'split_b_n_fp_test': 162, 'n_fp_test_holdout_this_csv': 204, 'HOLDOUT_FRAC': 0.2, 'SPLIT_SEED': 42, 'POS_HOLDOUT_FRAC': 0.2, 'FP_HOLDOUT_FRAC': 0.2, 'union_id_mode': 'holdout_position', 'n_fp_union_csv_rows': 1019, 'n_fp_union_unique_tn': 1019, 'n_fp_train_fixed': 857, 'n_tn_pool_fixed': 5093, 'n_union_dropped_non_tn': 0, 'n_union_dropped_dupe': 0, 'n_tn_plain_partition': 4074, 'n_tn_unassigned': 0, 'n_fp_fit_fixed': 857, 'n_pos_train': 62, 'n_pos_val': 11, 'shared_test_core': 1, 'fixed_split_b': 1, 'fp_candidate_pool_n': 162, 'active_fp_test_n': 162, 'fp_registry_common_n': 1, 'split_b_tn_shared': 856, 'tn_val_n': 386, 'n_tn_train_pool': 2832, 'max_neg_total': 3689, 'n_pos_ratio_denom': 62, 'ratio_pos_denom': 'train', 'max_r_neg_ratio': 59, 'ratios': [1.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 59.0], 'n_neg_full_pool': 3689}
+Thresholds: 0.5 | val→F0.5/F1/F2 + F0.75/F1.25/cost/R-minFP/FPR-cap | hold→F0.5/F1/F2* (oracle)
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=1  |  val t:  F0.5=0.920  F1=0.740  F2=0.740  F0.75=0.920  cost=0.500  R>=0.50->minFP t=0.870  FPR<=0.05 t=0.670
+  holdout* t:  F0.5=0.960  F1=0.830  F2=0.830
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=181  pos=19  |  ROC-AUC 0.987  PR-AUC 0.918
+    fixed 0.5       t=0.500  P=0.562  R=0.947  F0.5=0.612  F1=0.706  F2=0.833  acc=0.917
+      TN=   148  FP=    14  |  FN=     1  TP=    18
+    val | F0.5      t=0.920  P=0.923  R=0.632  F0.5=0.845  F1=0.750  F2=0.674  acc=0.956
+      TN=   161  FP=     1  |  FN=     7  TP=    12
+    val | F1        t=0.740  P=0.692  R=0.947  F0.5=0.732  F1=0.800  F2=0.882  acc=0.950
+      TN=   154  FP=     8  |  FN=     1  TP=    18
+    val | F2        t=0.740  P=0.692  R=0.947  F0.5=0.732  F1=0.800  F2=0.882  acc=0.950
+      TN=   154  FP=     8  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.960  P=1.000  R=0.579  F0.5=0.873  F1=0.733  F2=0.632  acc=0.956
+      TN=   162  FP=     0  |  FN=     8  TP=    11
+    hold|F1*        t=0.830  P=0.818  R=0.947  F0.5=0.841  F1=0.878  F2=0.918  acc=0.972
+      TN=   158  FP=     4  |  FN=     1  TP=    18
+    hold|F2*        t=0.830  P=0.818  R=0.947  F0.5=0.841  F1=0.878  F2=0.918  acc=0.972
+      TN=   158  FP=     4  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.980  PR-AUC 0.654
+    fixed 0.5       t=0.500  P=0.138  R=0.947  F0.5=0.167  F1=0.242  F2=0.437  acc=0.891
+      TN=   906  FP=   112  |  FN=     1  TP=    18
+    val | F0.5      t=0.920  P=0.414  R=0.632  F0.5=0.444  F1=0.500  F2=0.571  acc=0.977
+      TN=  1001  FP=    17  |  FN=     7  TP=    12
+    val | F1        t=0.740  P=0.228  R=0.947  F0.5=0.269  F1=0.367  F2=0.581  acc=0.940
+      TN=   957  FP=    61  |  FN=     1  TP=    18
+    val | F2        t=0.740  P=0.228  R=0.947  F0.5=0.269  F1=0.367  F2=0.581  acc=0.940
+      TN=   957  FP=    61  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.960  P=0.647  R=0.579  F0.5=0.632  F1=0.611  F2=0.591  acc=0.986
+      TN=  1012  FP=     6  |  FN=     8  TP=    11
+    hold|F1*        t=0.830  P=0.333  R=0.947  F0.5=0.383  F1=0.493  F2=0.692  acc=0.964
+      TN=   982  FP=    36  |  FN=     1  TP=    18
+    hold|F2*        t=0.830  P=0.333  R=0.947  F0.5=0.383  F1=0.493  F2=0.692  acc=0.964
+      TN=   982  FP=    36  |  FN=     1  TP=    18
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=5  |  val t:  F0.5=0.930  F1=0.810  F2=0.710  F0.75=0.810  cost=0.500  R>=0.50->minFP t=0.810  FPR<=0.05 t=0.700
+  holdout* t:  F0.5=0.900  F1=0.820  F2=0.620
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=181  pos=19  |  ROC-AUC 0.976  PR-AUC 0.798
+    fixed 0.5       t=0.500  P=0.529  R=0.947  F0.5=0.581  F1=0.679  F2=0.818  acc=0.906
+      TN=   146  FP=    16  |  FN=     1  TP=    18
+    val | F0.5      t=0.930  P=0.786  R=0.579  F0.5=0.733  F1=0.667  F2=0.611  acc=0.939
+      TN=   159  FP=     3  |  FN=     8  TP=    11
+    val | F1        t=0.810  P=0.696  R=0.842  F0.5=0.721  F1=0.762  F2=0.808  acc=0.945
+      TN=   155  FP=     7  |  FN=     3  TP=    16
+    val | F2        t=0.710  P=0.593  R=0.842  F0.5=0.630  F1=0.696  F2=0.777  acc=0.923
+      TN=   151  FP=    11  |  FN=     3  TP=    16
+    hold|F0.5*      t=0.900  P=0.812  R=0.684  F0.5=0.783  F1=0.743  F2=0.707  acc=0.950
+      TN=   159  FP=     3  |  FN=     6  TP=    13
+    hold|F1*        t=0.820  P=0.762  R=0.842  F0.5=0.777  F1=0.800  F2=0.825  acc=0.956
+      TN=   157  FP=     5  |  FN=     3  TP=    16
+    hold|F2*        t=0.620  P=0.621  R=0.947  F0.5=0.667  F1=0.750  F2=0.857  acc=0.934
+      TN=   151  FP=    11  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.969  PR-AUC 0.401
+    fixed 0.5       t=0.500  P=0.122  R=0.947  F0.5=0.147  F1=0.216  F2=0.402  acc=0.874
+      TN=   888  FP=   130  |  FN=     1  TP=    18
+    val | F0.5      t=0.930  P=0.344  R=0.579  F0.5=0.374  F1=0.431  F2=0.509  acc=0.972
+      TN=   997  FP=    21  |  FN=     8  TP=    11
+    val | F1        t=0.810  P=0.222  R=0.842  F0.5=0.261  F1=0.352  F2=0.541  acc=0.943
+      TN=   962  FP=    56  |  FN=     3  TP=    16
+    val | F2        t=0.710  P=0.178  R=0.842  F0.5=0.211  F1=0.294  F2=0.482  acc=0.926
+      TN=   944  FP=    74  |  FN=     3  TP=    16
+    hold|F0.5*      t=0.900  P=0.333  R=0.737  F0.5=0.374  F1=0.459  F2=0.593  acc=0.968
+      TN=   990  FP=    28  |  FN=     5  TP=    14
+    hold|F1*        t=0.820  P=0.239  R=0.842  F0.5=0.279  F1=0.372  F2=0.559  acc=0.948
+      TN=   967  FP=    51  |  FN=     3  TP=    16
+    hold|F2*        t=0.620  P=0.154  R=0.947  F0.5=0.185  F1=0.265  F2=0.466  acc=0.904
+      TN=   919  FP=    99  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=10  |  val t:  F0.5=0.970  F1=0.700  F2=0.620  F0.75=0.700  cost=0.500  R>=0.50->minFP t=0.790  FPR<=0.05 t=0.700
+  holdout* t:  F0.5=0.920  F1=0.840  F2=0.660
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=181  pos=19  |  ROC-AUC 0.978  PR-AUC 0.843
+    fixed 0.5       t=0.500  P=0.529  R=0.947  F0.5=0.581  F1=0.679  F2=0.818  acc=0.906
+      TN=   146  FP=    16  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=0.833  R=0.263  F0.5=0.581  F1=0.400  F2=0.305  acc=0.917
+      TN=   161  FP=     1  |  FN=    14  TP=     5
+    val | F1        t=0.700  P=0.667  R=0.947  F0.5=0.709  F1=0.783  F2=0.874  acc=0.945
+      TN=   153  FP=     9  |  FN=     1  TP=    18
+    val | F2        t=0.620  P=0.621  R=0.947  F0.5=0.667  F1=0.750  F2=0.857  acc=0.934
+      TN=   151  FP=    11  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.920  P=0.857  R=0.632  F0.5=0.800  F1=0.727  F2=0.667  acc=0.950
+      TN=   160  FP=     2  |  FN=     7  TP=    12
+    hold|F1*        t=0.840  P=0.789  R=0.789  F0.5=0.789  F1=0.789  F2=0.789  acc=0.956
+      TN=   158  FP=     4  |  FN=     4  TP=    15
+    hold|F2*        t=0.660  P=0.667  R=0.947  F0.5=0.709  F1=0.783  F2=0.874  acc=0.945
+      TN=   153  FP=     9  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.971  PR-AUC 0.458
+    fixed 0.5       t=0.500  P=0.125  R=0.947  F0.5=0.151  F1=0.221  F2=0.409  acc=0.878
+      TN=   892  FP=   126  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=0.500  R=0.263  F0.5=0.424  F1=0.345  F2=0.291  acc=0.982
+      TN=  1013  FP=     5  |  FN=    14  TP=     5
+    val | F1        t=0.700  P=0.198  R=0.947  F0.5=0.235  F1=0.327  F2=0.539  acc=0.929
+      TN=   945  FP=    73  |  FN=     1  TP=    18
+    val | F2        t=0.620  P=0.155  R=0.947  F0.5=0.186  F1=0.267  F2=0.469  acc=0.905
+      TN=   920  FP=    98  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.920  P=0.353  R=0.632  F0.5=0.387  F1=0.453  F2=0.545  acc=0.972
+      TN=   996  FP=    22  |  FN=     7  TP=    12
+    hold|F1*        t=0.840  P=0.283  R=0.789  F0.5=0.325  F1=0.417  F2=0.581  acc=0.959
+      TN=   980  FP=    38  |  FN=     4  TP=    15
+    hold|F2*        t=0.660  P=0.182  R=0.947  F0.5=0.217  F1=0.305  F2=0.514  acc=0.921
+      TN=   937  FP=    81  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=15  |  val t:  F0.5=0.970  F1=0.710  F2=0.630  F0.75=0.800  cost=0.500  R>=0.50->minFP t=0.860  FPR<=0.05 t=0.690
+  holdout* t:  F0.5=0.960  F1=0.790  F2=0.790
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=203  pos=19  |  ROC-AUC 0.982  PR-AUC 0.884
+    fixed 0.5       t=0.500  P=0.529  R=0.947  F0.5=0.581  F1=0.679  F2=0.818  acc=0.916
+      TN=   168  FP=    16  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=1.000  R=0.421  F0.5=0.784  F1=0.593  F2=0.476  acc=0.946
+      TN=   184  FP=     0  |  FN=    11  TP=     8
+    val | F1        t=0.710  P=0.630  R=0.895  F0.5=0.669  F1=0.739  F2=0.825  acc=0.941
+      TN=   174  FP=    10  |  FN=     2  TP=    17
+    val | F2        t=0.630  P=0.581  R=0.947  F0.5=0.629  F1=0.720  F2=0.841  acc=0.931
+      TN=   171  FP=    13  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.960  P=1.000  R=0.579  F0.5=0.873  F1=0.733  F2=0.632  acc=0.961
+      TN=   184  FP=     0  |  FN=     8  TP=    11
+    hold|F1*        t=0.790  P=0.739  R=0.895  F0.5=0.766  F1=0.810  F2=0.859  acc=0.961
+      TN=   178  FP=     6  |  FN=     2  TP=    17
+    hold|F2*        t=0.790  P=0.739  R=0.895  F0.5=0.766  F1=0.810  F2=0.859  acc=0.961
+      TN=   178  FP=     6  |  FN=     2  TP=    17
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.975  PR-AUC 0.567
+    fixed 0.5       t=0.500  P=0.142  R=0.947  F0.5=0.171  F1=0.247  F2=0.443  acc=0.894
+      TN=   909  FP=   109  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=0.667  R=0.421  F0.5=0.597  F1=0.516  F2=0.455  acc=0.986
+      TN=  1014  FP=     4  |  FN=    11  TP=     8
+    val | F1        t=0.710  P=0.221  R=0.895  F0.5=0.260  F1=0.354  F2=0.556  acc=0.940
+      TN=   958  FP=    60  |  FN=     2  TP=    17
+    val | F2        t=0.630  P=0.182  R=0.947  F0.5=0.217  F1=0.305  F2=0.514  acc=0.921
+      TN=   937  FP=    81  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.960  P=0.611  R=0.579  F0.5=0.604  F1=0.595  F2=0.585  acc=0.986
+      TN=  1011  FP=     7  |  FN=     8  TP=    11
+    hold|F1*        t=0.790  P=0.283  R=0.895  F0.5=0.328  F1=0.430  F2=0.625  acc=0.957
+      TN=   975  FP=    43  |  FN=     2  TP=    17
+    hold|F2*        t=0.790  P=0.283  R=0.895  F0.5=0.328  F1=0.430  F2=0.625  acc=0.957
+      TN=   975  FP=    43  |  FN=     2  TP=    17
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=20  |  val t:  F0.5=0.960  F1=0.770  F2=0.680  F0.75=0.960  cost=0.500  R>=0.50->minFP t=0.770  FPR<=0.05 t=0.680
+  holdout* t:  F0.5=0.930  F1=0.840  F2=0.760
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=297  pos=19  |  ROC-AUC 0.982  PR-AUC 0.827
+    fixed 0.5       t=0.500  P=0.409  R=0.947  F0.5=0.462  F1=0.571  F2=0.750  acc=0.909
+      TN=   252  FP=    26  |  FN=     1  TP=    18
+    val | F0.5      t=0.960  P=0.818  R=0.474  F0.5=0.714  F1=0.600  F2=0.517  acc=0.960
+      TN=   276  FP=     2  |  FN=    10  TP=     9
+    val | F1        t=0.770  P=0.581  R=0.947  F0.5=0.629  F1=0.720  F2=0.841  acc=0.953
+      TN=   265  FP=    13  |  FN=     1  TP=    18
+    val | F2        t=0.680  P=0.514  R=0.947  F0.5=0.566  F1=0.667  F2=0.811  acc=0.939
+      TN=   261  FP=    17  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.930  P=0.846  R=0.579  F0.5=0.775  F1=0.688  F2=0.618  acc=0.966
+      TN=   276  FP=     2  |  FN=     8  TP=    11
+    hold|F1*        t=0.840  P=0.667  R=0.842  F0.5=0.696  F1=0.744  F2=0.800  acc=0.963
+      TN=   270  FP=     8  |  FN=     3  TP=    16
+    hold|F2*        t=0.760  P=0.581  R=0.947  F0.5=0.629  F1=0.720  F2=0.841  acc=0.953
+      TN=   265  FP=    13  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.978  PR-AUC 0.545
+    fixed 0.5       t=0.500  P=0.142  R=0.947  F0.5=0.171  F1=0.247  F2=0.443  acc=0.894
+      TN=   909  FP=   109  |  FN=     1  TP=    18
+    val | F0.5      t=0.960  P=0.529  R=0.474  F0.5=0.517  F1=0.500  F2=0.484  acc=0.983
+      TN=  1010  FP=     8  |  FN=    10  TP=     9
+    val | F1        t=0.770  P=0.269  R=0.947  F0.5=0.314  F1=0.419  F2=0.629  acc=0.952
+      TN=   969  FP=    49  |  FN=     1  TP=    18
+    val | F2        t=0.680  P=0.202  R=0.947  F0.5=0.240  F1=0.333  F2=0.545  acc=0.931
+      TN=   947  FP=    71  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.930  P=0.478  R=0.579  F0.5=0.495  F1=0.524  F2=0.556  acc=0.981
+      TN=  1006  FP=    12  |  FN=     8  TP=    11
+    hold|F1*        t=0.840  P=0.302  R=0.842  F0.5=0.346  F1=0.444  F2=0.620  acc=0.961
+      TN=   981  FP=    37  |  FN=     3  TP=    16
+    hold|F2*        t=0.760  P=0.261  R=0.947  F0.5=0.305  F1=0.409  F2=0.621  acc=0.950
+      TN=   967  FP=    51  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=25  |  val t:  F0.5=0.970  F1=0.820  F2=0.620  F0.75=0.820  cost=0.500  R>=0.50->minFP t=0.850  FPR<=0.05 t=0.680
+  holdout* t:  F0.5=0.960  F1=0.870  F2=0.840
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=390  pos=19  |  ROC-AUC 0.981  PR-AUC 0.762
+    fixed 0.5       t=0.500  P=0.295  R=0.947  F0.5=0.342  F1=0.450  F2=0.657  acc=0.887
+      TN=   328  FP=    43  |  FN=     1  TP=    18
+    val | F0.5      t=0.970  P=0.875  R=0.368  F0.5=0.686  F1=0.519  F2=0.417  acc=0.967
+      TN=   370  FP=     1  |  FN=    12  TP=     7
+    val | F1        t=0.820  P=0.515  R=0.895  F0.5=0.563  F1=0.654  F2=0.780  acc=0.954
+      TN=   355  FP=    16  |  FN=     2  TP=    17
+    val | F2        t=0.620  P=0.346  R=0.947  
+...[OUTPUT TRUNCATED]...
+
+########## CELL 11 [markdown] ##########
+## 7. MaxFP-46 subset (92 positives : 46 FPs)
+
+Third FP set: **46 mined FPs** sampled from the MaxFP CSV (`MAXFP_46_N`, seed `RANDOM_STATE`). Ratio sweep uses **`VLST_FP_FOLLOWUP_RATIO_POS_DENOM=full`** → **92 VLST positives** as the neg:pos ratio denominator (2:1 pos:FP at the CSV level). Same fixed **split_b**, sweep, and §5 plots as union / MaxFP. Artifacts under `maxfp46_pos92/`.
+
+Re-run **§2** after changing `REGISTERED_FP_SETS` so fixed split_b includes this CSV in the registry.
+
+**Key ratio step:** **`46/92`** on plots = `r=0.5` with `n_pos_ratio=92` → **46 training negatives** (the natural 46-FP : 92-pos design point).
+
+
+########## CELL 12 [code] ##########
+MAXFP_46_RUN_CSV = os.environ.get("VLST_MAXFP_46_CSV", MAXFP_46_CSV)
+OUTPUT_DIR_MAXFP46 = os.path.join(OUTPUT_DIR, "maxfp46_pos92")
+os.makedirs(OUTPUT_DIR_MAXFP46, exist_ok=True)
+
+_OUTPUT_DIR_SAVED = OUTPUT_DIR
+_RATIO_DENOM_SAVED = os.environ.get("VLST_FP_FOLLOWUP_RATIO_POS_DENOM", "train")
+os.environ["VLST_FP_FOLLOWUP_RATIO_POS_DENOM"] = "full"  # 92 VLST positives
+OUTPUT_DIR = OUTPUT_DIR_MAXFP46
+
+split_summary_maxfp46 = init_fp_followup_from_union_csv(
+    MAXFP_46_RUN_CSV, run_label="maxfp46_pos92"
+)
+print("MaxFP-46 split summary:", split_summary_maxfp46)
+
+sweep_df_maxfp46 = run_fp_followup_ratio_sweep(
+    "fp_followup_ratio_sweep_maxfp46_pos92.csv"
+)
+
+OUTPUT_DIR = _OUTPUT_DIR_SAVED
+os.environ["VLST_FP_FOLLOWUP_RATIO_POS_DENOM"] = _RATIO_DENOM_SAVED
+print("Restored OUTPUT_DIR:", OUTPUT_DIR)
+
+---OUT---
+
+=== init_fp_followup_from_union_csv (maxfp46_pos92) ===
+Union CSV: /kaggle/working/vlst_fp_mining_output/false_positives_maxfp46_subset_test.csv
+Using target column from full data: Stent thrombosis
+Dropped row-identifier columns from features: ['NO.', 'Name']
+Dropped leakage-style feature(s): ['Time since stent implantation']
+Note: union CSV has 93 feature column(s) not in full data (omitted from training schema); examples: ['Stent type-SES_Endeavor', 'Stent type-SES_Ex', 'Stent type-SES_Ex/Pa', 'Stent type-SES_Excecl', 'Stent type-SES_Excel', 'Stent type-SES_Excel/Firebird', 'Stent type-SES_Excel/Partner', 'Stent type-SES_Excel:RCA', 'Stent type-SES_Firebid', 'Stent type-SES_Firebird', 'Stent type-SES_LAD:Excel', 'Stent type-SES_LAD:Firebird']
+Run FP CSV (maxfp46_pos92) id mode: holdout_position | csv=46 → unique TN FPs=46 (TN pool n=5093)
+  FP registry common (all registered sets): 1 | this run unique ids: 46 | only_in_this_run: 45
+  [union] 2 pool row(s) are FP in that set but plain TN for this run (maxfp46_pos92)
+  [maxfp] 152 pool row(s) are FP in that set but plain TN for this run (maxfp46_pos92)
+  fp_candidate_pool has 162 fixed rows; this csv test_holdout=10 | active fp_test (maxfp46_pos92)=10 | 152 pool rows not in this CSV → plain TN on split_b
+split_b reused (fixed): n=1037 | pos=19 | fp_candidate_pool=162 | plain_tn=856 | active fp_test (maxfp46_pos92)=10 | train fp=36
+shared test core (fixed): pos=19 fp_candidate_pool=162 | train fit: pos=62 fp=36 | val: pos=11
+split_b fixed n=1037 (tn_shared=856); split_a(r) = core + growing tn_test_shared prefix
+val fixed: n=496 (pos=11, tn=485)
+TN budget: pool=5093 | mined_fp=46 | plain_tn=4895 (split_b_tn=856, val_tn=485, train_tn=3554) | unassigned=152
+FP46 anchor ratio added: 0.5 -> n_neg_target=46 (display 46/92)
+Retrospective anchor (final ratio r=max): split_b = split_a(r_max) | test pos=19 neg=866 (tn_shared=856, fp_test=10) | train pos=62 neg_cap=3590 (fp=36, tn_pool=3554) | ratio denom=92 -> max_r=39 | at r_max: k_train_tn=3552 k_test_a_tn=856
+  WARN: at max_r, expected full train/test TN prefixes; got k_train=3552/3554 k_a=856/856
+Split disjointness OK (maxfp46_pos92): split_b n=1037 | val n=496 | train_core pos=62 fp=36 | test core pos=19 fp=10
+Split / ratio summary: {'n_pos': 92, 'n_pos_cohort': 73, 'n_pos_split_b': 19, 'split_b_n_fixed': 1037, 'split_b_pos_holdout': 19, 'split_b_fp_holdout': 10, 'split_b_neg_fill': 856, 'split_b_n_pos_test': 19, 'split_b_n_fp_test': 10, 'n_fp_test_holdout_this_csv': 10, 'HOLDOUT_FRAC': 0.2, 'SPLIT_SEED': 42, 'POS_HOLDOUT_FRAC': 0.2, 'FP_HOLDOUT_FRAC': 0.2, 'union_id_mode': 'holdout_position', 'n_fp_union_csv_rows': 46, 'n_fp_union_unique_tn': 46, 'n_fp_train_fixed': 36, 'n_tn_pool_fixed': 5093, 'n_union_dropped_non_tn': 0, 'n_union_dropped_dupe': 0, 'n_tn_plain_partition': 4895, 'n_tn_unassigned': 152, 'n_fp_fit_fixed': 36, 'n_pos_train': 62, 'n_pos_val': 11, 'shared_test_core': 1, 'fixed_split_b': 1, 'fp_candidate_pool_n': 162, 'active_fp_test_n': 10, 'fp_registry_common_n': 1, 'split_b_tn_shared': 856, 'tn_val_n': 485, 'n_tn_train_pool': 3554, 'max_neg_total': 3590, 'n_pos_ratio_denom': 92, 'ratio_pos_denom': 'full', 'max_r_neg_ratio': 39, 'ratios': [0.5, 1.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 39.0], 'n_neg_full_pool': 3590}
+Features (shared_features): 81
+MaxFP-46 split summary: {'n_pos': 92, 'n_pos_cohort': 73, 'n_pos_split_b': 19, 'split_b_n_fixed': 1037, 'split_b_pos_holdout': 19, 'split_b_fp_holdout': 10, 'split_b_neg_fill': 856, 'split_b_n_pos_test': 19, 'split_b_n_fp_test': 10, 'n_fp_test_holdout_this_csv': 10, 'HOLDOUT_FRAC': 0.2, 'SPLIT_SEED': 42, 'POS_HOLDOUT_FRAC': 0.2, 'FP_HOLDOUT_FRAC': 0.2, 'union_id_mode': 'holdout_position', 'n_fp_union_csv_rows': 46, 'n_fp_union_unique_tn': 46, 'n_fp_train_fixed': 36, 'n_tn_pool_fixed': 5093, 'n_union_dropped_non_tn': 0, 'n_union_dropped_dupe': 0, 'n_tn_plain_partition': 4895, 'n_tn_unassigned': 152, 'n_fp_fit_fixed': 36, 'n_pos_train': 62, 'n_pos_val': 11, 'shared_test_core': 1, 'fixed_split_b': 1, 'fp_candidate_pool_n': 162, 'active_fp_test_n': 10, 'fp_registry_common_n': 1, 'split_b_tn_shared': 856, 'tn_val_n': 485, 'n_tn_train_pool': 3554, 'max_neg_total': 3590, 'n_pos_ratio_denom': 92, 'ratio_pos_denom': 'full', 'max_r_neg_ratio': 39, 'ratios': [0.5, 1.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 39.0], 'n_neg_full_pool': 3590}
+Thresholds: 0.5 | val→F0.5/F1/F2 + F0.75/F1.25/cost/R-minFP/FPR-cap | hold→F0.5/F1/F2* (oracle)
+00:02 Fitting... Done!
+00:02 Predicting... Done!
+00:03 Predicting... Done!
+00:02 Predicting... Done!
+
+========================================================================
+ratio=46/92  |  val t:  F0.5=0.980  F1=0.950  F2=0.380  F0.75=0.980  cost=0.500  R>=0.50->minFP t=0.680  FPR<=0.05 t=0.840
+  holdout* t:  F0.5=0.830  F1=0.710  F2=0.710
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=183  pos=19  |  ROC-AUC 0.951  PR-AUC 0.681
+    fixed 0.5       t=0.500  P=0.421  R=0.842  F0.5=0.468  F1=0.561  F2=0.702  acc=0.863
+      TN=   142  FP=    22  |  FN=     3  TP=    16
+    val | F0.5      t=0.980  P=0.500  R=0.105  F0.5=0.286  F1=0.174  F2=0.125  acc=0.896
+      TN=   162  FP=     2  |  FN=    17  TP=     2
+    val | F1        t=0.950  P=0.750  R=0.316  F0.5=0.588  F1=0.444  F2=0.357  acc=0.918
+      TN=   162  FP=     2  |  FN=    13  TP=     6
+    val | F2        t=0.380  P=0.405  R=0.895  F0.5=0.455  F1=0.557  F2=0.720  acc=0.852
+      TN=   139  FP=    25  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.830  P=0.786  R=0.579  F0.5=0.733  F1=0.667  F2=0.611  acc=0.940
+      TN=   161  FP=     3  |  FN=     8  TP=    11
+    hold|F1*        t=0.710  P=0.615  R=0.842  F0.5=0.650  F1=0.711  F2=0.784  acc=0.929
+      TN=   154  FP=    10  |  FN=     3  TP=    16
+    hold|F2*        t=0.710  P=0.615  R=0.842  F0.5=0.650  F1=0.711  F2=0.784  acc=0.929
+      TN=   154  FP=    10  |  FN=     3  TP=    16
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.941  PR-AUC 0.295
+    fixed 0.5       t=0.500  P=0.103  R=0.842  F0.5=0.125  F1=0.184  F2=0.346  acc=0.863
+      TN=   879  FP=   139  |  FN=     3  TP=    16
+    val | F0.5      t=0.980  P=0.222  R=0.105  F0.5=0.182  F1=0.143  F2=0.118  acc=0.977
+      TN=  1011  FP=     7  |  FN=    17  TP=     2
+    val | F1        t=0.950  P=0.273  R=0.316  F0.5=0.280  F1=0.293  F2=0.306  acc=0.972
+      TN=  1002  FP=    16  |  FN=    13  TP=     6
+    val | F2        t=0.380  P=0.089  R=0.895  F0.5=0.109  F1=0.163  F2=0.320  acc=0.831
+      TN=   845  FP=   173  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.830  P=0.196  R=0.579  F0.5=0.226  F1=0.293  F2=0.417  acc=0.949
+      TN=   973  FP=    45  |  FN=     8  TP=    11
+    hold|F1*        t=0.710  P=0.163  R=0.842  F0.5=0.195  F1=0.274  F2=0.460  acc=0.918
+      TN=   936  FP=    82  |  FN=     3  TP=    16
+    hold|F2*        t=0.710  P=0.163  R=0.842  F0.5=0.195  F1=0.274  F2=0.460  acc=0.918
+      TN=   936  FP=    82  |  FN=     3  TP=    16
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:01 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=1  |  val t:  F0.5=0.920  F1=0.920  F2=0.660  F0.75=0.920  cost=0.500  R>=0.50->minFP t=0.700  FPR<=0.05 t=0.780
+  holdout* t:  F0.5=0.930  F1=0.640  F2=0.540
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=194  pos=19  |  ROC-AUC 0.957  PR-AUC 0.703
+    fixed 0.5       t=0.500  P=0.462  R=0.947  F0.5=0.514  F1=0.621  F2=0.783  acc=0.887
+      TN=   154  FP=    21  |  FN=     1  TP=    18
+    val | F0.5      t=0.920  P=0.750  R=0.316  F0.5=0.588  F1=0.444  F2=0.357  acc=0.923
+      TN=   173  FP=     2  |  FN=    13  TP=     6
+    val | F1        t=0.920  P=0.750  R=0.316  F0.5=0.588  F1=0.444  F2=0.357  acc=0.923
+      TN=   173  FP=     2  |  FN=    13  TP=     6
+    val | F2        t=0.660  P=0.571  R=0.842  F0.5=0.611  F1=0.681  F2=0.769  acc=0.923
+      TN=   163  FP=    12  |  FN=     3  TP=    16
+    hold|F0.5*      t=0.930  P=1.000  R=0.316  F0.5=0.698  F1=0.480  F2=0.366  acc=0.933
+      TN=   175  FP=     0  |  FN=    13  TP=     6
+    hold|F1*        t=0.640  P=0.571  R=0.842  F0.5=0.611  F1=0.681  F2=0.769  acc=0.923
+      TN=   163  FP=    12  |  FN=     3  TP=    16
+    hold|F2*        t=0.540  P=0.500  R=0.947  F0.5=0.552  F1=0.655  F2=0.804  acc=0.902
+      TN=   157  FP=    18  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.950  PR-AUC 0.303
+    fixed 0.5       t=0.500  P=0.116  R=0.947  F0.5=0.141  F1=0.207  F2=0.390  acc=0.867
+      TN=   881  FP=   137  |  FN=     1  TP=    18
+    val | F0.5      t=0.920  P=0.261  R=0.316  F0.5=0.270  F1=0.286  F2=0.303  acc=0.971
+      TN=  1001  FP=    17  |  FN=    13  TP=     6
+    val | F1        t=0.920  P=0.261  R=0.316  F0.5=0.270  F1=0.286  F2=0.303  acc=0.971
+      TN=  1001  FP=    17  |  FN=    13  TP=     6
+    val | F2        t=0.660  P=0.162  R=0.842  F0.5=0.193  F1=0.271  F2=0.457  acc=0.917
+      TN=   935  FP=    83  |  FN=     3  TP=    16
+    hold|F0.5*      t=0.930  P=0.286  R=0.316  F0.5=0.291  F1=0.300  F2=0.309  acc=0.973
+      TN=  1003  FP=    15  |  FN=    13  TP=     6
+    hold|F1*        t=0.640  P=0.151  R=0.842  F0.5=0.181  F1=0.256  F2=0.440  acc=0.910
+      TN=   928  FP=    90  |  FN=     3  TP=    16
+    hold|F2*        t=0.540  P=0.126  R=0.947  F0.5=0.152  F1=0.222  F2=0.411  acc=0.878
+      TN=   893  FP=   125  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=5  |  val t:  F0.5=0.930  F1=0.930  F2=0.570  F0.75=0.930  cost=0.500  R>=0.50->minFP t=0.640  FPR<=0.05 t=0.760
+  holdout* t:  F0.5=0.860  F1=0.750  F2=0.620
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=283  pos=19  |  ROC-AUC 0.977  PR-AUC 0.724
+    fixed 0.5       t=0.500  P=0.404  R=1.000  F0.5=0.459  F1=0.576  F2=0.772  acc=0.901
+      TN=   236  FP=    28  |  FN=     0  TP=    19
+    val | F0.5      t=0.930  P=0.714  R=0.263  F0.5=0.532  F1=0.385  F2=0.301  acc=0.943
+      TN=   262  FP=     2  |  FN=    14  TP=     5
+    val | F1        t=0.930  P=0.714  R=0.263  F0.5=0.532  F1=0.385  F2=0.301  acc=0.943
+      TN=   262  FP=     2  |  FN=    14  TP=     5
+    val | F2        t=0.570  P=0.442  R=1.000  F0.5=0.497  F1=0.613  F2=0.798  acc=0.915
+      TN=   240  FP=    24  |  FN=     0  TP=    19
+    hold|F0.5*      t=0.860  P=0.706  R=0.632  F0.5=0.690  F1=0.667  F2=0.645  acc=0.958
+      TN=   259  FP=     5  |  FN=     7  TP=    12
+    hold|F1*        t=0.750  P=0.640  R=0.842  F0.5=0.672  F1=0.727  F2=0.792  acc=0.958
+      TN=   255  FP=     9  |  FN=     3  TP=    16
+    hold|F2*        t=0.620  P=0.500  R=1.000  F0.5=0.556  F1=0.667  F2=0.833  acc=0.933
+      TN=   245  FP=    19  |  FN=     0  TP=    19
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.970  PR-AUC 0.408
+    fixed 0.5       t=0.500  P=0.127  R=1.000  F0.5=0.153  F1=0.225  F2=0.420  acc=0.874
+      TN=   887  FP=   131  |  FN=     0  TP=    19
+    val | F0.5      t=0.930  P=0.250  R=0.263  F0.5=0.253  F1=0.256  F2=0.260  acc=0.972
+      TN=  1003  FP=    15  |  FN=    14  TP=     5
+    val | F1        t=0.930  P=0.250  R=0.263  F0.5=0.253  F1=0.256  F2=0.260  acc=0.972
+      TN=  1003  FP=    15  |  FN=    14  TP=     5
+    val | F2        t=0.570  P=0.148  R=1.000  F0.5=0.179  F1=0.259  F2=0.466  acc=0.895
+      TN=   909  FP=   109  |  FN=     0  TP=    19
+    hold|F0.5*      t=0.860  P=0.324  R=0.632  F0.5=0.359  F1=0.429  F2=0.531  acc=0.969
+      TN=   993  FP=    25  |  FN=     7  TP=    12
+    hold|F1*        t=0.750  P=0.225  R=0.842  F0.5=0.264  F1=0.356  F2=0.544  acc=0.944
+      TN=   963  FP=    55  |  FN=     3  TP=    16
+    hold|F2*        t=0.620  P=0.157  R=0.947  F0.5=0.188  F1=0.269  F2=0.471  acc=0.905
+      TN=   921  FP=    97  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=10  |  val t:  F0.5=0.920  F1=0.920  F2=0.590  F0.75=0.920  cost=0.500  R>=0.50->minFP t=0.750  FPR<=0.05 t=0.690
+  holdout* t:  F0.5=0.960  F1=0.800  F2=0.710
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=394  pos=19  |  ROC-AUC 0.979  PR-AUC 0.763
+    fixed 0.5       t=0.500  P=0.316  R=0.947  F0.5=0.364  F1=0.474  F2=0.677  acc=0.898
+      TN=   336  FP=    39  |  FN=     1  TP=    18
+    val | F0.5      t=0.920  P=0.647  R=0.579  F0.5=0.632  F1=0.611  F2=0.591  acc=0.964
+      TN=   369  FP=     6  |  FN=     8  TP=    11
+    val | F1        t=0.920  P=0.647  R=0.579  F0.5=0.632  F1=0.611  F2=0.591  acc=0.964
+      TN=   369  FP=     6  |  FN=     8  TP=    11
+    val | F2        t=0.590  P=0.383  R=0.947  F0.5=0.435  F1=0.545  F2=0.732  acc=0.924
+      TN=   346  FP=    29  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.960  P=0.818  R=0.474  F0.5=0.714  F1=0.600  F2=0.517  acc=0.970
+      TN=   373  FP=     2  |  FN=    10  TP=     9
+    hold|F1*        t=0.800  P=0.593  R=0.842  F0.5=0.630  F1=0.696  F2=0.777  acc=0.964
+      TN=   364  FP=    11  |  FN=     3  TP=    16
+    hold|F2*        t=0.710  P=0.474  R=0.947  F0.5=0.526  F1=0.632  F2=0.789  acc=0.947
+      TN=   355  FP=    20  |  FN=     1  TP=    18
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.977  PR-AUC 0.638
+    fixed 0.5       t=0.500  P=0.149  R=0.947  F0.5=0.179  F1=0.257  F2=0.457  acc=0.900
+      TN=   915  FP=   103  |  FN=     1  TP=    18
+    val | F0.5      t=0.920  P=0.423  R=0.579  F0.5=0.447  F1=0.489  F2=0.539  acc=0.978
+      TN=  1003  FP=    15  |  FN=     8  TP=    11
+    val | F1        t=0.920  P=0.423  R=0.579  F0.5=0.447  F1=0.489  F2=0.539  acc=0.978
+      TN=  1003  FP=    15  |  FN=     8  TP=    11
+    val | F2        t=0.590  P=0.182  R=0.947  F0.5=0.217  F1=0.305  F2=0.514  acc=0.921
+      TN=   937  FP=    81  |  FN=     1  TP=    18
+    hold|F0.5*      t=0.960  P=0.818  R=0.474  F0.5=0.714  F1=0.600  F2=0.517  acc=0.988
+      TN=  1016  FP=     2  |  FN=    10  TP=     9
+    hold|F1*        t=0.800  P=0.302  R=0.842  F0.5=0.346  F1=0.444  F2=0.620  acc=0.961
+      TN=   981  FP=    37  |  FN=     3  TP=    16
+    hold|F2*        t=0.710  P=0.228  R=0.947  F0.5=0.269  F1=0.367  F2=0.581  acc=0.940
+      TN=   957  FP=    61  |  FN=     1  TP=    18
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=15  |  val t:  F0.5=0.980  F1=0.720  F2=0.720  F0.75=0.940  cost=0.500  R>=0.50->minFP t=0.800  FPR<=0.05 t=0.710
+  holdout* t:  F0.5=0.950  F1=0.950  F2=0.760
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=505  pos=19  |  ROC-AUC 0.973  PR-AUC 0.640
+    fixed 0.5       t=0.500  P=0.243  R=0.947  F0.5=0.286  F1=0.387  F2=0.600  acc=0.887
+      TN=   430  FP=    56  |  FN=     1  TP=    18
+    val | F0.5      t=0.980  P=1.000  R=0.105  F0.5=0.370  F1=0.190  F2=0.128  acc=0.966
+      TN=   486  FP=     0  |  FN=    17  TP=     2
+    val | F1        t=0.720  P=0.347  R=0.895  F0.5=0.395  F1=0.500  F2=0.680  acc=0.933
+      TN=   454  FP=    32  |  FN=     2  TP=    17
+    val | F2        t=0.720  P=0.347  R=0.895  F0.5=0.395  F1=0.500  F2=0.680  acc=0.933
+      TN=   454  FP=    32  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.950  P=0.714  R=0.526  F0.5=0.667  F1=0.606  F2=0.556  acc=0.974
+      TN=   482  FP=     4  |  FN=     9  TP=    10
+    hold|F1*        t=0.950  P=0.714  R=0.526  F0.5=0.667  F1=0.606  F2=0.556  acc=0.974
+      TN=   482  FP=     4  |  FN=     9  TP=    10
+    hold|F2*        t=0.760  P=0.395  R=0.895  F0.5=0.445  F1=0.548  F2=0.714  acc=0.945
+      TN=   460  FP=    26  |  FN=     2  TP=    17
+
+  split_b  fixed (shared test core + full tn_test_shared)  |  n=1037  pos=19  |  ROC-AUC 0.974  PR-AUC 0.532
+    fixed 0.5       t=0.500  P=0.134  R=0.947  F0.5=0.162  F1=0.235  F2=0.429  acc=0.887
+      TN=   902  FP=   116  |  FN=     1  TP=    18
+    val | F0.5      t=0.980  P=1.000  R=0.105  F0.5=0.370  F1=0.190  F2=0.128  acc=0.984
+      TN=  1018  FP=     0  |  FN=    17  TP=     2
+    val | F1        t=0.720  P=0.207  R=0.895  F0.5=0.245  F1=0.337  F2=0.538  acc=0.935
+      TN=   953  FP=    65  |  FN=     2  TP=    17
+    val | F2        t=0.720  P=0.207  R=0.895  F0.5=0.245  F1=0.337  F2=0.538  acc=0.935
+      TN=   953  FP=    65  |  FN=     2  TP=    17
+    hold|F0.5*      t=0.950  P=0.526  R=0.526  F0.5=0.526  F1=0.526  F2=0.526  acc=0.983
+      TN=  1009  FP=     9  |  FN=     9  TP=    10
+    hold|F1*        t=0.950  P=0.526  R=0.526  F0.5=0.526  F1=0.526  F2=0.526  acc=0.983
+      TN=  1009  FP=     9  |  FN=     9  TP=    10
+    hold|F2*        t=0.760  P=0.246  R=0.895  F0.5=0.288  F1=0.386  F2=0.586  acc=0.948
+      TN=   966  FP=    52  |  FN=     2  TP=    17
+00:00 Fitting... -
+The provided train set hashes match previously uploaded train sets.
+
+00:00 Fitting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+00:00 Predicting... -
+The provided test set hash matches a previously uploaded test set.
+
+00:01 Predicting... Done!
+
+========================================================================
+ratio=20  |  val t:  F0.5=0.960  F1=0.820  F2=0.720  F0.75=0.960  cost=0.500  R>=0.50->minFP t=0.860  FPR<=0.05 t=0.670
+  holdout* t:  F0.5=0.960  F1=0.960  F2=0.740
+
+  split_a  growing (shared test core + TN prefix coupled to train)  |  n=616  pos=19  |  ROC-AUC 0.980  PR-AUC 0.702
+    fixed 0.5       t=0.500  P=0.221  R=1.000  F0.5=0.262  F1=0.362  F2=0.586  acc=0.891
+      TN=   530  FP=    67  |  FN=     0  TP=    19
+    val | F0.5      t=0.960  P=0.818  R=0.474  F0.5=0.714  F1=0.600  F2=0.517  acc=0.981
+      TN=   595  FP=     2  |  FN=    10  TP=     9
+    val | F1        t=0.820  P=0.359  R=0.737  F0.5=0.400  F1=0.483  F2=0.609  acc=0.951
+      TN=   572  FP=    25  |  FN=     5  TP=    14
+    val | F2        t=0.720  P=0.316  R=0.947  F0.5=0.364  F1=0.474  F2=0.677  acc=0.935
+      TN=   558  FP=    39  |  FN=     1  TP=    18
+    hold
+...[OUTPUT TRUNCATED]...
+
+########## CELL 13 [markdown] ##########
+## 4. Output
+
+
+########## CELL 14 [code] ##########
+_p = os.path.join(OUTPUT_DIR, "fp_followup_ratio_sweep.csv")
+print("Primary sweep table:", _p)
+if len(sweep_df):
+    try:
+        from IPython.display import HTML, display
+
+        _html = sweep_df.to_html(
+            classes="followup_tbl", escape=False, float_format=lambda x: f"{x:.6g}"
+        )
+        display(
+            HTML(
+                "<style>.followup_tbl{font-size:11px;} "
+                ".followup_tbl th,.followup_tbl td{white-space:nowrap;padding:4px 8px;}</style>"
+                '<div style="max-height:480px;overflow:auto;border:1px solid #ccc;padding:8px;">'
+                + _html
+                + "</div>"
+            )
+        )
+    except Exception:
+        print(sweep_df.to_string())
+
+
+---OUT---
+Primary sweep table: /kaggle/working/vlst_fp_followup_output/fp_followup_ratio_sweep.csv
+
+<IPython.core.display.HTML object>
+
+########## CELL 15 [markdown] ##########
+## 5. Curves across ratio steps
+
+One **report block per eval set** (5 PNGs each):
+- **Validation**
+- **Split_a** (val-tuned t)
+- **Split_b** (val-tuned t)
+- **Split_b** (oracle t)
+
+Per set: `report_{slug}_fscores.png`, `_fp_fn.png`, `_fp.png`, `_fn.png`, `_auc.png`.
+Split_b oracle FP plot uses a **tight y-axis** (no t=0.5 on that FP-only panel).
+
+**Split_b FP/FN tradeoff (extended policies, val-tuned t on split_b):**
+- `report_split_b_valt_tradeoff_fp_fn.png` — FP and FN vs train ratio `r` for F0.5, F1, F2, F0.75, F1.25, cost, recall≥R_min min-FP, FPR-cap
+- `report_split_b_valt_tradeoff_fpr.png` — FPR vs `r` (same policies)
+- `report_split_b_valt_tradeoff_frontier.png` — FP (x) vs FN (y); one curve per policy as `r` increases
+
+F2 curves typically show **rising FP / FPR with r** while FN falls; F0.75 and FPR-capped policies trade some recall for fewer false alarms. Use PR-AUC panels for ranking across ratios; use tradeoff plots for **operating point** choice on the fixed split_b test pool.
+
+
+########## CELL 16 [code] ##########
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+
+try:
+    _ = len(sweep_df)
+except NameError:
+    sweep_df = pd.read_csv(os.path.join(OUTPUT_DIR, "fp_followup_ratio_sweep.csv"))
+
+_curve_df = sweep_df.sort_values("ratio_requested").reset_index(drop=True)
+_x = np.arange(len(_curve_df))
+_xlabels = [
+    (
+        "full"
+        if k == "full_pool"
+        else str(d if pd.notna(d) else int(r))
+    )
+    for k, r, d in zip(
+        _curve_df["step_kind"],
+        _curve_df["ratio_requested"],
+        _curve_df["ratio_display"]
+        if "ratio_display" in _curve_df.columns
+        else [None] * len(_curve_df),
+    )
+]
+
+# Marker / linestyle cycle — every line fully opaque (no alpha fade).
+_LINE_STYLES = [
+    {"marker": "o", "linestyle": "-", "linewidth": 2.8},
+    {"marker": "s", "linestyle": "--", "linewidth": 2.4},
+    {"marker": "^", "linestyle": "-.", "linewidth": 2.4},
+    {"marker": "D", "linestyle": ":", "linewidth": 2.6},
+    {"marker": "v", "linestyle": "-", "linewidth": 2.2},
+    {"marker": "P", "linestyle": "--", "linewidth": 2.2},
+]
+
+_JITTER_FRAC = 0.018  # fraction of y-axis span for overlap separation
+
+
+def _save_show(fig, save_name):
+    out = os.path.join(OUTPUT_DIR, save_name)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    print("Saved:", out)
+    plt.show()
+
+
+def _style_ratio_axis(ax, ylabel, title):
+    ax.set_xticks(_x)
+    ax.set_xticklabels(_xlabels, rotation=45, ha="right")
+    ax.set_xlabel("ratio step")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.grid(True, alpha=0.25, linestyle=":")
+    return ax
+
+
+def _finalize_legend(ax):
+    """Rebuild legend from every line on the axis (no missing series)."""
+    handles, labels = ax.get_legend_handles_labels()
+    if ax.get_legend() is not None:
+        ax.get_legend().remove()
+    if not handles:
+        return ax
+    leg = ax.legend(
+        handles,
+        labels,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1),
+        fontsize=8,
+        ncol=1,
+        framealpha=1.0,
+        edgecolor="0.3",
+        fancybox=False,
+    )
+    for lh in leg.get_lines():
+        lh.set_alpha(1.0)
+    return ax
+
+
+def _jitter_y(y_vals, span):
+    """Spread nearly-identical y values so overlapping lines remain visible."""
+    y = np.asarray(y_vals, dtype=float)
+    out = y.copy()
+    n = len(y)
+    if n <= 1 or span <= 0:
+        return out
+    tol = max(1e-9, 0.002 * span)
+    groups = []
+    used = np.zeros(n, dtype=bool)
+    order = np.argsort(y)
+    for i in order:
+        if used[i]:
+            continue
+        g = [i]
+        used[i] = True
+        for j in order:
+            if used[j]:
+                continue
+            if abs(y[j] - y[i]) <= tol:
+                g.append(j)
+                used[j] = True
+        groups.append(g)
+    step = span * _JITTER_FRAC
+    for g in groups:
+        if len(g) <= 1:
+            continue
+        mid = (len(g) - 1) / 2.0
+        for k, idx in enumerate(g):
+            out[idx] = y[idx] + (k - mid) * step
+    return out
+
+
+def _draw_series(ax, series, span, annotate=True, style_offset=0, ymin_zero=False):
+    for i, (label, col, color) in enumerate(series):
+        if col not in _curve_df.columns:
+            raise KeyError(f"Missing {col!r} — re-run §3 before §5")
+        sty = _LINE_STYLES[(i + style_offset) % len(_LINE_STYLES)]
+        y_raw = _curve_df[col].astype(float).to_numpy()
+        y_plot = _jitter_y(y_raw, span)
+        if ymin_zero:
+            y_plot = np.maximum(y_plot, 0.0)
+        ax.plot(
+            _x,
+            y_plot,
+            color=color,
+            alpha=1.0,
+            markersize=7,
+            markerfacecolor=color,
+            markeredgecolor="white",
+            markeredgewidth=0.6,
+            label=label,
+            **sty,
+        )
+        if annotate and len(_x) > 0:
+            xi, yi = int(_x[-1]), float(y_plot[-1])
+            ax.annotate(
+                label,
+                (xi, yi),
+                textcoords="offset points",
+                xytext=(4, 4 + (i % 3) * 10),
+                fontsize=7,
+                color=color,
+                alpha=1.0,
+                clip_on=False,
+            )
+
+
+def _plot_lines(ax, series, ylabel, title, ylim=None, annotate=True, ylim_tight=False, ymin_zero=False):
+    """series: list of (label, col, color) — plot one column with jitter if needed."""
+    ys_all = []
+    for _lbl, col, _c in series:
+        if col not in _curve_df.columns:
+            raise KeyError(f"Missing {col!r} — re-run §3 before §5")
+        ys_all.extend(_curve_df[col].astype(float).tolist())
+    if not ys_all:
+        return ax
+    y_min, y_max = float(np.nanmin(ys_all)), float(np.nanmax(ys_all))
+    if ymin_zero:
+        y_min = max(0.0, y_min)
+    span = max(y_max - y_min, 0.05)
+    _draw_series(ax, series, span, annotate=annotate, style_offset=0, ymin_zero=ymin_zero)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    elif ylim_tight:
+        pad = max(1.0, 0.1 * max(1.0, y_max - y_min))
+        ax.set_ylim(max(0.0, y_min - pad), y_max + pad)
+    else:
+        pad = span * 0.12
+        y_lo = max(0.0, y_min - pad) if ymin_zero else y_min - pad
+        ax.set_ylim(y_lo, y_max + pad)
+    _style_ratio_axis(ax, ylabel, title)
+    _finalize_legend(ax)
+    return ax
+
+
+def _plot_f_curves(series, title, save_name):
+    """Each entry: (name, col_best, col_05, color). Two passes: best-t and @0.5."""
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+    flat_best = [(f"{name} best-t", col_best, color) for name, col_best, col_05, color in series]
+    flat_05 = [(f"{name} @0.5", col_05, color) for name, col_best, col_05, color in series]
+    span = 1.02
+    _draw_series(ax, flat_best, span, annotate=True, style_offset=0)
+    _draw_series(ax, flat_05, span, annotate=False, style_offset=3)
+    ax.set_ylim(0, 1.02)
+    _style_ratio_axis(ax, "score", title + "  (jitter if overlapping)")
+    _finalize_legend(ax)
+    fig.tight_layout()
+    _save_show(fig, save_name)
+
+
+def _plot_fp_fn(series, title, save_name):
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+    flat = []
+    for label, col_fp, col_fn, color in series:
+        flat.append((f"{label} FP", col_fp, color))
+        flat.append((f"{label} FN", col_fn, color))
+    _plot_lines(ax, flat, "count", title + "  (jitter if overlapping)", ymin_zero=True)
+    fig.tight_layout()
+    _save_show(fig, save_name)
+
+
+def _plot_auc(roc_col, pr_col, title, save_name):
+    if roc_col not in _curve_df.columns:
+        raise KeyError(f"Missing {roc_col!r} — re-run §3 before §5")
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+    _plot_lines(
+        ax,
+        [("ROC-AUC", roc_col, "C0"), ("PR-AUC", pr_col, "C1")],
+        "AUC",
+        title + "  (jitter if overlapping)",
+        ylim=(0, 1.02),
+    )
+    fig.tight_layout()
+    _save_show(fig, save_name)
+
+
+
+# --- Per-set reports: each eval set gets F-scores, FP&FN, FP-only, FN-only, ROC/PR-AUC ---
+EVAL_SET_REPORTS = [
+    {
+        "slug": "validation",
+        "title": "Validation",
+        "f_scores": [
+            ("F0.5", "val_f05_at_t_val", "val_f05_at_t05", "C0"),
+            ("F1", "val_f1_at_t_val_f1", "val_f1_at_t05", "C1"),
+            ("F2", "val_f2_at_t_val_f2", "val_f2_at_t05", "C2"),
+        ],
+        "fp_fn": [
+            ("t=0.5", "val_t05_fp", "val_t05_fn", "0.45"),
+            ("F0.5-t", "val_tval_fp", "val_tval_fn", "C0"),
+            ("F1-t", "val_tval_f1_fp", "val_tval_f1_fn", "C1"),
+            ("F0.75-t", "val_tval_f075_fp", "val_tval_f075_fn", "C3"),
+            ("F1.25-t", "val_tval_f125_fp", "val_tval_f125_fn", "C4"),
+            ("F2-t", "val_tval_f2_fp", "val_tval_f2_fn", "C2"),
+        ],
+        "fp_only": [
+            ("t=0.5", "val_t05_fp", "0.45"),
+            ("F0.5-t", "val_tval_fp", "C0"),
+            ("F1-t", "val_tval_f1_fp", "C1"),
+            ("F0.75-t", "val_tval_f075_fp", "C3"),
+            ("F1.25-t", "val_tval_f125_fp", "C4"),
+            ("F2-t", "val_tval_f2_fp", "C2"),
+        ],
+        "fn_only": [
+            ("t=0.5", "val_t05_fn", "0.45"),
+            ("F0.5-t", "val_tval_fn", "C0"),
+            ("F1-t", "val_tval_f1_fn", "C1"),
+            ("F0.75-t", "val_tval_f075_fn", "C3"),
+            ("F1.25-t", "val_tval_f125_fn", "C4"),
+            ("F2-t", "val_tval_f2_fn", "C2"),
+        ],
+        "auc": ("val_roc_auc", "val_pr_auc"),
+        "fp_tight": False,
+    },
+    {
+        "slug": "split_a_valt",
+        "title": "Split_a (val-tuned t)",
+        "f_scores": [
+            ("F0.5", "a_tval_f05", "a_t05_f05", "C0"),
+            ("F1", "a_tval_f1_f1", "a_t05_f1", "C1"),
+            ("F2", "a_tval_f2_f2", "a_t05_f2", "C2"),
+        ],
+        "fp_fn": [
+            ("t=0.5", "a_t05_cm01", "a_t05_cm10", "0.45"),
+            ("F0.5", "a_tval_cm01", "a_tval_cm10", "C0"),
+            ("F1", "a_tval_f1_cm01", "a_tval_f1_cm10", "C1"),
+            ("F0.75", "a_tval_f075_cm01", "a_tval_f075_cm10", "C3"),
+            ("F1.25", "a_tval_f125_cm01", "a_tval_f125_cm10", "C4"),
+            ("F2", "a_tval_f2_cm01", "a_tval_f2_cm10", "C2"),
+        ],
+        "fp_only": [
+            ("t=0.5", "a_t05_cm01", "0.45"),
+            ("F0.5", "a_tval_cm01", "C0"),
+            ("F1", "a_tval_f1_cm01", "C1"),
+            ("F0.75", "a_tval_f075_cm01", "C3"),
+            ("F1.25", "a_tval_f125_cm01", "C4"),
+            ("F2", "a_tval_f2_cm01", "C2"),
+        ],
+        "fn_only": [
+            ("t=0.5", "a_t05_cm10", "0.45"),
+            ("F0.5", "a_tval_cm10", "C0"),
+            ("F1", "a_tval_f1_cm10", "C1"),
+            ("F0.75", "a_tval_f075_cm10", "C3"),
+            ("F1.25", "a_tval_f125_cm10", "C4"),
+            ("F2", "a_tval_f2_cm10", "C2"),
+        ],
+        "auc": ("hold_a_roc_auc", "hold_a_pr_auc"),
+        "fp_tight": False,
+    },
+    {
+        "slug": "split_b_valt",
+        "title": "Split_b (val-tuned t)",
+        "f_scores": [
+            ("F0.5", "b_tval_f05", "b_t05_f05", "C0"),
+            ("F1", "b_tval_f1_f1", "b_t05_f1", "C1"),
+            ("F2", "b_tval_f2_f2", "b_t05_f2", "C2"),
+        ],
+        "fp_fn": [
+            ("t=0.5", "b_t05_cm01", "b_t05_cm10", "0.45"),
+            ("F0.5", "b_tval_cm01", "b_tval_cm10", "C0"),
+            ("F1", "b_tval_f1_cm01", "b_tval_f1_cm10", "C1"),
+            ("F0.75", "b_tval_f075_cm01", "b_tval_f075_cm10", "C3"),
+            ("F1.25", "b_tval_f125_cm01", "b_tval_f125_cm10", "C4"),
+            ("F2", "b_tval_f2_cm01", "b_tval_f2_cm10", "C2"),
+        ],
+        "fp_only": [
+            ("t=0.5", "b_t05_cm01", "0.45"),
+            ("F0.5", "b_tval_cm01", "C0"),
+            ("F1", "b_tval_f1_cm01", "C1"),
+            ("F0.75", "b_tval_f075_cm01", "C3"),
+            ("F1.25", "b_tval_f125_cm01", "C4"),
+            ("F2", "b_tval_f2_cm01", "C2"),
+        ],
+        "fn_only": [
+            ("t=0.5", "b_t05_cm10", "0.45"),
+            ("F0.5", "b_tval_cm10", "C0"),
+            ("F1", "b_tval_f1_cm10", "C1"),
+            ("F0.75", "b_tval_f075_cm10", "C3"),
+            ("F1.25", "b_tval_f125_cm10", "C4"),
+            ("F2", "b_tval_f2_cm10", "C2"),
+        ],
+        "auc": ("split_b_roc_auc", "split_b_pr_auc"),
+        "fp_tight": False,
+    },
+    {
+        "slug": "split_b_oracle",
+        "title": "Split_b (oracle t)",
+        "f_scores": [
+            ("F0.5*", "b_thold_b_f05", "b_hold_f05_at_t05", "C0"),
+            ("F1*", "b_thold_b_f1_f1", "b_hold_f1_at_t05", "C1"),
+            ("F2*", "b_thold_b_f2_f2", "b_hold_f2_at_t05", "C2"),
+        ],
+        "fp_fn": [
+            ("t=0.5", "b_t05_cm01", "b_t05_cm10", "0.45"),
+            ("F0.5*", "b_thold_b_cm01", "b_thold_b_cm10", "C0"),
+            ("F1*", "b_thold_b_f1_cm01", "b_thold_b_f1_cm10", "C1"),
+            ("F2*", "b_thold_b_f2_cm01", "b_thold_b_f2_cm10", "C2"),
+        ],
+        "fp_only": [
+            ("F0.5*", "b_thold_b_cm01", "C0"),
+            ("F1*", "b_thold_b_f1_cm01", "C1"),
+            ("F2*", "b_thold_b_f2_cm01", "C2"),
+        ],
+        "fn_only": [
+            ("t=0.5", "b_t05_cm10", "0.45"),
+            ("F0.5*", "b_thold_b_cm10", "C0"),
+            ("F1*", "b_thold_b_f1_cm10", "C1"),
+            ("F2*", "b_thold_b_f2_cm10", "C2"),
+        ],
+        "auc": ("split_b_roc_auc", "split_b_pr_auc"),
+        "fp_tight": True,
+    },
+]
+
+
+
+
+def _plot_metric_only(series, ylabel, title, save_name, ylim_tight=False, ymin_zero=True):
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+    _plot_lines(
+        ax,
+        series,
+        ylabel,
+        title + "  (jitter if overlapping)",
+        ylim_tight=ylim_tight,
+        ymin_zero=ymin_zero,
+    )
+    fig.tight_layout()
+    _save_show(fig, save_name)
+
+
+
+def run_eval_plots_for_sweep(
+    sweep_df_in,
+    output_dir,
+    plot_prefix: str = "",
+    title_prefix: str = "",
+):
+    """§5 report block (5 plots × eval sets + split_b tradeoff) for any sweep dataframe."""
+    global _curve_df, _x, _xlabels, OUTPUT_DIR, _save_show
+    _out_saved = OUTPUT_DIR
+    _save_saved = _save_show
+    OUTPUT_DIR = str(output_dir)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    def _save_local(fig, save_name):
+        out = os.path.join(OUTPUT_DIR, plot_prefix + save_name)
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+        print("Saved:", out)
+        plt.show()
+
+    _save_show = _save_local
+    _curve_df = sweep_df_in.sort_values("ratio_requested").reset_index(drop=True)
+    _x = np.arange(len(_curve_df))
+    _xlabels = [
+        (
+            "full"
+            if k == "full_pool"
+            else str(d if d is not None and str(d) != "nan" else int(float(r)))
+        )
+        for k, r, d in zip(
+            _curve_df["step_kind"],
+            _curve_df["ratio_requested"],
+            _curve_df["ratio_display"].tolist()
+            if "ratio_display" in _curve_df.columns
+            else [None] * len(_curve_df),
+        )
+    ]
+    print(f"--- {title_prefix}per-set reports (5 plots each) ---")
+    for _rep in EVAL_SET_REPORTS:
+        _rep_m = dict(_rep)
+        if title_prefix:
+            _rep_m["title"] = title_prefix + _rep["title"]
+        _report_one_eval_set(_rep_m)
+    print(f"--- {title_prefix}split_b val-tuned tradeoff ---")
+    _plot_split_b_valt_tradeoff()
+    OUTPUT_DIR = _out_saved
+    _save_show = _save_saved
+
+def _report_one_eval_set(rep: dict):
+    slug = rep["slug"]
+    title = rep["title"]
+    fp_tight = bool(rep.get("fp_tight", False))
+    print(f"\n=== Report: {title} ===")
+    _plot_f_curves(rep["f_scores"], f"{title} | F-scores", f"report_{slug}_fscores.png")
+    _plot_fp_fn(rep["fp_fn"], f"{title} | FP & FN", f"report_{slug}_fp_fn.png")
+    _plot_metric_only(
+        rep["fp_only"],
+        "FP count",
+        f"{title} | FP",
+        f"report_{slug}_fp.png",
+        ylim_tight=fp_tight,
+    )
+    _plot_metric_only(rep["fn_only"], "FN count", f"{title} | FN", f"report_{slug}_fn.png")
+    roc_col, pr_col = rep["auc"]
+    _plot_auc(roc_col, pr_col, f"{title} | ROC & PR-AUC", f"report_{slug}_auc.png")
+
+
+print("--- Per-set reports (5 plots each: F-scores, FP&FN, FP, FN, AUC) ---")
+for _rep in EVAL_SET_REPORTS:
+    _report_one_eval_set(_rep)
+
+# --- Split_b val-tuned: FP/FN and FPR vs train ratio (extended threshold policies) ---
+_recall_min = float(os.environ.get("VLST_FP_FOLLOWUP_RECALL_MIN", "0.5"))
+_fpr_max = float(os.environ.get("VLST_FP_FOLLOWUP_FPR_MAX", "0.05"))
+
+SPLIT_B_VALT_TRADEOFF_POLICIES = [
+    ("F0.5", "b_tval_cm01", "b_tval_cm10", "b_tval_fpr", "C0"),
+    ("F1", "b_tval_f1_cm01", "b_tval_f1_cm10", "b_tval_f1_fpr", "C1"),
+    ("F2", "b_tval_f2_cm01", "b_tval_f2_cm10", "b_tval_f2_fpr", "C2"),
+    ("F0.75", "b_tval_f075_cm01", "b_tval_f075_cm10", "b_tval_f075_fpr", "C3"),
+    ("F1.25", "b_tval_f125_cm01", "b_tval_f125_cm10", "b_tval_f125_fpr", "C4"),
+    ("cost", "b_tval_cost_cm01", "b_tval_cost_cm10", "b_tval_cost_fpr", "C5"),
+    (f"R>={_recall_min:.2f} minFP", "b_tval_rminfp_cm01", "b_tval_rminfp_cm10", "b_tval_rminfp_fpr", "C6"),
+    (f"FPR<={_fpr_max:.2f}", "b_tval_fprcap_cm01", "b_tval_fprcap_cm10", "b_tval_fprcap_fpr", "C7"),
+]
+
+
+def _plot_split_b_valt_tradeoff():
+    """FP & FN vs ratio, FPR vs ratio, and FP–FN frontier for split_b @ val-tuned t."""
+    title_base = "Split_b (val-tuned t)"
+    fp_fn_series = [
+        (name, col_fp, col_fn, color)
+        for name, col_fp, col_fn, _col_fpr, color in SPLIT_B_VALT_TRADEOFF_POLICIES
+    ]
+    _plot_fp_fn(
+        fp_fn_series,
+        f"{title_base} | FP & FN — threshold policies",
+        "report_split_b_valt_tradeoff_fp_fn.png",
+    )
+    fpr_series = [
+        (name, col_fpr, color)
+        for name, _col_fp, _col_fn, col_fpr, color in SPLIT_B_VALT_TRADEOFF_POLICIES
+    ]
+    _plot_metric_only(
+        fpr_series,
+        "FPR",
+        f"{title_base} | FPR vs ratio",
+        "report_split_b_valt_tradeoff_fpr.png",
+    )
+    fig, ax = plt.subplots(figsize=(8.5, 6.5))
+    for name, col_fp, col_fn, _col_fpr, color in SPLIT_B_VALT_TRADEOFF_POLICIES:
+        if col_fp not in _curve_df.columns or col_fn not in _curve_df.columns:
+            raise KeyError(f"Missing {col_fp!r}/{col_fn!r} — re-run §3 before §5")
+        fp = _curve_df[col_fp].astype(float).to_numpy()
+        fn = _curve_df[col_fn].astype(float).to_numpy()
+        ax.plot(fp, fn, color=color, alpha=1.0, linewidth=2.2, marker="o", markersize=6, label=name)
+        if len(fp) > 0:
+            ax.annotate(
+                str(_xlabels[-1]),
+                (fp[-1], fn[-1]),
+                textcoords="offset points",
+                xytext=(4, 4),
+                fontsize=7,
+                color=color,
+            )
+    ax.set_xlabel("FP count (split_b)")
+    ax.set_ylabel("FN count (split_b)")
+    ax.set_title(f"{title_base} | FP vs FN frontier (arrow: increasing train ratio r)")
+    ax.grid(True, alpha=0.25, linestyle=":")
+    _finalize_legend(ax)
+    fig.tight_layout()
+    _save_show(fig, "report_split_b_valt_tradeoff_frontier.png")
+
+
+print("--- Split_b val-tuned tradeoff (extended policies) ---")
+_plot_split_b_valt_tradeoff()
+
+---OUT---
+--- Per-set reports (5 plots each: F-scores, FP&FN, FP, FN, AUC) ---
+
+=== Report: Validation ===
+Saved: /kaggle/working/vlst_fp_followup_output/report_validation_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_validation_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_validation_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_validation_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_validation_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: Split_a (val-tuned t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_a_valt_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_a_valt_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_a_valt_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_a_valt_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_a_valt_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: Split_b (val-tuned t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: Split_b (oracle t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_oracle_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_oracle_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_oracle_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_oracle_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_oracle_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+--- Split_b val-tuned tradeoff (extended policies) ---
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_tradeoff_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_tradeoff_fpr.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/report_split_b_valt_tradeoff_frontier.png
+
+<Figure size 850x650 with 1 Axes>
+<PNG image>
+
+########## CELL 17 [markdown] ##########
+### 6.1 Curves — MaxFP CSV
+
+
+########## CELL 18 [code] ##########
+run_eval_plots_for_sweep(
+    sweep_df_maxfp,
+    OUTPUT_DIR_MAXFP,
+    plot_prefix="maxfp_cal_",
+    title_prefix="MaxFP | ",
+)
+
+---OUT---
+--- MaxFP | per-set reports (5 plots each) ---
+
+=== Report: MaxFP | Validation ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_validation_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_validation_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_validation_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_validation_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_validation_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: MaxFP | Split_a (val-tuned t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_a_valt_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_a_valt_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_a_valt_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_a_valt_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_a_valt_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: MaxFP | Split_b (val-tuned t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: MaxFP | Split_b (oracle t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_oracle_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_oracle_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_oracle_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_oracle_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_oracle_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+--- MaxFP | split_b val-tuned tradeoff ---
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_tradeoff_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_tradeoff_fpr.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp_cal_threshold/maxfp_cal_report_split_b_valt_tradeoff_frontier.png
+
+<Figure size 850x650 with 1 Axes>
+<PNG image>
+
+########## CELL 19 [markdown] ##########
+### 7.1 Curves — MaxFP-46 (92 pos denom)
+
+Run **after §5** (needs `run_eval_plots_for_sweep` from the plots cell).
+
+
+########## CELL 20 [code] ##########
+run_eval_plots_for_sweep(
+    sweep_df_maxfp46,
+    OUTPUT_DIR_MAXFP46,
+    plot_prefix="maxfp46_",
+    title_prefix="MaxFP-46 (92:46) | ",
+)
+
+---OUT---
+--- MaxFP-46 (92:46) | per-set reports (5 plots each) ---
+
+=== Report: MaxFP-46 (92:46) | Validation ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_validation_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_validation_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_validation_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_validation_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_validation_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: MaxFP-46 (92:46) | Split_a (val-tuned t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_a_valt_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_a_valt_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_a_valt_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_a_valt_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_a_valt_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: MaxFP-46 (92:46) | Split_b (val-tuned t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+
+=== Report: MaxFP-46 (92:46) | Split_b (oracle t) ===
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_oracle_fscores.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_oracle_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_oracle_fp.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_oracle_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_oracle_auc.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+--- MaxFP-46 (92:46) | split_b val-tuned tradeoff ---
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_tradeoff_fp_fn.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_tradeoff_fpr.png
+
+<Figure size 1200x550 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/vlst_fp_followup_output/maxfp46_pos92/maxfp46_report_split_b_valt_tradeoff_frontier.png
+
+<Figure size 850x650 with 1 Axes>
+<PNG image>
+
+########## CELL 21 [markdown] ##########
+## 5. Saved artifact paths
+
+
+########## CELL 22 [code] ##########
+print(
+    "Artifacts written to:",
+    OUTPUT_DIR,
+    "\n",
+    " - fp_followup_ratio_sweep.csv",
+    " - maxfp_cal_threshold/fp_followup_ratio_sweep_maxfp_cal_threshold.csv",
+)
+
+---OUT---
+Artifacts written to: /kaggle/working/vlst_fp_followup_output 
+  - fp_followup_ratio_sweep.csv  - maxfp_cal_threshold/fp_followup_ratio_sweep_maxfp_cal_threshold.csv

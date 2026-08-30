@@ -2,13 +2,21 @@
 
 This document gathers publication-oriented figures and tables from the nested cross-validation comparison in [baseline_plus_tabpfn.ipynb](baseline_plus_tabpfn.ipynb).
 
-**Cohort / protocol.** Full VLST cohort, n = 5,185 (92 events; prevalence = 0.0177). Target = `Stent thrombosis`. Identifiers (`NO.`, `Name`) and `Time since stent implantation` are dropped; the latter is treated as a time-at-risk / follow-up column, not a baseline predictor. Numeric columns are median-imputed and scaled; categoricals are most-frequent-imputed and one-hot encoded, with the preprocessor **cloned and fitted inside every CV split**. Evaluation is nested stratified CV: **5 outer folds / 4 inner folds** (outer `random_state=42`). Inner out-of-fold scores choose an F1 threshold that is then applied once to that outer fold’s unseen cases. Ranking metrics (PR-AUC, ROC-AUC, Brier) use pooled outer out-of-fold probabilities and are threshold-independent.
+**Cohort / protocol.** Full VLST cohort, n = 5,185 (92 events; prevalence = 0.0177). Target = `Stent thrombosis`. Identifiers (`NO.`, `Name`) and `Time since stent implantation` are dropped; the latter is treated as a time-at-risk / follow-up column, not a baseline predictor. **No Part 2 / Part 5 feature mask is applied.** Evaluation is nested stratified CV: **5 outer folds / 4 inner folds** (outer `random_state=42`). Inner out-of-fold scores choose an F1 threshold that is then applied once to that outer fold’s unseen cases. Ranking metrics (PR-AUC, ROC-AUC, Brier) use pooled outer out-of-fold probabilities and are threshold-independent.
+
+**Methods note — feature views are not the same.** The five classic models sit in an sklearn `Pipeline` with a `ColumnTransformer` that is **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. What actually changes the comparison is the rest of the transformer: classics see **scaled + one-hot input (~186 columns)** because the 106 raw brand strings become 106 dummy columns. TabPFN is **not** in that pipeline — it receives the **raw 81-column frame** and handles the brand column natively. That unequal input must be read into every “same protocol” claim.
+
+**Methods note — GridSearch is a different notebook.** `baseline_without_tssi.ipynb` / `baseline_tssi_leakage.ipynb` tune hyperparameters on a single 70/30 split. Those `best_params_` are **not** imported here. Classics in this nested CV use library defaults plus class weighting. The inner loop tunes only the F1 **threshold**. A seventh arm, `TabPFN (local)` (`from tabpfn import TabPFNClassifier`, no thinking), is now in the notebook via `RUN_MODELS`; it is **not** in the stored six-model run below.
+
+**Methods note — why the follow-up-time column is dropped.** Wang 2020 analysed this cohort with Cox regression, in which follow-up duration is the *time axis*, not a covariate. Recoded as a binary classifier, the same column (`Time since stent implantation`) mixes two definitions: time-to-event for the 92 VLST cases (min 380 days) and event-free follow-up length for the 5,093 non-events (min 1,241 days). A rule “time < 1,241 → event” has zero false positives among controls. `baseline_tssi_leakage.ipynb` (same 70/30 split, GridSearchCV) shows the resulting inflation; `baseline_without_tssi.ipynb` is the identical protocol with the column removed. Nested-CV results in this document use the without-TSSI feature view. See Supplementary Table S-TSSI.
 
 **Models.** Logistic regression, random forest, XGBoost, LightGBM, CatBoost, and TabPFN (client, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Average precision (PR-AUC) is the common ranking metric.
 
+**Methods note — imbalance, SMOTE, and tuning.** Prevalence is 1.77%. Class weighting (`class_weight="balanced"`, `scale_pos_weight`, `auto_class_weights="Balanced"`) is used for *prediction* so the 92 events are not ignored. SMOTE is **not** used: synthetic minority rows would change the prevalence that PR-AUC, PPV, Brier and calibration depend on. The five classic models use library defaults plus class weighting and a PR-AUC / PRAUC eval metric; they are **not** grid-searched. TabPFN uses client thinking (`effort=high`). That is an unequal search budget and is disclosed here. Inner nested CV selects only the F1 **threshold**, not hyperparameters. Wald tests / GLM standard errors are not used for these classifiers — they are not inferential logit models.
+
 **Asset root:** [paper_figures/](paper_figures/) (also at `data/result/modeling_results/paper_figures/`)
 
-> The notebook’s comparison-table and threshold-sweep cells were not executed in the stored run. Ranking numbers below are taken from the PR/ROC legend and printed Brier scores; F1 operating-point counts are read from the confusion-matrix panel. Fold-wise mean ± SD and the best-model threshold-sweep figure are therefore not available from this notebook snapshot.
+> The **executed notebook** does print fold-wise mean ± SD, nested operating points, and the comparison table (see `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`). Those CSVs were not committed under `data/result/`. The **exported PNGs** below are a mix: classic-model panels match the notebook; TabPFN Brier / confusion panels are from an earlier client run (stale). Quote the notebook for TabPFN.
 
 ---
 
@@ -18,7 +26,8 @@ This document gathers publication-oriented figures and tables from the nested cr
 2. [Ranking curves (Figure 1, Table 1)](#2-ranking-curves)
 3. [Calibration (Figure 2)](#3-calibration)
 4. [F1 operating point (Figure 3, Tables 2–3)](#4-f1-operating-point)
-5. [File index](#5-file-index)
+5. [Supplementary: follow-up-time leakage](#5-supplementary-follow-up-time-leakage)
+6. [File index](#6-file-index)
 
 ---
 
@@ -28,7 +37,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 ![Table 0](paper_figures/paper_table0_models.png)
 
-**Table 0.** Six classifiers compared under the same nested-CV protocol. Tree boosters use average-precision / PR-AUC as their internal metric; TabPFN is the Prior Labs client with thinking mode aimed at average precision.
+**Table 0.** Six classifiers compared under the same nested-CV *split and threshold* protocol. They do **not** see the same columns: classics get the scaled one-hot matrix; TabPFN gets raw 81 features (see Methods note above). Tree boosters use average-precision / PR-AUC as their internal metric; TabPFN is the Prior Labs client with thinking mode aimed at average precision. Classics are not grid-searched.
 
 | Model | Family | GPU | Specification (notebook) |
 | --- | --- | --- | --- |
@@ -57,7 +66,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 ![Table 1](paper_figures/paper_table1_ranking.png)
 
-**Table 1.** Threshold-independent metrics reconstructed from Figure 1 legends (PR-AUC, ROC-AUC) and the calibration cell’s printed Brier scores (lower is better). TabPFN is first on both ranking scores. CatBoost has the lowest Brier score (0.0090); TabPFN’s Brier (0.0360) is worse than the tree ensembles, consistent with over-confident probabilities on Figure 2.
+**Table 1.** Threshold-independent metrics as in the **exported PNG** (reconstructed earlier from Figure 1 legends). **Do not quote the TabPFN Brier cell.** The executed notebook print is TabPFN Brier = **0.0060** (best of the six); CatBoost 0.0090. The PNG / table image still show the stale 0.0360 value. Ranking order on PR-AUC / ROC-AUC is unchanged (TabPFN first).
 
 | Rank | Model | PR-AUC | ROC-AUC | Brier |
 | ---: | --- | ---: | ---: | ---: |
@@ -78,7 +87,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 ![Figure 2](paper_figures/paper_fig2_calibration_curves.png)
 
-**Figure 2.** Calibration plots from nested-CV out-of-fold probabilities using quantile bins (appropriate because VLST is rare). The dashed diagonal is perfect calibration. CatBoost (Brier = 0.0090), XGBoost (0.0093), and LightGBM (0.0096) track the diagonal in the low-probability region where almost all mass sits. Random forest is also close to the diagonal but only up to predicted probabilities around 0.1. Logistic regression (Brier = 0.0543) and TabPFN (0.0360) overestimate event probability: predicted values extend toward 0.6 while observed frequencies stay much lower. Ranking skill (Figure 1) and probability calibration therefore come apart for TabPFN on this cohort — it orders cases well but is not a well-calibrated risk engine without extra calibration.
+**Figure 2.** Calibration plots from nested-CV out-of-fold probabilities using quantile bins (appropriate because VLST is rare). The dashed diagonal is perfect calibration. Classic-model Brier scores in the panel titles match the notebook (CatBoost 0.0090, XGBoost 0.0093, LightGBM 0.0096, RF 0.0147, LR 0.0543). **The TabPFN panel title in this PNG is stale (0.0360).** The notebook print is **Brier = 0.0060**, the lowest of the six — calibration *supports* TabPFN on this run, it does not contradict ranking. Re-export the figure before publication.
 
 **Source file:** [paper_figures/paper_fig2_calibration_curves.png](paper_figures/paper_fig2_calibration_curves.png)
 
@@ -86,13 +95,15 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 ## 4. F1 operating point
 
-Confusion matrices use each model’s **F1-optimal threshold on the pooled OOF scores** (a single operating point for the comparison table, not the nested inner-fold thresholds). Counts sum to n = 5,185 with 92 events.
+Confusion matrices in the **exported PNG** use each model’s **F1-optimal threshold on the pooled OOF scores** (optimistic: the same labels are used to pick and score the threshold). The honest nested operating point uses per-fold inner thresholds (notebook: TabPFN TN/FP/FN/TP = 5080/13/26/66). Counts sum to n = 5,185 with 92 events.
+
+**Notebook vs this PNG for TabPFN (pooled F1 point).** Code: t_F1 = 0.173, TN/FP/FN/TP = 5072/21/19/73. The figure below still shows the stale panel (t = 0.901, TP = 77, FN = 15). Quote the notebook, not the TabPFN cell of Figure 3.
 
 ### Figure 3. Confusion matrices at the F1-optimal OOF threshold
 
 ![Figure 3](paper_figures/paper_fig3_confusion_matrices.png)
 
-**Figure 3.** 2×2 counts at the F1-maximising pooled OOF threshold (`t_F1` in each panel title). TabPFN catches the most events (TP = 77, FN = 15) at t = 0.901. LightGBM and XGBoost are more conservative on false positives (FP = 14 and 17) at the cost of more missed events. Logistic regression needs a very high threshold (0.970) and still misses 54 events. Random forest’s F1 point sits at a low probability (0.084), producing the most false positives (75).
+**Figure 3.** 2×2 counts at the F1-maximising pooled OOF threshold (`t_F1` in each panel title). Classic-model panels match the notebook. The **TabPFN panel is stale** (shown: t = 0.901, TP = 77, FN = 15). Notebook pooled point: t = 0.173, TP = 73, FN = 19. Honest nested point: TP = 66, FN = 26. LightGBM and XGBoost remain more conservative on false positives (FP = 14 and 17). Logistic regression needs a very high threshold (0.970) and still misses 54 events. Random forest’s F1 point sits at a low probability (0.084), producing the most false positives (75).
 
 **Source file:** [paper_figures/paper_fig3_confusion_matrices.png](paper_figures/paper_fig3_confusion_matrices.png)
 
@@ -100,7 +111,7 @@ Confusion matrices use each model’s **F1-optimal threshold on the pooled OOF s
 
 ![Table 2](paper_figures/paper_table2_f1_operating_point.png)
 
-**Table 2.** Accuracy, precision, recall, specificity, F1, and F2 computed from Figure 3 counts. Rows are ordered by F1. TabPFN has the highest F1 (0.786) and F2 (0.816) with recall 0.837 at precision 0.740. XGBoost is second on F1 (0.671) via higher precision (0.764) and lower recall (0.598). Accuracy is uniformly high because negatives dominate and is not a useful ranking criterion here.
+**Table 2.** Accuracy, precision, recall, specificity, F1, and F2 computed from Figure 3 counts (exported PNG). The **TabPFN row is stale** (t = 0.901, TP = 77). Notebook pooled F1 point: t = 0.173, precision 0.777, recall 0.794, F1 0.785, TN/FP/FN/TP = 5072/21/19/73. Classic-model rows match the notebook. Accuracy is uniformly high because negatives dominate and is not a useful ranking criterion here.
 
 | Model | t_F1 | Accuracy | Precision | Recall | Specificity | F1 | F2 | TN | FP | FN | TP |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -132,7 +143,33 @@ Confusion matrices use each model’s **F1-optimal threshold on the pooled OOF s
 
 ---
 
-## 5. File index
+## 5. Supplementary: follow-up-time leakage
+
+These numbers are **not** the nested-CV headline. They come from the two single-split (70/30, GridSearchCV) notebooks that diagnosed why `Time since stent implantation` cannot enter a classifier. Nothing was re-run; values are the stored test-set metrics.
+
+**What the column is.** For VLST = 1 it is time from index PCI to angiographic thrombosis (min 380 days, Wang median 697). For VLST = 0 it is completed event-free follow-up (min 1,241, max 1,605 days; cohort median follow-up 1,502). That is binary-ified survival time, not a baseline risk factor.
+
+### Supplementary Table S-TSSI. Single-split metrics with vs without the column
+
+![Table S-TSSI](paper_figures/paper_table_s_tssi_leakage.png)
+
+**Table S-TSSI.** Same stratified 70/30 split and tuning protocol. Logistic regression PR-AUC falls from 0.958 to 0.508 when the column is dropped; CatBoost from 0.977 to 0.658. Gaussian NB is unaffected (it never used the column). Nested-CV TabPFN in the main tables is the *without-TSSI* protocol.
+
+**Source files:** [paper_figures/paper_table_s_tssi_leakage.png](paper_figures/paper_table_s_tssi_leakage.png), [paper_figures/paper_table_s_tssi_leakage.csv](paper_figures/paper_table_s_tssi_leakage.csv)
+
+### Supplementary Figure S-TSSI. PR-AUC collapse
+
+![Figure S-TSSI](paper_figures/paper_fig_s_tssi_pr_auc.png)
+
+**Figure S-TSSI.** PR-AUC on the 1,556-row hold-out. The dotted line is class prevalence (0.0177). The leaky column produces near-perfect ranking; removing it returns models to a rare-event scale.
+
+**Source file:** [paper_figures/paper_fig_s_tssi_pr_auc.png](paper_figures/paper_fig_s_tssi_pr_auc.png)
+
+Notebooks: `baseline_tssi_leakage.ipynb`, `baseline_without_tssi.ipynb`. Table rebuilt by [`rebuild_tssi_leakage_table.py`](rebuild_tssi_leakage_table.py).
+
+---
+
+## 6. File index
 
 | ID | Type | File |
 | --- | --- | --- |
@@ -143,6 +180,8 @@ Confusion matrices use each model’s **F1-optimal threshold on the pooled OOF s
 | Fig 3 | Figure | [paper_fig3_confusion_matrices.png](paper_figures/paper_fig3_confusion_matrices.png) |
 | Table 2 | Table | [paper_table2_f1_operating_point.png](paper_figures/paper_table2_f1_operating_point.png) |
 | Table 3 | Table | [paper_table3_confusion_counts.png](paper_figures/paper_table3_confusion_counts.png) |
+| Table S-TSSI | Table | [paper_table_s_tssi_leakage.png](paper_figures/paper_table_s_tssi_leakage.png) |
+| Fig S-TSSI | Figure | [paper_fig_s_tssi_pr_auc.png](paper_figures/paper_fig_s_tssi_pr_auc.png) |
 
 ---
 

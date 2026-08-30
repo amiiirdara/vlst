@@ -2,7 +2,7 @@
 
 This note compares **what was extracted** from the same VLST cohort by (i) classical statistical association tests and (ii) classic-model feature selectors, then explains **why the two catalogues only partly overlap**.
 
-Sources: [EDA_paper_figures_and_tables.md](../EDA_paper_figures_and_tables.md) (`eda.ipynb`) and [baseline_feature_selections_paper_figures_and_tables.md](../../modeling/interpretability/baseline_feature_selections_paper_figures_and_tables.md) (`baseline_feature_selections.ipynb`).
+Sources: [EDA_paper_figures_and_tables.md](../EDA_paper_figures_and_tables.md) (`eda.ipynb`) and [baseline_feature_selections_paper_figures_and_tables.md](../../modeling/interpretability/baseline_feature_selections_paper_figures_and_tables.md) (`baseline_feature_selections.ipynb`). Overlap arithmetic and figures are produced by [`stats_vs_ml_comparison.ipynb`](stats_vs_ml_comparison.ipynb) / [`rebuild_comparison.py`](rebuild_comparison.py).
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -34,13 +34,15 @@ The two pipelines are not two estimates of the same quantity. They optimize diff
 | ---------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Question**                 | Does this column’s *marginal* distribution differ by VLST after multiplicity control? | If I train `lr` / `rf` / boosting, which columns does the *fitted model* need for hold-out PR-AUC / F1 / F2? |
 | **Unit of evidence**         | One test per feature (Welch, Mann–Whitney, χ² / Fisher) plus FDR                      | LOCO (refit without the column), coalition SHAP, greedy FFS                                                  |
-| **Sample**                   | Full cohort, n ≈ 5,185, ~92 events                                                    | Same split protocol: train 3,629 / test 1,556 (64 / 28 events)                                               |
-| **Feature view**             | Raw clinical columns                                                                  | Scaled / encoded matrix (185 columns); `Time since stent implantation` dropped                               |
+| **Sample**                   | Full cohort, n ≈ 5,185, ~92 events                                                    | Stored smoke: scored on the 1,556-row test fold (28 events). Current Part 2 *code* uses an inner train hold-out (not re-run). |
+| **Feature view**             | Raw clinical columns; `Stent type-SES` collapsed to 9 levels for χ²                  | Scaled matrix (**185 columns**): raw 106 brand strings one-hot + `StandardScaler`. Imputers in the transformer are inert (no NaNs). |
 | **Discovery rule used here** | Univariate FDR q < 0.05 (plus a sparse multivariable logistic check)                  | Names in **LOCO ∩ SHAP ∩ FFS** top-12 for at least one model × metric                                        |
 | **Multiplicity**             | Benjamini–Hochberg across the tested family                                           | Implicit: top-12 of a 40-column LOCO pool (smoke run)                                                        |
 
 
-**Statistical catalogue (n = 20, excluding time-at-risk).** Continuous FDR: `WBC`, `eGFR`, `LV`, `CKD5`, `No.of stents per lesion`, `HbA1c`, `NO.of vessels`, `Total stent length`, `Fiberinogen`. Binary FDR: `1.1:1Post dilation`, `No postdilation`, `CKD90`, `Previous PCI`, `3-vessel disease`, `Clopidogrel`, `Diabetes`, `PES`, `Multi-vessel CAD`, `Single-vessel disease`. Categorical: `Stent type-SES`. `Time since stent implantation` is the strongest univariate hit but is a follow-up / time-at-risk variable, not a baseline predictor, and is excluded from ML.
+**Statistical catalogue (n = 20 names, excluding time-at-risk).** Continuous FDR: `WBC`, `eGFR`, `LV`, `CKD5`, `No.of stents per lesion`, `HbA1c`, `NO.of vessels`, `Total stent length`, `Fiberinogen`. Binary FDR: `1.1:1Post dilation`, `No postdilation`, `CKD90`, `Previous PCI`, `3-vessel disease`, `Clopidogrel`, `Diabetes`, `PES`, `Multi-vessel CAD`, `Single-vessel disease`. Categorical: `Stent type-SES`. `Time since stent implantation` is the strongest univariate hit but is a follow-up / time-at-risk variable, not a baseline predictor, and is excluded from ML.
+
+Of these 20 names, at least 8 are redundant re-encodings: the post-dilation complements (`1.1:1Post dilation`, `No postdilation` — 2 slots for 1 bit), the vessel-disease family (`3-vessel disease`, `Multi-vessel CAD`, `Single-vessel disease`, `NO.of vessels` — 4 slots for 1 construct), and the renal family (`CKD5`, `CKD90` alongside continuous `eGFR` — 3 slots for 1 construct). The “20 statistical discoveries” headline is a **name count**. Report it as roughly **12 distinct clinical constructs**. Jaccard 5/35 still uses the 20-name lists (that is what the selectors and FDR tests emit); do not rewrite the Venn as 12 vs 20.
 
 **ML consensus catalogue (n = 20).** Union of LOCO ∩ SHAP ∩ FFS names across logistic regression, random forests, CatBoost, XGBoost, and LightGBM: `WBC`, `eGFR`, `LV`, `Cre`, `Men`, `LVEF`, `Previous PCI`, `Fiberinogen`, `HGB`, `Platelet`, `HL`, `STEMI`, `Hypertension`, `Fast-Glu`, `TG`, `TCL`, `CaI`, `Min-stent diameter`, `Current drinking`, `History of HF`.
 
@@ -52,11 +54,11 @@ A looser ML set (**frequent selection**, top-repeated names in the selector log)
 
 ## 2. How common are the extracted features?
 
-Only **5 of 20** statistical FDR features also sit in the ML three-selector consensus. Conversely, **15 of 20** ML-consensus names fail univariate FDR. Jaccard overlap of the two 20-name sets is 5 / 35 ≈ **0.14**.
+Only **5 of 20** statistical FDR *names* also sit in the ML three-selector consensus. Conversely, **15 of 20** ML-consensus names fail univariate FDR. Jaccard overlap of the two 20-name sets is 5 / 35 ≈ **0.14**. On the construct reading (~12 statistical constructs), several of the 15 “stats-only” names are the extra slots in those three families, not 15 independent missed discoveries.
 
 ### Figure 1. Overlap of the two extraction catalogues
 
-Figure 1
+![Figure 1](paper_figures/fig1_venn_overlap.png)
 
 **Figure 1.** Left circle: univariate FDR q < 0.05 (time-since-stent excluded). Right circle: features in LOCO ∩ SHAP ∩ FFS top-12 for at least one classic model and metric. The intersection is `WBC`, `eGFR`, `LV`, `Fiberinogen`, `Previous PCI`.
 
@@ -64,7 +66,7 @@ Figure 1
 
 ### Figure 2. Presence by extractor
 
-Figure 2
+![Figure 2](paper_figures/fig2_presence_heatmap.png)
 
 **Figure 2.** Navy cells mark membership. Columns: statistical FDR; statistical multivariable (bootstrap CI excluding 1 in the sparse logistic); ML consensus; ML frequent (top-repeated selector log). `Time since stent implantation` is statistical-only by construction (dropped before ML). `LVEF` and `Men` are ML-side even though they fail FDR.
 
@@ -72,7 +74,7 @@ Figure 2
 
 ### Table 1. Membership of every compared name
 
-Table 1
+![Table 1](paper_figures/table_feature_by_method.png)
 
 **Table 1.** Green = both catalogues; navy tint = stats FDR only; violet = ML consensus only; pale violet = ML frequent only; orange = structural time-at-risk.
 
@@ -88,7 +90,7 @@ These five names are the only ones that are both a **full-cohort association dis
 
 ### Table 2. Shared features
 
-Table 2
+![Table 2](paper_figures/table_shared_features.png)
 
 
 | Feature      | Domain     | Statistical evidence         | ML evidence                                                    | Why both keep it                                                  |
@@ -114,7 +116,7 @@ Fifteen FDR discoveries never enter ML LOCO ∩ SHAP ∩ FFS. They are not “fa
 
 ### Table 3. FDR hits missing from ML consensus
 
-Table 3
+![Table 3](paper_figures/table_stats_only.png)
 
 
 | Feature                 | Domain         | Why statistics keeps it and ML top-12 does not                                                             |
@@ -154,14 +156,14 @@ Fifteen consensus names fail univariate FDR. ML is not “finding associations t
 
 ### Table 4. ML consensus names that fail FDR
 
-Table 4
+![Table 4](paper_figures/table_ml_only.png)
 
 
 | Feature            | Univariate vs VLST    | Why ML consensus keeps it and FDR does not                                                       |
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------ |
 | Cre                | ns (p = 0.88)         | Redundant with eGFR marginally; still a renal surrogate when eGFR is noisy or left out           |
 | Men                | ns (p = 0.27)         | `Men × eGFR` interaction is FDR-significant in the EDA screen; LR uses sex as an additive offset |
-| LVEF               | raw p = 0.033, FDR ns | Borderline mean test; domain multivariable OR persists; trees split on systolic function         |
+| LVEF               | raw p = 0.033, FDR ns | Borderline mean test. Domain joint logistic **reverses sign** (uni OR 0.851 → adj 1.65) when `LV` is in the same model — it does not “persist.” Trees still split on systolic function. |
 | HGB                | raw p = 0.039, FDR ns | CatBoost/XGB F-score consensus: thresholded metrics, not a location test                         |
 | Fast-Glu           | raw p = 0.025, FDR ns | LR F2; correlated with HbA1c / diabetes (those *do* pass FDR)                                    |
 | Platelet           | ns                    | RF/CatBoost haemostasis panel with Fiberinogen                                                   |
@@ -194,7 +196,7 @@ Three recurring mechanisms:
 
 ### Figure 4. Extracted counts by clinical domain
 
-Figure 4
+![Figure 4](paper_figures/fig4_domain_counts.png)
 
 **Figure 4.** Statistical FDR is concentrated in laboratory, procedural/stent, and anatomy blocks (the EDA domain screen). ML consensus is heavier on laboratory *plus* cardiac function, demographics, and ACS presentation, and almost empty on anatomy binaries and medications. That is the collinear-family vs surrogate/interaction split from sections 4–5, drawn by domain.
 
@@ -212,7 +214,7 @@ Statistics therefore “owns” **stent technique and anatomy coding** (postdila
 
 ### Figure 3. Buckets
 
-Figure 3
+![Figure 3](paper_figures/fig3_reason_buckets.png)
 
 **Figure 3.** Counts of names in this comparison assigned to a primary methodological bucket (one bucket per feature; the anatomy/stent collinear family is grouped).
 
@@ -223,7 +225,7 @@ Figure 3
 - Univariate tests do not penalize redundancy. FDR will list `3-vessel disease`, `Multi-vessel CAD`, `Single-vessel disease`, and `NO.of vessels` if each 2×2/t-test is small. A model only needs one of them.
 - Complements are two encodings of one bit (`1.1:1Post dilation` vs `No postdilation`). χ² sees both; multivariable logistic already showed the pair is not independently identified.
 - Categorical χ² on `Stent type-SES` does not survive one-hot fragmentation in 185 columns.
-- The ML smoke run never scores the full 185-column matrix with LOCO (cap 40). Absence from consensus is sometimes “not in the pool,” not “the model disproved the association.”
+- The stored ML smoke run never scores the full 185-column matrix with LOCO (cap 40). That cap was the first 40 **ColumnTransformer output-order** columns, not a trained ranking. Absence from consensus is sometimes “not in the pool,” not “the model disproved the association.” The current Part 2 code ranks that cap by train importance; figures here are still the old pool.
 - Hold-out PR-AUC with 28 events is under-powered for moderate ORs (Clopidogrel 0.50, Diabetes 1.89) that FDR can still detect on 92 events.
 
 **Why a feature can appear in ML and not in statistics**

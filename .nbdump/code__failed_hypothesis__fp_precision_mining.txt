@@ -1,0 +1,702 @@
+
+########## CELL 0 [markdown] ##########
+# TabPFN FP mining for precision-focused follow-up (VLST)
+
+**Goal:** mine **false positives** on the **test** split from **TabPFN only**. The notebook exports every TabPFN false-positive record together with the threshold(s) that caught it, plus a final count of records at each threshold.
+
+**Inputs:** After **`baseline_blending.ipynb` §9**, export the FP mining bundle (`fp_mining_bundle.joblib`, `deploy_winner_arrays.npz`, `deploy_winner_meta.json`, `kaggle_fp_inputs_manifest.json`, `README_FP_INPUTS.txt`). This notebook only uses the TabPFN probability arrays from those exports.
+
+**Multi-run:** Set **`VLST_FP_RUN_TAG`** (e.g. `run03_of_10`) so outputs go under a subfolder and do not overwrite when you repeat **`baseline_blending`** + FP mining.
+
+**Kaggle:** Section 1 looks for exports under **`/kaggle/working/vlst_fp_inputs`**, then common **`/kaggle/input/...`** layouts (including **nested** folders). If the sidebar shows a long path such as **`/kaggle/input/datasets/<user>/<slug>/vlst_fp_inputs`**, that is valid; section 1 also **recursively** searches under **`/kaggle/input`** for `fp_mining_bundle.joblib` (or the NPZ+meta pair). Override with **`VLST_FP_INPUT_ROOT`** only if needed.
+
+Set env vars only if auto-detect fails — in a **cell before** section 1, point to the directory that **directly** contains `fp_mining_bundle.joblib` (or the NPZ+JSON pair):
+
+```python
+import os
+# os.environ["VLST_FP_INPUT_ROOT"] = "/kaggle/input/datasets/<user>/<slug>/vlst_fp_inputs"
+# os.environ["VLST_FP_INPUT_ROOT"] = "/kaggle/input/vlst_fp_inputs/vlst_fp_inputs"
+# os.environ["VLST_FP_INPUT_ROOT"] = "/kaggle/working/vlst_fp_inputs"
+# os.environ["VLST_FP_OUTPUT_DIR"] = "/kaggle/working/vlst_fp_mining_output"
+# os.environ["VLST_FP_RUN_TAG"] = "seed42_run7"
+```
+
+**Local / repo:** If you have a full repo checkout with prior runs, section 1 may use **`data/result/modeling_advanced`** (from repo root) when the export files exist there.
+
+**Outputs (under `OUT_DIR`):** TabPFN **per-threshold** counts; TabPFN long CSV with one row per false-positive/threshold pair; TabPFN unique-record CSV with threshold lists per record; legacy TabPFN threshold CSV; **`fp_mining_summary.json`** + **`kaggle_fp_outputs_manifest.json`** for reuse on Kaggle.
+
+
+########## CELL 1 [markdown] ##########
+## 1. Paths, load TabPFN probabilities (from `advanced` §9 export)
+
+Loads **`fp_mining_bundle.joblib`** if present, else **`deploy_winner_arrays.npz`** + **`deploy_winner_meta.json`** (written by the same export snippet). The export still contains deploy-winner metadata for traceability, but FP mining below uses **TabPFN probabilities only**.
+
+
+########## CELL 2 [code] ##########
+import json
+import os
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.metrics import average_precision_score, f1_score
+
+def _has_fp_artifacts(root: str) -> bool:
+    b = os.path.join(root, "fp_mining_bundle.joblib")
+    m = os.path.join(root, "deploy_winner_meta.json")
+    z = os.path.join(root, "deploy_winner_arrays.npz")
+    return os.path.isfile(b) or (os.path.isfile(m) and os.path.isfile(z))
+
+
+def _discover_fp_root_under_kaggle_input() -> str | None:
+    """Deep paths like /kaggle/input/datasets/<user>/<slug>/vlst_fp_inputs are not visible to a one-level scan."""
+    from glob import glob
+
+    base = "/kaggle/input"
+    if not os.path.isdir(base):
+        return None
+    for hit in sorted(glob(os.path.join(base, "**", "fp_mining_bundle.joblib"), recursive=True)):
+        d = os.path.abspath(os.path.dirname(hit))
+        if _has_fp_artifacts(d):
+            return d
+    for meta_path in sorted(glob(os.path.join(base, "**", "deploy_winner_meta.json"), recursive=True)):
+        d = os.path.abspath(os.path.dirname(meta_path))
+        if os.path.isfile(os.path.join(d, "deploy_winner_arrays.npz")):
+            return d
+    return None
+
+
+def _pick_default_input_root() -> str:
+    env = os.environ.get("VLST_FP_INPUT_ROOT") or os.environ.get("VLST_ADVANCED_RESULT_DIR")
+    if env:
+        p = os.path.expanduser(env.rstrip(os.sep))
+        if not _has_fp_artifacts(p):
+            raise FileNotFoundError(
+                f"VLST_FP_INPUT_ROOT / VLST_ADVANCED_RESULT_DIR points to {p!r} but no fp_mining export found there."
+            )
+        return p
+
+    candidates = []
+    if os.path.isdir("/kaggle/working"):
+        candidates.append("/kaggle/working/vlst_fp_inputs")
+        candidates.append("/kaggle/working")
+    inp = "/kaggle/input"
+    if os.path.isdir(inp):
+        # Dataset zip often unpacks to .../<dataset_name>/<dataset_name>/ (nested folder)
+        candidates.append(os.path.join(inp, "vlst_fp_inputs", "vlst_fp_inputs"))
+        try:
+            for name in sorted(os.listdir(inp)):
+                root = os.path.join(inp, name)
+                if not os.path.isdir(root):
+                    continue
+                candidates.append(root)
+                candidates.append(os.path.join(root, "vlst_fp_inputs"))
+                try:
+                    for sub in sorted(os.listdir(root)):
+                        p = os.path.join(root, sub)
+                        if os.path.isdir(p):
+                            candidates.append(p)
+                except OSError:
+                    pass
+        except OSError:
+            pass
+    candidates.append(
+        os.path.normpath(os.path.join("..", "..", "data", "result", "modeling_advanced"))
+    )
+
+    seen = set()
+    ordered = []
+    for c in candidates:
+        c = os.path.abspath(c)
+        if c not in seen:
+            seen.add(c)
+            ordered.append(c)
+
+    for c in ordered:
+        if _has_fp_artifacts(c):
+            return c
+
+    if os.path.isdir(inp):
+        discovered = _discover_fp_root_under_kaggle_input()
+        if discovered:
+            return discovered
+
+    tail = ", ".join(ordered[:16])
+    if len(ordered) > 16:
+        tail += ", ..."
+    raise FileNotFoundError(
+        "No FP mining export found (need fp_mining_bundle.joblib OR deploy_winner_arrays.npz + deploy_winner_meta.json).\n"
+        "On Kaggle (FP notebook only): add a Dataset with those files and before §1 run:\n"
+        "  import os\n"
+        "  os.environ['VLST_FP_INPUT_ROOT'] = '/kaggle/input/<your_dataset_folder>'\n"
+        "Or run baseline_blending.ipynb through §9 in this session, then export the FP mining bundle from that notebook "
+        "(creates /kaggle/working/vlst_fp_inputs).\n"
+        f"Searched ({len(ordered)} paths): {tail}"
+    )
+
+
+def _resolve_fp_output_dir(result_dir: str) -> str:
+    out = os.environ.get("VLST_FP_OUTPUT_DIR")
+    if out:
+        out = os.path.expanduser(out.rstrip(os.sep))
+    elif os.path.isdir("/kaggle/working"):
+        out = "/kaggle/working/vlst_fp_mining_output"
+    else:
+        out = os.path.join(result_dir, "fp_mining")
+    os.makedirs(out, exist_ok=True)
+    return out
+
+
+RESULT_DIR = _pick_default_input_root()
+OUT_DIR = _resolve_fp_output_dir(RESULT_DIR)
+FP_RUN_TAG = os.environ.get("VLST_FP_RUN_TAG", "").strip()
+if FP_RUN_TAG:
+    OUT_DIR = os.path.join(OUT_DIR, FP_RUN_TAG)
+    os.makedirs(OUT_DIR, exist_ok=True)
+_MANIFEST = os.path.join(RESULT_DIR, "kaggle_fp_inputs_manifest.json")
+print("FP input root (RESULT_DIR):", RESULT_DIR)
+print("FP mining output dir (OUT_DIR):", OUT_DIR)
+print("FP run tag (VLST_FP_RUN_TAG):", FP_RUN_TAG or "(none)")
+if os.path.isfile(_MANIFEST):
+    print("Manifest:", _MANIFEST)
+
+BUNDLE_PATH = os.path.join(RESULT_DIR, "fp_mining_bundle.joblib")
+NPZ_PATH = os.path.join(RESULT_DIR, "deploy_winner_arrays.npz")
+META_PATH = os.path.join(RESULT_DIR, "deploy_winner_meta.json")
+BLEND_CSV = os.path.join(RESULT_DIR, "ensemble_blend_comparison.csv")
+
+# pool_pr_cal keys in §9 vs variant strings in ensemble_blend_comparison.csv
+POOL_KEY_TO_BLEND_VARIANT = {
+    "stacking_lr_cal": "stacking_lr_on_probs_cal",
+}
+
+
+def _load_bundle_or_npz():
+    if os.path.isfile(BUNDLE_PATH):
+        B = joblib.load(BUNDLE_PATH)
+        src = "fp_mining_bundle.joblib"
+        pool_keys = list(B["pool_pr_cal"].keys()) if isinstance(B.get("pool_pr_cal"), dict) else []
+        return B, src, pool_keys
+    if os.path.isfile(NPZ_PATH) and os.path.isfile(META_PATH):
+        with open(META_PATH, encoding="utf-8") as f:
+            meta = json.load(f)
+        z = np.load(NPZ_PATH)
+        tabpfn_ok = bool(meta.get("TABPFN_BLEND_AVAILABLE"))
+        B = {
+            "win_name": meta["win_name"],
+            "ENSEMBLE_DEPLOY": meta.get("ENSEMBLE_DEPLOY", "?"),
+            "X_test": np.asarray(z["X_test"]),
+            "y_test": np.asarray(z["y_test"]).astype(int).ravel(),
+            "y_cal": np.asarray(z["y_cal"]).astype(int).ravel(),
+            "feature_names": list(meta["feature_names"]),
+            "TABPFN_BLEND_AVAILABLE": tabpfn_ok,
+            "p_tabpfn_cal": np.asarray(z["p_tabpfn_cal"], dtype=float).ravel() if tabpfn_ok else None,
+            "p_tabpfn_test": np.asarray(z["p_tabpfn_test"], dtype=float).ravel() if tabpfn_ok else None,
+        }
+        if meta.get("deploy_selection") is not None:
+            B["deploy_selection"] = meta["deploy_selection"]
+        pool_keys = list(meta.get("pool_variant_keys") or [])
+        return B, "deploy_winner_arrays.npz + deploy_winner_meta.json", pool_keys
+    raise FileNotFoundError(
+        f"Need either {BUNDLE_PATH} or ({NPZ_PATH} + {META_PATH}) under RESULT_DIR={RESULT_DIR!r}. "
+        "Set VLST_FP_INPUT_ROOT (or VLST_ADVANCED_RESULT_DIR) to the folder containing the export, "
+        "or mirror artifacts to /kaggle/working/vlst_fp_inputs. "
+        "Run baseline_blending.ipynb through §9, then export the FP mining bundle from that notebook."
+    )
+
+
+B, _load_src, _pool_keys = _load_bundle_or_npz()
+win_name = B["win_name"]
+ENSEMBLE_DEPLOY = B.get("ENSEMBLE_DEPLOY", "?")
+X_test = np.asarray(B["X_test"])
+y_test = np.asarray(B["y_test"]).astype(int).ravel()
+y_cal = np.asarray(B["y_cal"]).astype(int).ravel()
+feature_names = list(B["feature_names"])
+tabpfn_ok = bool(B.get("TABPFN_BLEND_AVAILABLE")) and B.get("p_tabpfn_cal") is not None
+if tabpfn_ok:
+    p_tab_cal = np.asarray(B["p_tabpfn_cal"], dtype=float).ravel()
+    p_tab_te = np.asarray(B["p_tabpfn_test"], dtype=float).ravel()
+else:
+    p_tab_cal = p_tab_te = None
+
+test_row_id = np.arange(X_test.shape[0], dtype=int)
+
+print("Loaded from:", _load_src)
+print("Export metadata | win_name:", win_name, "| ENSEMBLE_DEPLOY:", ENSEMBLE_DEPLOY)
+print("Test shape:", X_test.shape, "| TabPFN:", tabpfn_ok)
+if B.get("deploy_selection"):
+    print("deploy_selection (from advanced export metadata):")
+    print(json.dumps(B["deploy_selection"], indent=2))
+
+# Cross-check winner vs ensemble_blend_comparison.csv (metrics-only; same logic as §9 for max_pr_cal_pool)
+if os.path.isfile(BLEND_CSV) and _pool_keys:
+    blend = pd.read_csv(BLEND_CSV)
+    variant_csv = POOL_KEY_TO_BLEND_VARIANT.get(win_name, win_name)
+    sub = blend[blend["variant"].isin(_pool_keys)]
+    if len(sub) == 0:
+        print("WARN: no blend rows match pool_variant_keys; CSV check skipped.")
+    else:
+        best_idx = sub["pr_auc_cal"].idxmax()
+        top = sub.loc[best_idx]
+        rows_tied = sub[sub["pr_auc_cal"] == top["pr_auc_cal"]]
+        csv_top_variants = set(rows_tied["variant"].astype(str))
+        print(
+            "ensemble_blend_comparison.csv | argmax pr_auc_cal in §9 pool:",
+            top["variant"],
+            "pr_auc_cal=",
+            round(float(top["pr_auc_cal"]), 6),
+            "| tied variants:",
+            len(rows_tied),
+        )
+        if variant_csv not in csv_top_variants:
+            print(
+                "WARN: bundle win_name maps to CSV variant",
+                repr(variant_csv),
+                "not among tied top-PR rows; bundle may be from a different advanced run.",
+            )
+        elif isinstance(B.get("pool_pr_cal"), dict) and win_name in B["pool_pr_cal"]:
+            p_pool = np.asarray(B["pool_pr_cal"][win_name], dtype=float).ravel()
+            ap = average_precision_score(y_cal, p_pool)
+            if abs(ap - float(top["pr_auc_cal"])) > 0.02:
+                print("WARN: cal PR-AUC mismatch bundle vs CSV row (>", 0.02, ") — check runs aligned.")
+
+---OUT---
+FP input root (RESULT_DIR): /kaggle/input/datasets/amirmahdidaraei/vlst-fp-inputs/vlst_fp_inputs
+FP mining output dir (OUT_DIR): /kaggle/working/vlst_fp_mining_output
+FP run tag (VLST_FP_RUN_TAG): (none)
+Manifest: /kaggle/input/datasets/amirmahdidaraei/vlst-fp-inputs/vlst_fp_inputs/kaggle_fp_inputs_manifest.json
+Loaded from: fp_mining_bundle.joblib
+Export metadata | win_name: grid_max_pr_auc_cal | ENSEMBLE_DEPLOY: max_pr_cal_pool
+Test shape: (1037, 173) | TabPFN: True
+deploy_selection (from advanced export metadata):
+{
+  "ENSEMBLE_DEPLOY": "max_pr_cal_pool",
+  "winner_selection_rule": "win_name = argmax over pool_pr_cal keys by PR-AUC(y_cal, pool_pr_cal[k][0])",
+  "win_name": "grid_max_pr_auc_cal"
+}
+ensemble_blend_comparison.csv | argmax pr_auc_cal in §9 pool: grid_max_pr_auc_cal pr_auc_cal= 0.760743 | tied variants: 3
+
+
+########## CELL 3 [markdown] ##########
+## 2. TabPFN threshold grid
+
+The extraction grid is `0.05 … 0.95` with step `0.01`. All false-positive mining below uses this grid and **TabPFN test probabilities only**.
+
+
+########## CELL 4 [code] ##########
+t_grid = np.round(np.arange(0.05, 0.96, 0.01), 2)
+print(
+    "TabPFN FP threshold grid:",
+    f"{float(t_grid[0]):.2f}..{float(t_grid[-1]):.2f}",
+    "step",
+    f"{float(t_grid[1] - t_grid[0]):.2f}",
+    "| n_thresholds:",
+    int(len(t_grid)),
+)
+
+---OUT---
+TabPFN FP threshold grid: 0.05..0.95 step 0.01 | n_thresholds: 91
+
+
+########## CELL 5 [markdown] ##########
+## 3. TabPFN false positives by threshold
+
+Uses the grid from §2 (`t_grid`: `0.05 … 0.95`, step `0.01`). For each threshold, collects **test** FPs among negatives (`y_test == 0`, `p_tabpfn_test >= t`).
+
+Writes:
+
+- **`tabpfn_fp_counts_by_threshold.csv`**: number of TabPFN false-positive records at each threshold.
+- **`false_positives_tabpfn_all_thresholds_long.csv`**: one row per FP/threshold pair, with the threshold that caught the row.
+- **`false_positives_tabpfn_test.csv`**: one row per unique TabPFN FP record, with a semicolon-separated list of all thresholds that caught it.
+- **`false_positives_tabpfn_maxfp_cal_threshold_test.csv`**: legacy diagnostic threshold from calibration negatives.
+
+If TabPFN was not in the bundle, this section only writes empty placeholders where needed.
+
+
+########## CELL 6 [code] ##########
+fp_tab = np.zeros(X_test.shape[0], dtype=bool)
+fp_tab_any_grid = np.zeros(X_test.shape[0], dtype=bool)
+t_tab_max_fp = None
+df_t = pd.DataFrame()
+df_tab_long = pd.DataFrame()
+df_tab_counts = pd.DataFrame()
+df_tab_unique = pd.DataFrame()
+
+if not tabpfn_ok:
+    print("TabPFN not in bundle — skip §3. Enable TabPFN in advanced §8b and re-export.")
+else:
+    # --- Legacy: max FP count on calibration negatives (narrow diagnostic CSV) ---
+    neg_cal = y_cal == 0
+    p_neg = p_tab_cal[neg_cal]
+    t_candidates = np.unique(
+        np.concatenate([[1e-8, 1e-6, 1e-4, 1e-3], np.arange(0.01, 1.0, 0.005)])
+    )
+    best_cnt, best_ties = -1, []
+    for t in t_candidates:
+        cnt = int((p_neg >= t).sum())
+        if cnt > best_cnt:
+            best_cnt, best_ties = cnt, [float(t)]
+        elif cnt == best_cnt:
+            best_ties.append(float(t))
+    t_tab_max_fp = min(best_ties)
+    print(
+        "TabPFN legacy | max FP on cal negatives:",
+        best_cnt,
+        "/",
+        int(neg_cal.sum()),
+        "| chosen t (min among ties):",
+        t_tab_max_fp,
+    )
+
+    fp_tab = (y_test == 0) & (p_tab_te >= t_tab_max_fp)
+    print("Test | TabPFN FP at legacy t*:", int(fp_tab.sum()))
+
+    df_t = pd.DataFrame(X_test[fp_tab], columns=feature_names)
+    df_t.insert(0, "test_row_id", test_row_id[fp_tab])
+    df_t["y_true"] = y_test[fp_tab]
+    df_t["p_tabpfn"] = p_tab_te[fp_tab]
+    df_t["threshold"] = float(t_tab_max_fp)
+    df_t["n_tabpfn_thresholds"] = 1
+    df_t["tabpfn_threshold_min"] = float(t_tab_max_fp)
+    df_t["tabpfn_threshold_max"] = float(t_tab_max_fp)
+    df_t["tabpfn_thresholds"] = f"{float(t_tab_max_fp):.8g}"
+    df_t["source"] = "tabpfn_max_fp_on_cal_negs"
+
+    _path_t = os.path.join(OUT_DIR, "false_positives_tabpfn_maxfp_cal_threshold_test.csv")
+    df_t.to_csv(_path_t, index=False)
+    print("Saved", _path_t, "rows:", len(df_t))
+
+    # --- All thresholds on the TabPFN extraction grid ---
+    counts_rows = []
+    parts = []
+    for t in t_grid:
+        t = float(t)
+        m = (y_test == 0) & (p_tab_te >= t)
+        counts_rows.append({"threshold": t, "n_fp_test_negatives": int(m.sum())})
+        if m.any():
+            parts.append(
+                pd.DataFrame(
+                    {
+                        "threshold": t,
+                        "test_row_id": test_row_id[m],
+                        "y_true": y_test[m],
+                        "p_tabpfn": p_tab_te[m],
+                        "source": "tabpfn_grid_t_%0.2f" % (t,),
+                    }
+                )
+            )
+    df_tab_counts = pd.DataFrame(counts_rows)
+    _path_counts = os.path.join(OUT_DIR, "tabpfn_fp_counts_by_threshold.csv")
+    df_tab_counts.to_csv(_path_counts, index=False)
+    print("Saved", _path_counts)
+
+    print("\nTabPFN | final FP record counts by threshold:")
+    print(df_tab_counts.to_string(index=False))
+
+    if parts:
+        df_tab_long = pd.concat(parts, ignore_index=True)
+        _path_long = os.path.join(OUT_DIR, "false_positives_tabpfn_all_thresholds_long.csv")
+        df_tab_long.to_csv(_path_long, index=False)
+        print("Saved", _path_long, "rows:", len(df_tab_long))
+    else:
+        print("No TabPFN test FPs on t_grid.")
+
+    fp_tab_any_grid = (y_test == 0) & (p_tab_te >= float(t_grid[0]))
+    print(
+        "TabPFN | unique FP records over t_grid (y=0 & p_tab>=%.2f): %d test rows"
+        % (float(t_grid[0]), int(fp_tab_any_grid.sum()))
+    )
+
+    df_tab_unique = pd.DataFrame(X_test[fp_tab_any_grid], columns=feature_names)
+    df_tab_unique.insert(0, "test_row_id", test_row_id[fp_tab_any_grid])
+    df_tab_unique["y_true"] = y_test[fp_tab_any_grid]
+    df_tab_unique["p_tabpfn"] = p_tab_te[fp_tab_any_grid]
+    _caught_thresholds = [
+        [float(t) for t in t_grid if float(p) >= float(t)] for p in p_tab_te[fp_tab_any_grid]
+    ]
+    df_tab_unique["n_tabpfn_thresholds"] = [len(x) for x in _caught_thresholds]
+    df_tab_unique["tabpfn_threshold_min"] = [min(x) if x else np.nan for x in _caught_thresholds]
+    df_tab_unique["tabpfn_threshold_max"] = [max(x) if x else np.nan for x in _caught_thresholds]
+    df_tab_unique["tabpfn_thresholds"] = [";".join(f"{t:.2f}" for t in x) for x in _caught_thresholds]
+    df_tab_unique["source"] = "tabpfn_grid_union"
+
+    _path_unique = os.path.join(OUT_DIR, "false_positives_tabpfn_test.csv")
+    df_tab_unique.to_csv(_path_unique, index=False)
+    print("Saved", _path_unique, "rows:", len(df_tab_unique))
+
+    _tab_manifest = {
+        "threshold_grid": [float(x) for x in t_grid],
+        "files": {
+            "counts": "tabpfn_fp_counts_by_threshold.csv",
+            "long_format_fps": "false_positives_tabpfn_all_thresholds_long.csv",
+            "unique_fps_with_thresholds": "false_positives_tabpfn_test.csv",
+            "legacy_max_fp_cal_negs": "false_positives_tabpfn_maxfp_cal_threshold_test.csv",
+        },
+        "note": "Unique FP set over all t in grid equals negatives with p_tabpfn >= min(threshold_grid).",
+    }
+    with open(os.path.join(OUT_DIR, "tabpfn_threshold_outputs.json"), "w", encoding="utf-8") as f:
+        json.dump(_tab_manifest, f, indent=2)
+    print("Wrote", os.path.join(OUT_DIR, "tabpfn_threshold_outputs.json"))
+
+---OUT---
+TabPFN legacy | max FP on cal negatives: 612 / 612 | chosen t (min among ties): 1e-08
+Test | TabPFN FP at legacy t*: 1019
+Saved /kaggle/working/vlst_fp_mining_output/false_positives_tabpfn_maxfp_cal_threshold_test.csv rows: 1019
+Saved /kaggle/working/vlst_fp_mining_output/tabpfn_fp_counts_by_threshold.csv
+
+TabPFN | final FP record counts by threshold:
+ threshold  n_fp_test_negatives
+      0.05                   43
+      0.06                   38
+      0.07                   37
+      0.08                   36
+      0.09                   34
+      0.10                   32
+      0.11                   30
+      0.12                   29
+      0.13                   28
+      0.14                   26
+      0.15                   25
+      0.16                   24
+      0.17                   23
+      0.18                   23
+      0.19                   23
+      0.20                   23
+      0.21                   22
+      0.22                   22
+      0.23                   22
+      0.24                   21
+      0.25                   19
+      0.26                   18
+      0.27                   18
+      0.28                   16
+      0.29                   16
+      0.30                   16
+      0.31                   16
+      0.32                   15
+      0.33                   14
+      0.34                   11
+      0.35                   10
+      0.36                   10
+      0.37                    9
+      0.38                    7
+      0.39                    6
+      0.40                    6
+      0.41                    6
+      0.42                    5
+      0.43                    5
+      0.44                    5
+      0.45                    5
+      0.46                    5
+      0.47                    5
+      0.48                    5
+      0.49                    4
+      0.50                    4
+      0.51                    4
+      0.52                    4
+      0.53                    4
+      0.54                    3
+      0.55                    3
+      0.56                    3
+      0.57                    2
+      0.58                    2
+      0.59                    2
+      0.60                    0
+      0.61                    0
+      0.62                    0
+      0.63                    0
+      0.64                    0
+      0.65                    0
+      0.66                    0
+      0.67                    0
+      0.68                    0
+      0.69                    0
+      0.70                    0
+      0.71                    0
+      0.72                    0
+      0.73                    0
+      0.74                    0
+      0.75                    0
+      0.76                    0
+      0.77                    0
+      0.78                    0
+      0.79                    0
+      0.80                    0
+      0.81                    0
+      0.82                    0
+      0.83                    0
+      0.84                    0
+      0.85                    0
+      0.86                    0
+      0.87                    0
+      0.88                    0
+      0.89                    0
+      0.90                    0
+      0.91                    0
+      0.92                    0
+      0.93                    0
+      0.94                    0
+      0.95                    0
+Saved /kaggle/working/vlst_fp_mining_output/false_positives_tabpfn_all_thresholds_long.csv rows: 844
+TabPFN | unique FP records over t_grid (y=0 & p_tab>=0.05): 43 test rows
+Saved /kaggle/working/vlst_fp_mining_output/false_positives_tabpfn_test.csv rows: 43
+Wrote /kaggle/working/vlst_fp_mining_output/tabpfn_threshold_outputs.json
+
+
+########## CELL 7 [markdown] ##########
+## 4. Final TabPFN FP outputs
+
+Final outputs are **TabPFN only**. The unique FP table contains one row per test negative caught by at least one threshold on `t_grid`; `tabpfn_thresholds` lists every threshold that produced that false positive.
+
+
+########## CELL 8 [code] ##########
+df_u = df_tab_unique.copy()
+
+_path_u = os.path.join(OUT_DIR, "false_positives_union_test.csv")
+df_u.to_csv(_path_u, index=False)
+print("Saved", _path_u, "rows:", len(df_u), "(TabPFN-only union)")
+
+if not df_tab_counts.empty:
+    print("\nFinal TabPFN FP records by threshold:")
+    print(df_tab_counts.to_string(index=False))
+
+meta = {
+    "fp_input_root": RESULT_DIR,
+    "fp_output_dir": OUT_DIR,
+    "VLST_FP_RUN_TAG": FP_RUN_TAG or None,
+    "source_model": "tabpfn",
+    "win_name_export_metadata_only": win_name,
+    "ENSEMBLE_DEPLOY_export_metadata_only": ENSEMBLE_DEPLOY,
+    "deploy_selection_export_metadata_only": B.get("deploy_selection"),
+    "t_grid_tabpfn": [float(t_grid[0]), float(t_grid[-1]), float(t_grid[1] - t_grid[0])],
+    "tabpfn_fp_counts_by_threshold": df_tab_counts.to_dict(orient="records"),
+    "t_tabpfn_max_fp_cal_negs": None if t_tab_max_fp is None else float(t_tab_max_fp),
+    "n_fp_tabpfn_legacy_test": int(fp_tab.sum()),
+    "n_fp_tabpfn_any_grid_threshold_test": int(fp_tab_any_grid.sum()),
+    "n_unique_tabpfn_fp_test": int(len(df_u)),
+    "n_test": int(X_test.shape[0]),
+    "n_test_negatives": int((y_test == 0).sum()),
+    "artifacts_relative": {
+        "tabpfn_unique_fps_with_thresholds": "false_positives_tabpfn_test.csv",
+        "tabpfn_fp_counts_by_threshold": "tabpfn_fp_counts_by_threshold.csv",
+        "tabpfn_fps_long": "false_positives_tabpfn_all_thresholds_long.csv",
+        "tabpfn_fps_legacy_maxfp_cal": "false_positives_tabpfn_maxfp_cal_threshold_test.csv",
+        "tabpfn_threshold_json": "tabpfn_threshold_outputs.json",
+        "tabpfn_only_union": "false_positives_union_test.csv",
+        "summary": "fp_mining_summary.json",
+    },
+}
+with open(os.path.join(OUT_DIR, "fp_mining_summary.json"), "w") as f:
+    json.dump(meta, f, indent=2)
+print("Wrote fp_mining_summary.json")
+
+_out_manifest = {
+    "description": "VLST TabPFN-only FP mining outputs with thresholds per false-positive record.",
+    "fp_output_dir": OUT_DIR,
+    "fp_input_root_used": RESULT_DIR,
+    "VLST_FP_RUN_TAG": FP_RUN_TAG or None,
+    "source_model": "tabpfn",
+    "files": {k: os.path.join(OUT_DIR, v) for k, v in meta["artifacts_relative"].items()},
+}
+with open(os.path.join(OUT_DIR, "kaggle_fp_outputs_manifest.json"), "w", encoding="utf-8") as f:
+    json.dump(_out_manifest, f, indent=2)
+print("Wrote kaggle_fp_outputs_manifest.json")
+
+---OUT---
+Saved /kaggle/working/vlst_fp_mining_output/false_positives_union_test.csv rows: 43 (TabPFN-only union)
+
+Final TabPFN FP records by threshold:
+ threshold  n_fp_test_negatives
+      0.05                   43
+      0.06                   38
+      0.07                   37
+      0.08                   36
+      0.09                   34
+      0.10                   32
+      0.11                   30
+      0.12                   29
+      0.13                   28
+      0.14                   26
+      0.15                   25
+      0.16                   24
+      0.17                   23
+      0.18                   23
+      0.19                   23
+      0.20                   23
+      0.21                   22
+      0.22                   22
+      0.23                   22
+      0.24                   21
+      0.25                   19
+      0.26                   18
+      0.27                   18
+      0.28                   16
+      0.29                   16
+      0.30                   16
+      0.31                   16
+      0.32                   15
+      0.33                   14
+      0.34                   11
+      0.35                   10
+      0.36                   10
+      0.37                    9
+      0.38                    7
+      0.39                    6
+      0.40                    6
+      0.41                    6
+      0.42                    5
+      0.43                    5
+      0.44                    5
+      0.45                    5
+      0.46                    5
+      0.47                    5
+      0.48                    5
+      0.49                    4
+      0.50                    4
+      0.51                    4
+      0.52                    4
+      0.53                    4
+      0.54                    3
+      0.55                    3
+      0.56                    3
+      0.57                    2
+      0.58                    2
+      0.59                    2
+      0.60                    0
+      0.61                    0
+      0.62                    0
+      0.63                    0
+      0.64                    0
+      0.65                    0
+      0.66                    0
+      0.67                    0
+      0.68                    0
+      0.69                    0
+      0.70                    0
+      0.71                    0
+      0.72                    0
+      0.73                    0
+      0.74                    0
+      0.75                    0
+      0.76                    0
+      0.77                    0
+      0.78                    0
+      0.79                    0
+      0.80                    0
+      0.81                    0
+      0.82                    0
+      0.83                    0
+      0.84                    0
+      0.85                    0
+      0.86                    0
+      0.87                    0
+      0.88                    0
+      0.89                    0
+      0.90                    0
+      0.91                    0
+      0.92                    0
+      0.93                    0
+      0.94                    0
+      0.95                    0
+Wrote fp_mining_summary.json
+Wrote kaggle_fp_outputs_manifest.json

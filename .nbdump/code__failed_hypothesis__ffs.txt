@@ -1,0 +1,193 @@
+
+########## CELL 0 [markdown] ##########
+# Forward Feature Selection (FFS) for VLST
+
+This notebook performs **forward feature selection** using the **preprocessed** VLST data from `../modeling/preprocessing/preprocessing.ipynb`. It uses cross-validated scoring to greedily add features that improve model performance (e.g. F1 or PR-AUC).
+
+- **Data**: `data/processed/` (X_train, y_train, feature_names; resolved from repo root)
+- **Method**: Sequential forward selection with stratified CV
+- **Output**: Selected feature names and indices saved to `data/result/ffs/`
+
+########## CELL 1 [markdown] ##########
+## 1. Imports and paths
+
+########## CELL 2 [code] ##########
+import os
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.feature_selection import SequentialFeatureSelector
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold
+
+np.random.seed(42)
+
+def _find_repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for p in [here, *here.parents]:
+        if (p / "data" / "raw" / "VLST.csv").is_file():
+            return p
+    raise FileNotFoundError("Could not locate data/raw/VLST.csv above cwd.")
+REPO_ROOT = _find_repo_root()
+
+PROCESSED_DIR = str(REPO_ROOT / "data" / "processed")
+RESULT_DIR = str(REPO_ROOT / "data" / "result" / "ffs")
+os.makedirs(RESULT_DIR, exist_ok=True)
+
+########## CELL 3 [markdown] ##########
+## 2. Load preprocessed data
+
+########## CELL 4 [code] ##########
+X_train = np.load(os.path.join(PROCESSED_DIR, "X_train.npy"))
+y_train = np.load(os.path.join(PROCESSED_DIR, "y_train.npy"))
+feature_names = pd.read_csv(os.path.join(PROCESSED_DIR, "feature_names.csv"))[
+    "feature_name"
+].tolist()
+
+print(f"X_train: {X_train.shape}")
+print(f"y_train: {y_train.shape} (0={np.sum(y_train == 0)}, 1={np.sum(y_train == 1)})")
+print(f"Features: {len(feature_names)}")
+---OUT---
+X_train: (4148, 174)
+y_train: (4148,) (0=4074, 1=74)
+Features: 174
+
+
+########## CELL 5 [markdown] ##########
+## 3. Forward feature selection
+
+########## CELL 6 [markdown] ##########
+We use `SequentialFeatureSelector` with a classifier and stratified CV. You can set `n_features_to_select` (integer or fraction) and `scoring` (e.g. `'f1'`, `'average_precision'`).
+
+########## CELL 7 [code] ##########
+N_FEATURES_TO_SELECT = 30  # top 30 features
+SCORING = "f1"  # or 'average_precision', 'roc_auc'
+CV_SPLITS = 5
+
+cv = StratifiedKFold(n_splits=CV_SPLITS, shuffle=True, random_state=42)
+estimator = LogisticRegression(class_weight="balanced", max_iter=2000, random_state=42)
+
+sfs = SequentialFeatureSelector(
+    estimator=estimator,
+    n_features_to_select=min(N_FEATURES_TO_SELECT, X_train.shape[1]),
+    direction="forward",
+    scoring=SCORING,
+    cv=cv,
+    n_jobs=-1,
+)
+sfs.fit(X_train, y_train)
+---OUT---
+SequentialFeatureSelector(cv=StratifiedKFold(n_splits=5, random_state=42, shuffle=True),
+                          estimator=LogisticRegression(class_weight='balanced',
+                                                       max_iter=2000,
+                                                       random_state=42),
+                          n_features_to_select=30, n_jobs=-1, scoring='f1')
+
+########## CELL 8 [code] ##########
+selected_mask = sfs.get_support()
+selected_names = [
+    feature_names[i] for i in range(len(feature_names)) if selected_mask[i]
+]
+selected_indices = np.where(selected_mask)[0].tolist()
+
+print(f"Selected {len(selected_names)} features:")
+for i, name in enumerate(selected_names, 1):
+    print(f"  {i:2d}. {name}")
+---OUT---
+Selected 30 features:
+   1. Time since stent implantation
+   2. Men
+   3. Moderate/severe tortuosity
+   4. Aneurysm
+   5. Vessel dialation
+   6. Stent type-SES_Ex/Pa
+   7. Stent type-SES_Excecl
+   8. Stent type-SES_Excel/Partner
+   9. Stent type-SES_Firebid
+  10. Stent type-SES_LAD:Excel
+  11. Stent type-SES_LAD:Firebird
+  12. Stent type-SES_LAD:Partner
+  13. Stent type-SES_LAD:Resolute
+  14. Stent type-SES_LAD:XienceV
+  15. Stent type-SES_LAD：Firebird
+  16. Stent type-SES_LAD：Tivoli
+  17. Stent type-SES_LCX:XienceV
+  18. Stent type-SES_LCX：Excel
+  19. Stent type-SES_LCX：Firebird
+  20. Stent type-SES_LCX：Resolute
+  21. Stent type-SES_LCX：Tivoli
+  22. Stent type-SES_Neovas可降解
+  23. Stent type-SES_Parnter
+  24. Stent type-SES_Partner 
+  25. Stent type-SES_RCA:Tivoli
+  26. Stent type-SES_RCA：Excel
+  27. Stent type-SES_RCA：Firebird
+  28. Stent type-SES_RCA：Resolute
+  29. Stent type-SES_RCA：Tivoli
+  30. Stent type-SES_Tivoli/Firebird
+
+
+########## CELL 9 [markdown] ##########
+## 4. CV score with selected features
+
+########## CELL 10 [code] ##########
+from sklearn.model_selection import cross_val_score
+
+X_train_sel = sfs.transform(X_train)
+scores = cross_val_score(estimator, X_train_sel, y_train, cv=cv, scoring=SCORING)
+print(
+    f"CV {SCORING} (selected features): {scores.mean():.4f} (+/- {scores.std() * 2:.4f})"
+)
+---OUT---
+CV f1 (selected features): 0.8733 (+/- 0.1513)
+
+
+########## CELL 11 [markdown] ##########
+## 5. Save results
+
+########## CELL 12 [code] ##########
+pd.DataFrame({"feature_name": selected_names, "index": selected_indices}).to_csv(
+    os.path.join(RESULT_DIR, "selected_features.csv"), index=False
+)
+np.save(os.path.join(RESULT_DIR, "selected_indices.npy"), np.array(selected_indices))
+print(f"Saved to {RESULT_DIR}")
+---OUT---
+Saved to ../data/result/ffs
+
+
+########## CELL 13 [markdown] ##########
+## 6. (Optional) Step-by-step selection history
+
+If you need the score at each step, run a simple custom forward loop below. Otherwise the sklearn `SequentialFeatureSelector` above is sufficient.
+
+########## CELL 14 [code] ##########
+def forward_selection_custom(
+        X, y, feature_names, estimator, cv, scoring="f1", max_features=30
+):
+    """Simple forward selection: at each step add the feature that gives best CV score."""
+    n_features = X.shape[1]
+    selected = []
+    remaining = list(range(n_features))
+    history = []
+
+    for step in range(min(max_features, len(remaining))):
+        best_score = -np.inf
+        best_idx = None
+        for idx in remaining:
+            cols = selected + [idx]
+            X_sub = X[:, cols]
+            scores = cross_val_score(estimator, X_sub, y, cv=cv, scoring=scoring)
+            mean_score = scores.mean()
+            if mean_score > best_score:
+                best_score = mean_score
+                best_idx = idx
+        if best_idx is None:
+            break
+        selected.append(best_idx)
+        remaining.remove(best_idx)
+        history.append(
+            {"step": step + 1, "feature": feature_names[best_idx], "score": best_score}
+        )
+
+    return selected, history

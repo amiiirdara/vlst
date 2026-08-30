@@ -1,0 +1,1068 @@
+
+########## CELL 0 [markdown] ##########
+# TabPFN 5-fold false-positive mining (VLST)
+
+Runs TabPFN five times with an outer **StratifiedKFold** split. The five test folds are disjoint and their union is the original dataset. Inside each fold, the non-test rows are split into train + calibration, so each fold has disjoint train/calibration/test rows.
+
+Outputs are TabPFN-only false positives from the fold test sets:
+
+- all thresholds on `ALL_THRESHOLDS` (`0.05..0.95`, step `0.01` by default)
+- focused thresholds on `FOCUS_THRESHOLDS` (`0.20..0.60`, step `0.01` by default)
+- unique FP datasets with no repeated `full_row_id`
+- long FP datasets with one row per `(full_row_id, threshold)` pair
+- per-threshold counts and fold summaries
+
+Note: standard 5-fold CV has overlapping training sets across folds. What is guaranteed here is: no test-fold overlap, test-fold union equals the full dataset, and train/calibration/test are disjoint within each fold.
+
+
+########## CELL 1 [markdown] ##########
+## 1. Install TabPFN client
+
+Run this once per fresh environment. This matches `tabpfn_fp_followup.ipynb`: use **`tabpfn-client`** cloud API with an explicit token setup cell, so the client never opens an interactive login prompt.
+
+
+########## CELL 2 [code] ##########
+import subprocess
+import sys
+
+subprocess.check_call([sys.executable, "-m", "pip", "install", "-U", "tabpfn-client"])
+print("Installed/updated tabpfn-client")
+
+
+########## CELL 3 [markdown] ##########
+## 2. Imports and configuration
+
+Set `VLST_RAW_CSV`, `VLST_5FOLD_FP_OUT_DIR`, or `TABPFN_TOKEN` in the environment if auto-detection is not enough. On Kaggle, you can also store the key as secret `TABPFN_TOKEN_H`, matching `tabpfn_fp_followup.ipynb`.
+
+
+########## CELL 4 [code] ##########
+import json
+import os
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from sklearn.metrics import average_precision_score, precision_recall_fscore_support, roc_auc_score
+from sklearn.model_selection import StratifiedKFold, train_test_split
+
+TARGET_COL = "Stent thrombosis"
+DROP_FEATURES = ["Time since stent implantation"]
+ID_COLS = ["NO.", "Name"]
+RANDOM_STATE = int(os.environ.get("VLST_5FOLD_RANDOM_STATE", "42"))
+N_SPLITS = int(os.environ.get("VLST_5FOLD_N_SPLITS", "5"))
+CAL_SIZE = float(os.environ.get("VLST_5FOLD_CAL_SIZE", "0.15"))
+
+ALL_THRESHOLDS = np.round(np.arange(0.05, 0.96, 0.01), 2)
+FOCUS_THRESHOLDS = np.round(np.arange(0.20, 0.61, 0.01), 2)
+THRESHOLD_T50 = float(os.environ.get("VLST_THRESHOLD_T50", "0.50"))
+THRESHOLD_T50_ARRAY = np.array([THRESHOLD_T50])
+
+TABPFN_N_ESTIMATORS = int(os.environ.get("TABPFN_N_ESTIMATORS", os.environ.get("VLST_TABPFN_N_ESTIMATORS", "8")))
+BALANCE_PROBABILITIES = os.environ.get("VLST_TABPFN_BALANCE_PROBABILITIES", "1").strip().lower() not in {"0", "false", "no"}
+IGNORE_PRETRAINING_LIMITS = os.environ.get("VLST_TABPFN_IGNORE_PRETRAINING_LIMITS", "1").strip().lower() not in {"0", "false", "no"}
+
+print("N_SPLITS:", N_SPLITS)
+print("CAL_SIZE:", CAL_SIZE)
+print("ALL_THRESHOLDS:", f"{ALL_THRESHOLDS[0]:.2f}..{ALL_THRESHOLDS[-1]:.2f}", "n=", len(ALL_THRESHOLDS))
+print("THRESHOLD_T50:", THRESHOLD_T50)
+print("FOCUS_THRESHOLDS:", f"{FOCUS_THRESHOLDS[0]:.2f}..{FOCUS_THRESHOLDS[-1]:.2f}", "n=", len(FOCUS_THRESHOLDS))
+print("TabPFN backend: tabpfn-client (cloud API)")
+print("TABPFN_N_ESTIMATORS:", TABPFN_N_ESTIMATORS)
+
+
+########## CELL 5 [markdown] ##########
+## 3. Resolve paths and load VLST
+
+The raw loader mirrors `tabpfn.ipynb`: it drops ID columns, drops the leakage feature, keeps NaNs, and integer-codes text columns without one-hot encoding.
+
+
+########## CELL 6 [code] ##########
+def _find_repo_root() -> Path:
+    p = Path.cwd().resolve()
+    for cand in [p, *p.parents]:
+        if (cand / "data").exists() and (cand / "code").exists():
+            return cand
+    return p
+
+
+def _discover_vlst_csv() -> Path:
+    env = os.environ.get("VLST_RAW_CSV") or os.environ.get("VLST_FULL_DATA_PATH")
+    if env:
+        p = Path(env).expanduser()
+        if p.is_file():
+            return p
+        raise FileNotFoundError(f"Configured VLST csv does not exist: {p}")
+
+    candidates = []
+    if os.path.isdir("/kaggle/input"):
+        for root, _, files in os.walk("/kaggle/input"):
+            if "VLST.csv" in files:
+                candidates.append(Path(root) / "VLST.csv")
+    repo = _find_repo_root()
+    candidates.append(repo / "data" / "raw" / "VLST.csv")
+
+    for p in candidates:
+        if p.is_file():
+            return p
+    raise FileNotFoundError("Could not find VLST.csv. Set VLST_RAW_CSV or VLST_FULL_DATA_PATH.")
+
+
+def _resolve_out_dir() -> Path:
+    env = os.environ.get("VLST_5FOLD_FP_OUT_DIR")
+    if env:
+        out = Path(env).expanduser()
+    elif os.path.isdir("/kaggle/working"):
+        out = Path("/kaggle/working/vlst_tabpfn_5fold_fp_output")
+    else:
+        out = _find_repo_root() / "data" / "result" / "tabpfn_5fold_fp_mining"
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+RAW_PATH = _discover_vlst_csv()
+OUT_DIR = _resolve_out_dir()
+print("RAW_PATH:", RAW_PATH)
+print("OUT_DIR:", OUT_DIR)
+
+
+def load_raw_vlst(raw_path: Path):
+    df = pd.read_csv(raw_path, low_memory=False)
+    original_row_id = np.arange(len(df), dtype=int)
+    df_model = df.drop(columns=[c for c in ID_COLS if c in df.columns])
+    y = pd.to_numeric(df_model[TARGET_COL], errors="coerce").fillna(0).astype(int).to_numpy()
+    drop = [TARGET_COL] + [c for c in DROP_FEATURES if c in df_model.columns]
+    X_df = df_model.drop(columns=drop).copy()
+    for c in X_df.columns:
+        if not pd.api.types.is_numeric_dtype(X_df[c]):
+            codes, _ = pd.factorize(X_df[c], sort=True)
+            codes = pd.Series(codes, index=X_df.index).replace(-1, np.nan)
+            X_df[c] = codes
+        X_df[c] = pd.to_numeric(X_df[c], errors="coerce")
+    return X_df.to_numpy(dtype=float), y, list(X_df.columns), original_row_id, df
+
+
+X_all, y_all, feature_names, full_row_id, df_raw = load_raw_vlst(RAW_PATH)
+if not set(np.unique(y_all)).issubset({0, 1}):
+    raise ValueError("Target column must be binary 0/1.")
+print("Loaded:", X_all.shape, "features=", len(feature_names))
+print("Target counts:", dict(zip(*np.unique(y_all, return_counts=True))))
+
+
+########## CELL 7 [markdown] ##########
+## 4. TabPFN helpers
+
+
+########## CELL 8 [code] ##########
+from tabpfn_client import TabPFNClassifier, set_access_token
+
+_KAGGLE_SECRET_NAME = "TABPFN_TOKEN_H"
+
+_token = os.environ.get("TABPFN_TOKEN", "").strip()
+if not _token:
+    _token = os.environ.get("TABPFN_TOKEN_H", "").strip()
+if not _token:
+    try:
+        from kaggle_secrets import UserSecretsClient
+
+        _token = str(UserSecretsClient().get_secret(_KAGGLE_SECRET_NAME)).strip()
+    except Exception:
+        pass
+
+if _token:
+    os.environ["TABPFN_TOKEN"] = _token
+    set_access_token(_token)
+    print("TabPFN client: access token configured (value hidden).")
+else:
+    raise RuntimeError(
+        f"TABPFN_TOKEN missing. Set TABPFN_TOKEN / TABPFN_TOKEN_H (env) or Kaggle secret {_KAGGLE_SECRET_NAME!r}. "
+        "API key: https://ux.priorlabs.ai/account"
+    )
+
+
+def make_tabpfn(seed: int) -> TabPFNClassifier:
+    """tabpfn-client API (cloud); no local `device` argument."""
+    return TabPFNClassifier(
+        random_state=int(seed),
+        n_estimators=TABPFN_N_ESTIMATORS,
+        ignore_pretraining_limits=bool(IGNORE_PRETRAINING_LIMITS),
+        balance_probabilities=bool(BALANCE_PROBABILITIES),
+    )
+
+
+def positive_proba(clf, X):
+    classes = list(clf.classes_)
+    idx = classes.index(1) if 1 in classes else 1
+    return np.asarray(clf.predict_proba(X)[:, idx], dtype=float)
+
+
+def safe_train_cal_split(trainval_idx, y, cal_size, seed):
+    y_tv = y[trainval_idx]
+    _, counts = np.unique(y_tv, return_counts=True)
+    stratify = y_tv if len(counts) == 2 and int(counts.min()) >= 2 else None
+    tr, cal = train_test_split(
+        trainval_idx,
+        test_size=cal_size,
+        random_state=seed,
+        shuffle=True,
+        stratify=stratify,
+    )
+    return np.asarray(tr, dtype=int), np.asarray(cal, dtype=int)
+
+
+def threshold_list_for_score(score, thresholds):
+    return [float(t) for t in thresholds if float(score) >= float(t)]
+
+
+def build_long_fp_table(pred_df, thresholds, source_prefix):
+    parts = []
+    counts = []
+    neg = pred_df["y_true"].to_numpy(dtype=int) == 0
+    scores = pred_df["p_tabpfn"].to_numpy(dtype=float)
+    for t in thresholds:
+        t = float(t)
+        m = neg & (scores >= t)
+        counts.append({"threshold": t, "n_fp_test_negatives": int(m.sum())})
+        if m.any():
+            cols = ["fold", "full_row_id", "fold_test_position", "y_true", "p_tabpfn"]
+            part = pred_df.loc[m, cols].copy()
+            part.insert(2, "threshold", t)
+            part["source"] = f"{source_prefix}_t_{t:.2f}"
+            parts.append(part)
+    df_long = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(
+        columns=["fold", "full_row_id", "threshold", "fold_test_position", "y_true", "p_tabpfn", "source"]
+    )
+    df_counts = pd.DataFrame(counts)
+    return df_long, df_counts
+
+
+def build_unique_fp_table(pred_df, thresholds, source, X_all, feature_names):
+    min_t = float(np.min(thresholds))
+    m = (pred_df["y_true"].to_numpy(dtype=int) == 0) & (pred_df["p_tabpfn"].to_numpy(dtype=float) >= min_t)
+    base = pred_df.loc[m, ["fold", "full_row_id", "fold_test_position", "y_true", "p_tabpfn"]].copy()
+    if base.empty:
+        return pd.DataFrame(columns=["fold", "full_row_id", "fold_test_position", "y_true", "p_tabpfn"])
+
+    if base["full_row_id"].duplicated().any():
+        dupes = base.loc[base["full_row_id"].duplicated(), "full_row_id"].tolist()
+        raise RuntimeError(f"Duplicate full_row_id in unique FP candidate table: {dupes[:10]}")
+
+    caught = [threshold_list_for_score(p, thresholds) for p in base["p_tabpfn"].to_numpy(dtype=float)]
+    base["n_tabpfn_thresholds"] = [len(x) for x in caught]
+    base["tabpfn_threshold_min"] = [min(x) if x else np.nan for x in caught]
+    base["tabpfn_threshold_max"] = [max(x) if x else np.nan for x in caught]
+    base["tabpfn_thresholds"] = [";".join(f"{t:.2f}" for t in x) for x in caught]
+    base["source"] = source
+
+    feature_block = pd.DataFrame(X_all[base["full_row_id"].to_numpy(dtype=int)], columns=feature_names)
+    return pd.concat([base.reset_index(drop=True), feature_block.reset_index(drop=True)], axis=1)
+
+
+########## CELL 9 [markdown] ##########
+## 5. Five-fold TabPFN runs
+
+For each fold: split the non-test rows into train/calibration, fit TabPFN on train, predict calibration and test, and collect test probabilities. Calibration predictions are saved for threshold diagnostics but false positives are mined from test folds only.
+
+
+########## CELL 10 [code] ##########
+skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
+
+pred_parts = []
+cal_parts = []
+fold_rows = []
+test_seen = []
+
+for fold, (trainval_idx, test_idx) in enumerate(skf.split(X_all, y_all), start=1):
+    fold_seed = RANDOM_STATE + fold
+    train_idx, cal_idx = safe_train_cal_split(trainval_idx, y_all, CAL_SIZE, fold_seed)
+
+    sets = {
+        "train": set(map(int, train_idx)),
+        "cal": set(map(int, cal_idx)),
+        "test": set(map(int, test_idx)),
+    }
+    if sets["train"] & sets["cal"] or sets["train"] & sets["test"] or sets["cal"] & sets["test"]:
+        raise RuntimeError(f"Fold {fold}: train/cal/test overlap detected")
+
+    print(
+        f"Fold {fold}/{N_SPLITS} | train={len(train_idx)} cal={len(cal_idx)} test={len(test_idx)} "
+        f"| test positives={int(y_all[test_idx].sum())} negatives={int((y_all[test_idx] == 0).sum())}"
+    )
+    t0 = time.time()
+    clf = make_tabpfn(fold_seed)
+    clf.fit(X_all[train_idx], y_all[train_idx])
+    p_cal = positive_proba(clf, X_all[cal_idx])
+    p_test = positive_proba(clf, X_all[test_idx])
+    elapsed = time.time() - t0
+
+    pred_parts.append(
+        pd.DataFrame(
+            {
+                "fold": fold,
+                "full_row_id": full_row_id[test_idx],
+                "fold_test_position": np.arange(len(test_idx), dtype=int),
+                "y_true": y_all[test_idx],
+                "p_tabpfn": p_test,
+            }
+        )
+    )
+    cal_parts.append(
+        pd.DataFrame(
+            {
+                "fold": fold,
+                "full_row_id": full_row_id[cal_idx],
+                "y_true": y_all[cal_idx],
+                "p_tabpfn": p_cal,
+            }
+        )
+    )
+    fold_rows.append(
+        {
+            "fold": fold,
+            "n_train": int(len(train_idx)),
+            "n_cal": int(len(cal_idx)),
+            "n_test": int(len(test_idx)),
+            "n_train_pos": int(y_all[train_idx].sum()),
+            "n_cal_pos": int(y_all[cal_idx].sum()),
+            "n_test_pos": int(y_all[test_idx].sum()),
+            "fit_predict_seconds": float(elapsed),
+        }
+    )
+    test_seen.extend(map(int, full_row_id[test_idx]))
+
+pred_df = pd.concat(pred_parts, ignore_index=True)
+cal_pred_df = pd.concat(cal_parts, ignore_index=True)
+fold_summary = pd.DataFrame(fold_rows)
+
+if len(test_seen) != len(set(test_seen)):
+    raise RuntimeError("Outer test folds are not disjoint")
+if set(test_seen) != set(map(int, full_row_id.tolist())):
+    raise RuntimeError("Outer test fold union does not equal the full dataset")
+if pred_df["full_row_id"].duplicated().any():
+    raise RuntimeError("A row appears in more than one test fold")
+
+print("5-fold test coverage OK:", len(test_seen), "unique rows")
+print(fold_summary.to_string(index=False))
+
+
+########## CELL 11 [markdown] ##########
+## 6. Gather false positives by threshold
+
+The long tables intentionally have one row per `(record, threshold)` pair. The unique tables have one row per `full_row_id` and no replicated false positives.
+
+
+########## CELL 12 [code] ##########
+df_long_all, df_counts_all = build_long_fp_table(pred_df, ALL_THRESHOLDS, "tabpfn_5fold_all")
+df_unique_all = build_unique_fp_table(
+    pred_df, ALL_THRESHOLDS, "tabpfn_5fold_all_threshold_union", X_all, feature_names
+)
+
+df_long_focus, df_counts_focus = build_long_fp_table(pred_df, FOCUS_THRESHOLDS, "tabpfn_5fold_t20_60")
+df_unique_focus = build_unique_fp_table(
+    pred_df, FOCUS_THRESHOLDS, "tabpfn_5fold_threshold_20_60_union", X_all, feature_names
+)
+
+df_long_t50, df_counts_t50 = build_long_fp_table(pred_df, THRESHOLD_T50_ARRAY, "tabpfn_5fold_t50")
+df_unique_t50 = build_unique_fp_table(
+    pred_df, THRESHOLD_T50_ARRAY, "tabpfn_5fold_threshold_50", X_all, feature_names
+)
+
+for name, df in [
+    ("all", df_unique_all),
+    ("threshold_20_60", df_unique_focus),
+    ("threshold_50", df_unique_t50),
+]:
+    if "full_row_id" in df.columns and df["full_row_id"].duplicated().any():
+        dupes = df.loc[df["full_row_id"].duplicated(), "full_row_id"].tolist()
+        raise RuntimeError(f"Duplicate FP rows in {name} unique output: {dupes[:10]}")
+
+print("All thresholds | long rows:", len(df_long_all), "| unique FP rows:", len(df_unique_all))
+print("Threshold 0.20-0.60 | long rows:", len(df_long_focus), "| unique FP rows:", len(df_unique_focus))
+print("Threshold 0.50 only | long rows:", len(df_long_t50), "| unique FP rows:", len(df_unique_t50))
+print("\nAll-threshold FP counts:")
+print(df_counts_all.to_string(index=False))
+print("\nThreshold 0.20-0.60 FP counts:")
+print(df_counts_focus.to_string(index=False))
+print("\nThreshold 0.50 FP counts:")
+print(df_counts_t50.to_string(index=False))
+
+########## CELL 13 [markdown] ##########
+## 7. Save artifacts
+
+
+########## CELL 14 [code] ##########
+paths = {
+    "test_predictions": OUT_DIR / "tabpfn_5fold_test_predictions.csv",
+    "calibration_predictions": OUT_DIR / "tabpfn_5fold_calibration_predictions.csv",
+    "fold_summary": OUT_DIR / "tabpfn_5fold_summary.csv",
+    "all_counts": OUT_DIR / "tabpfn_5fold_fp_counts_by_threshold.csv",
+    "all_long": OUT_DIR / "false_positives_tabpfn_5fold_all_thresholds_long.csv",
+    "all_unique": OUT_DIR / "false_positives_tabpfn_5fold_test.csv",
+    "focus_counts": OUT_DIR / "tabpfn_5fold_fp_counts_threshold_20_60.csv",
+    "focus_long": OUT_DIR / "false_positives_tabpfn_5fold_threshold_20_60_long.csv",
+    "focus_unique": OUT_DIR / "false_positives_tabpfn_5fold_threshold_20_60.csv",
+    "t50_counts": OUT_DIR / "tabpfn_5fold_fp_counts_threshold_50.csv",
+    "t50_long": OUT_DIR / "false_positives_tabpfn_5fold_threshold_50_long.csv",
+    "t50_unique": OUT_DIR / "false_positives_tabpfn_5fold_threshold_50.csv",
+    "summary_json": OUT_DIR / "tabpfn_5fold_fp_summary.json",
+}
+
+pred_df.to_csv(paths["test_predictions"], index=False)
+cal_pred_df.to_csv(paths["calibration_predictions"], index=False)
+fold_summary.to_csv(paths["fold_summary"], index=False)
+df_counts_all.to_csv(paths["all_counts"], index=False)
+df_long_all.to_csv(paths["all_long"], index=False)
+df_unique_all.to_csv(paths["all_unique"], index=False)
+df_counts_focus.to_csv(paths["focus_counts"], index=False)
+df_long_focus.to_csv(paths["focus_long"], index=False)
+df_unique_focus.to_csv(paths["focus_unique"], index=False)
+df_counts_t50.to_csv(paths["t50_counts"], index=False)
+df_long_t50.to_csv(paths["t50_long"], index=False)
+df_unique_t50.to_csv(paths["t50_unique"], index=False)
+
+summary = {
+    "raw_path": str(RAW_PATH),
+    "out_dir": str(OUT_DIR),
+    "source_model": "tabpfn",
+    "n_splits": int(N_SPLITS),
+    "cal_size": float(CAL_SIZE),
+    "random_state": int(RANDOM_STATE),
+    "n_rows": int(len(y_all)),
+    "n_features": int(len(feature_names)),
+    "target_counts": {str(int(k)): int(v) for k, v in zip(*np.unique(y_all, return_counts=True))},
+    "all_thresholds": [float(x) for x in ALL_THRESHOLDS],
+    "focus_thresholds": [float(x) for x in FOCUS_THRESHOLDS],
+    "threshold_t50": float(THRESHOLD_T50),
+    "n_long_fp_rows_all_thresholds": int(len(df_long_all)),
+    "n_unique_fp_rows_all_thresholds": int(len(df_unique_all)),
+    "n_long_fp_rows_threshold_20_60": int(len(df_long_focus)),
+    "n_unique_fp_rows_threshold_20_60": int(len(df_unique_focus)),
+    "n_long_fp_rows_threshold_50": int(len(df_long_t50)),
+    "n_unique_fp_rows_threshold_50": int(len(df_unique_t50)),
+    "test_fold_coverage_unique_rows": int(pred_df["full_row_id"].nunique()),
+    "test_fold_coverage_is_full_dataset": bool(pred_df["full_row_id"].nunique() == len(y_all)),
+    "artifacts": {k: str(v) for k, v in paths.items()},
+}
+with open(paths["summary_json"], "w", encoding="utf-8") as f:
+    json.dump(summary, f, indent=2)
+
+for label, path in paths.items():
+    print("Saved", label, "->", path)
+
+########## CELL 15 [markdown] ##########
+## 8. Fixed split_b from whole FP set + FP set registry
+
+This mirrors `tabpfn_fp_followup.ipynb`:
+
+- **One fixed `split_b`** for all ratio sweeps: same test positives, same total size, same plain-TN fill.
+- The FP candidate pool on `split_b` is built from **20% holdout of the whole unique FP set** (`df_unique_all`), with **threshold 0.50 FPs prioritized** when filling pool slots.
+- Remaining holdout FPs stay available for training (80% train holdout per FP set).
+- For each FP set run, mined FPs act as **true negatives** in train; on `split_b`, only that set's test-holdout FPs in the pool are active FPs — other pool slots count as plain TNs.
+- `split_a(r)` and validation are fixed; train negatives grow by **prefix** on `tn_train_ordered` (incremental, never rebuilt from scratch).
+
+########## CELL 16 [code] ##########
+RATIO_HOLDOUT_FRAC = float(os.environ.get("VLST_RATIO_HOLDOUT_FRAC", "0.2"))
+RATIO_POS_HOLDOUT_FRAC = float(os.environ.get("VLST_RATIO_POS_HOLDOUT_FRAC", "0.2"))
+RATIO_FP_HOLDOUT_FRAC = float(os.environ.get("VLST_RATIO_FP_HOLDOUT_FRAC", "0.2"))
+RATIO_VAL_FRAC = float(os.environ.get("VLST_RATIO_VAL_FRAC", str(CAL_SIZE)))
+RATIO_POS_DENOM = os.environ.get("VLST_RATIO_POS_DENOM", "train").strip().lower()
+
+if df_unique_all.empty:
+    raise RuntimeError("df_unique_all is empty; run §6 first.")
+
+fp_all_ids = np.asarray(sorted(df_unique_all["full_row_id"].astype(int).unique()), dtype=int)
+fp_focus_ids = np.asarray(sorted(df_unique_focus["full_row_id"].astype(int).unique()), dtype=int) if not df_unique_focus.empty else np.array([], dtype=int)
+fp_t50_ids = np.asarray(sorted(df_unique_t50["full_row_id"].astype(int).unique()), dtype=int) if not df_unique_t50.empty else np.array([], dtype=int)
+fp_all_set = set(map(int, fp_all_ids.tolist()))
+t50_set = set(map(int, fp_t50_ids.tolist()))
+
+for label, ids, df in [
+    ("all", fp_all_ids, df_unique_all),
+    ("t20_60", fp_focus_ids, df_unique_focus),
+    ("t50", fp_t50_ids, df_unique_t50),
+]:
+    if len(ids) != len(df):
+        raise RuntimeError(f"{label}: duplicate full_row_id in unique FP table")
+    if len(ids) and not np.all(y_all[ids] == 0):
+        bad = ids[y_all[ids] != 0][:5]
+        raise RuntimeError(f"{label}: non-negative labels in FP set: {bad.tolist()}")
+
+pos_idx = np.flatnonzero(y_all == 1).astype(int)
+tn_idx = np.flatnonzero(y_all == 0).astype(int)
+tn_plain_idx = np.asarray([int(i) for i in tn_idx.tolist() if int(i) not in fp_all_set], dtype=int)
+
+all_ix = np.arange(len(y_all), dtype=int)
+_, split_b_size_ref = train_test_split(
+    all_ix,
+    test_size=RATIO_HOLDOUT_FRAC,
+    random_state=RANDOM_STATE,
+    shuffle=True,
+    stratify=y_all,
+)
+split_b_target_n = int(len(split_b_size_ref))
+
+pos_trainval_ix, pos_test_ix = train_test_split(
+    pos_idx,
+    test_size=RATIO_POS_HOLDOUT_FRAC,
+    random_state=RANDOM_STATE,
+    shuffle=True,
+)
+pos_train_ix, pos_val_ix = train_test_split(
+    pos_trainval_ix,
+    test_size=RATIO_VAL_FRAC,
+    random_state=RANDOM_STATE + 7,
+    shuffle=True,
+)
+
+# 20% holdout of whole FP set → split_b candidate pool (prioritize t=0.50)
+fp_all_train_holdout_ix, fp_all_test_holdout_ix = train_test_split(
+    fp_all_ids,
+    test_size=RATIO_FP_HOLDOUT_FRAC,
+    random_state=RANDOM_STATE,
+    shuffle=True,
+)
+priority_holdout = sorted(int(i) for i in fp_all_test_holdout_ix.tolist() if int(i) in t50_set)
+exclusive_holdout = sorted(int(i) for i in fp_all_test_holdout_ix.tolist() if int(i) not in t50_set)
+n_pos_test = int(len(pos_test_ix))
+max_fp_slots = int(split_b_target_n - n_pos_test)
+if max_fp_slots < 0:
+    raise RuntimeError("Positive test count exceeds split_b target.")
+
+rng_pool = np.random.RandomState(RANDOM_STATE + 17)
+if len(priority_holdout) > max_fp_slots:
+    fp_candidate_pool_ix = np.sort(
+        np.asarray(rng_pool.permutation(priority_holdout)[:max_fp_slots], dtype=int)
+    )
+else:
+    slots_left = max_fp_slots - len(priority_holdout)
+    if len(exclusive_holdout) > slots_left:
+        ex_pick = sorted(int(i) for i in rng_pool.permutation(exclusive_holdout)[:slots_left].tolist())
+    else:
+        ex_pick = exclusive_holdout
+    fp_candidate_pool_ix = np.sort(np.asarray(priority_holdout + ex_pick, dtype=int))
+fp_candidate_pool_set = set(map(int, fp_candidate_pool_ix.tolist()))
+
+split_b_core_set = set(map(int, pos_test_ix.tolist())) | fp_candidate_pool_set
+plain_b_candidates = np.asarray(
+    [int(i) for i in tn_plain_idx.tolist() if int(i) not in split_b_core_set], dtype=int
+)
+rng_b = np.random.RandomState(RANDOM_STATE + 31)
+rng_b.shuffle(plain_b_candidates)
+neg_need = int(split_b_target_n - len(split_b_core_set))
+if neg_need < 0:
+    raise RuntimeError(f"split_b core ({len(split_b_core_set)}) exceeds target ({split_b_target_n}).")
+if len(plain_b_candidates) < neg_need:
+    raise RuntimeError(f"Need {neg_need} split_b plain TNs, have {len(plain_b_candidates)}")
+
+tn_test_shared = np.sort(plain_b_candidates[:neg_need].astype(int))
+test_core_ix = np.sort(np.concatenate([pos_test_ix, fp_candidate_pool_ix]).astype(int))
+split_b_full_ix = np.sort(np.concatenate([test_core_ix, tn_test_shared]).astype(int))
+split_b_set = set(map(int, split_b_full_ix.tolist()))
+
+val_exclude = split_b_set | fp_all_set | set(map(int, pos_test_ix.tolist())) | set(map(int, pos_train_ix.tolist()))
+val_tn_candidates = np.asarray(
+    [int(i) for i in tn_plain_idx.tolist() if int(i) not in val_exclude], dtype=int
+)
+rng_val = np.random.RandomState(RANDOM_STATE + 53)
+rng_val.shuffle(val_tn_candidates)
+val_tn_target = int(min(len(val_tn_candidates), max(len(pos_val_ix) * 44, len(pos_val_ix))))
+tn_val_ix = np.sort(val_tn_candidates[:val_tn_target].astype(int))
+val_full_ix = np.sort(np.concatenate([pos_val_ix, tn_val_ix]).astype(int))
+val_set = set(map(int, val_full_ix.tolist()))
+
+train_exclude_base = split_b_set | val_set | set(map(int, pos_test_ix.tolist())) | set(map(int, pos_val_ix.tolist()))
+
+FP_SET_REGISTRY = {}
+for label, fp_ids, fp_df in [
+    ("t20_60", fp_focus_ids, df_unique_focus),
+    ("t50", fp_t50_ids, df_unique_t50),
+    ("all", fp_all_ids, df_unique_all),
+]:
+    if len(fp_ids) == 0:
+        print(f"Skipping empty FP set: {label}")
+        continue
+    fp_tr, fp_te = train_test_split(
+        fp_ids,
+        test_size=RATIO_FP_HOLDOUT_FRAC,
+        random_state=RANDOM_STATE,
+        shuffle=True,
+    )
+    fp_fit_ix = np.asarray([int(i) for i in fp_tr.tolist() if int(i) not in train_exclude_base], dtype=int)
+    active_fp_test_ix = np.sort(
+        np.asarray([int(i) for i in fp_te.tolist() if int(i) in fp_candidate_pool_set], dtype=int)
+    )
+    fp_set_ids = set(map(int, fp_ids.tolist()))
+    tn_train_ordered = np.asarray(
+        [int(i) for i in tn_plain_idx.tolist() if int(i) not in train_exclude_base], dtype=int
+    )
+    rng_train = np.random.RandomState(RANDOM_STATE + 97 + hash(label) % 1000)
+    rng_train.shuffle(tn_train_ordered)
+    n_pos_train = int(len(pos_train_ix))
+    n_pos_total = int(len(pos_idx))
+    n_fp_fit = int(len(fp_fit_ix))
+    n_pos_ratio = n_pos_total if RATIO_POS_DENOM == "full" else n_pos_train
+    max_neg_total = n_fp_fit + int(len(tn_train_ordered))
+    max_r = int(max_neg_total // n_pos_ratio) if n_pos_ratio else 0
+    ratio_candidates = [1.0] + [float(x) for x in range(5, max(max_r, 5) + 1, 5)]
+    if max_r >= 1 and float(max_r) not in ratio_candidates:
+        ratio_candidates.append(float(max_r))
+    ratios = []
+    for r in sorted(set(ratio_candidates)):
+        need = int(round(n_pos_ratio * float(r)))
+        if need <= max_neg_total:
+            ratios.append(float(r))
+    if not ratios:
+        print(f"WARNING: no valid ratios for FP set {label}; skipping")
+        continue
+    FP_SET_REGISTRY[label] = {
+        "label": label,
+        "fp_df": fp_df,
+        "fp_ids": fp_ids,
+        "fp_fit_ix": fp_fit_ix,
+        "fp_test_holdout_ix": np.asarray(fp_te, dtype=int),
+        "active_fp_test_ix": active_fp_test_ix,
+        "tn_train_ordered": tn_train_ordered,
+        "ratios": ratios,
+        "n_fp_fit": n_fp_fit,
+        "n_pos_ratio": n_pos_ratio,
+        "max_r": max_r,
+    }
+
+for name, a, b in [
+    ("split_b ∩ val", split_b_set, val_set),
+    ("split_b ∩ train_pos", split_b_set, set(map(int, pos_train_ix.tolist()))),
+    ("val ∩ train_pos", val_set, set(map(int, pos_train_ix.tolist()))),
+]:
+    ov = a & b
+    if ov:
+        raise RuntimeError(f"{name} overlap: {len(ov)} rows")
+
+print("Fixed split_b from whole FP set (20% holdout pool, t=0.50 prioritized)")
+print(
+    f"  split_b n={len(split_b_full_ix)} pos={n_pos_test} fp_pool={len(fp_candidate_pool_ix)} "
+    f"plain_tn={len(tn_test_shared)} | pool t50={sum(1 for i in fp_candidate_pool_ix if int(i) in t50_set)} "
+    f"pool other={sum(1 for i in fp_candidate_pool_ix if int(i) not in t50_set)}"
+)
+print(
+    f"  whole FP total={len(fp_all_ids)} train_holdout={len(fp_all_train_holdout_ix)} "
+    f"test_holdout={len(fp_all_test_holdout_ix)} (t50 in holdout={sum(1 for i in fp_all_test_holdout_ix if int(i) in t50_set)})"
+)
+print(f"validation fixed n={len(val_full_ix)} pos={len(pos_val_ix)} tn={len(tn_val_ix)}")
+for label, cfg in FP_SET_REGISTRY.items():
+    print(
+        f"  [{label}] fp_total={len(cfg['fp_ids'])} fp_fit={cfg['n_fp_fit']} "
+        f"test_holdout={len(cfg['fp_test_holdout_ix'])} active_fp_test={len(cfg['active_fp_test_ix'])} "
+        f"tn_pool={len(cfg['tn_train_ordered'])} max_r={cfg['max_r']} ratios={cfg['ratios']}"
+    )
+
+########## CELL 17 [markdown] ##########
+## 9. Ratio sweep helpers and run loop
+
+Train negatives are **incremental**: at ratio `r` we take `tn_train_ordered[:k]` where `k` grows with `r`. Earlier ratios are a strict prefix of later ones — nothing is resampled from scratch.
+
+For **0.20-0.60** and **whole** FP sets, each ratio step prints the first 10 train rows with TabPFN threshold metadata.
+
+########## CELL 18 [code] ##########
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    fbeta_score,
+    precision_score,
+    recall_score,
+)
+import matplotlib.pyplot as plt
+
+RATIO_GRID = np.arange(0.01, 1.0, 0.01)
+RATIO_OUT_ROOT = OUT_DIR / "ratio_sweeps"
+RATIO_OUT_ROOT.mkdir(parents=True, exist_ok=True)
+
+
+def _as_binary_y(y):
+    y = np.asarray(y)
+    if y.ndim == 2 and y.shape[1] == 1:
+        y = y[:, 0]
+    return np.ravel(y).astype(int)
+
+
+def _pos_proba(clf, X):
+    proba = np.asarray(clf.predict_proba(X), dtype=float)
+    if proba.ndim == 1:
+        return np.ravel(proba)
+    if proba.ndim != 2:
+        raise ValueError(f"Unexpected predict_proba ndim={proba.ndim}")
+    if proba.shape[1] == 1:
+        return proba[:, 0].ravel()
+    classes = list(getattr(clf, "classes_", [0, 1]))
+    idx = classes.index(1) if 1 in classes else 1
+    return proba[:, idx].ravel()
+
+
+def _xy(ix):
+    ix = np.asarray(ix, dtype=int)
+    return X_all[ix].astype(float), _as_binary_y(y_all[ix])
+
+
+def _k_train_tn(n_neg_target, n_fp_fit, tn_train_ordered):
+    need_after_fp = max(0, int(n_neg_target) - int(n_fp_fit))
+    return int(min(len(tn_train_ordered), need_after_fp))
+
+
+def _k_split_a_tn(n_neg_target, n_fp_fit, tn_train_ordered):
+    k_tr = _k_train_tn(n_neg_target, n_fp_fit, tn_train_ordered)
+    if len(tn_train_ordered) == 0 or len(tn_test_shared) == 0:
+        return 0
+    if k_tr >= len(tn_train_ordered):
+        return int(len(tn_test_shared))
+    return int(min(len(tn_test_shared), max(0, round(k_tr / len(tn_train_ordered) * len(tn_test_shared)))))
+
+
+def _split_a_indices(n_neg_target, n_fp_fit, tn_train_ordered):
+    k_a = _k_split_a_tn(n_neg_target, n_fp_fit, tn_train_ordered)
+    parts = [test_core_ix]
+    if k_a > 0:
+        parts.append(tn_test_shared[:k_a])
+    return np.sort(np.concatenate(parts).astype(int))
+
+
+def _build_train(n_neg_target, fp_fit_ix, tn_train_ordered):
+    n_fp_fit = int(len(fp_fit_ix))
+    k_tn = _k_train_tn(n_neg_target, n_fp_fit, tn_train_ordered)
+    tn_used = tn_train_ordered[:k_tn]
+    ix = np.concatenate([pos_train_ix, fp_fit_ix, tn_used]).astype(int)
+    y = np.concatenate([
+        np.ones(len(pos_train_ix), dtype=int),
+        np.zeros(n_fp_fit, dtype=int),
+        np.zeros(len(tn_used), dtype=int),
+    ])
+    return X_all[ix].astype(float), y, ix, tn_used
+
+
+def _yhat_at_t(p, t):
+    p = np.asarray(p, dtype=float).ravel()
+    return (p >= float(t)).astype(int)
+
+
+def _fbeta(y, p, t, beta):
+    y = _as_binary_y(y)
+    p = np.asarray(p, dtype=float).ravel()
+    if len(y) != len(p):
+        raise ValueError(f"y/p length mismatch: {len(y)} vs {len(p)}")
+    if len(np.unique(y)) < 2:
+        return 0.0
+    yhat = _yhat_at_t(p, t)
+    return float(fbeta_score(y, yhat, beta=beta, zero_division=0))
+
+
+def _best_t(y, p, beta):
+    y = _as_binary_y(y)
+    p = np.asarray(p, dtype=float).ravel()
+    if len(y) != len(p):
+        raise ValueError(f"y/p length mismatch: {len(y)} vs {len(p)}")
+    if len(np.unique(y)) < 2:
+        return 0.5, 0.0
+    vals = np.asarray([_fbeta(y, p, t, beta) for t in RATIO_GRID], dtype=float)
+    j = int(np.argmax(vals))
+    return float(RATIO_GRID[j]), float(vals[j])
+
+
+def _metric_pack(y, p, t):
+    y = _as_binary_y(y)
+    p = np.asarray(p, dtype=float).ravel()
+    yhat = _yhat_at_t(p, t)
+    if len(np.unique(y)) < 2:
+        return {
+            "precision": 0.0, "recall": 0.0, "f05": 0.0, "f1": 0.0, "f2": 0.0,
+            "accuracy": float((yhat == y).mean()) if len(y) else 0.0,
+            "fp": 0, "fn": 0, "tn": int((y == 0).sum()), "tp": int((y == 1).sum()),
+            "roc_auc": float("nan"), "pr_auc": float("nan"),
+        }
+    cm = confusion_matrix(y, yhat, labels=[0, 1])
+    out = {
+        "precision": float(precision_score(y, yhat, zero_division=0)),
+        "recall": float(recall_score(y, yhat, zero_division=0)),
+        "f05": float(fbeta_score(y, yhat, beta=0.5, zero_division=0)),
+        "f1": float(f1_score(y, yhat, zero_division=0)),
+        "f2": float(fbeta_score(y, yhat, beta=2.0, zero_division=0)),
+        "accuracy": float(accuracy_score(y, yhat)),
+        "fp": int(cm[0, 1]),
+        "fn": int(cm[1, 0]),
+        "tn": int(cm[0, 0]),
+        "tp": int(cm[1, 1]),
+    }
+    try:
+        out["roc_auc"] = float(roc_auc_score(y, p))
+    except ValueError:
+        out["roc_auc"] = float("nan")
+    try:
+        out["pr_auc"] = float(average_precision_score(y, p))
+    except ValueError:
+        out["pr_auc"] = float("nan")
+    return out
+
+
+def _add_metrics(row, prefix, y, p, t, label):
+    m = _metric_pack(y, p, t)
+    for k, v in m.items():
+        row[f"{prefix}_{label}_{k}"] = v
+
+
+def _ratio_label(r):
+    ri = int(round(float(r)))
+    return str(ri) if abs(float(r) - ri) < 1e-9 else f"{float(r):g}"
+
+
+def _print_train_sample(r, fp_fit_ix, tn_used, fp_df, n_show=10):
+    meta_cols = [
+        "full_row_id", "p_tabpfn", "n_tabpfn_thresholds",
+        "tabpfn_threshold_min", "tabpfn_threshold_max", "tabpfn_thresholds",
+    ]
+    avail = [c for c in meta_cols if c in fp_df.columns]
+    fp_part = fp_df[fp_df["full_row_id"].isin(fp_fit_ix)][avail].copy()
+    fp_part.insert(0, "role", "fp_tn")
+    n_fp_show = min(len(fp_part), n_show)
+    rows = [fp_part.head(n_fp_show)]
+    n_tn_show = max(0, n_show - n_fp_show)
+    if n_tn_show > 0 and len(tn_used) > 0:
+        tn_part = pd.DataFrame({
+            "role": ["plain_tn"] * min(n_tn_show, len(tn_used)),
+            "full_row_id": tn_used[:n_tn_show],
+            "p_tabpfn": np.nan,
+            "n_tabpfn_thresholds": np.nan,
+            "tabpfn_threshold_min": np.nan,
+            "tabpfn_threshold_max": np.nan,
+            "tabpfn_thresholds": "",
+        })
+        rows.append(tn_part)
+    sample = pd.concat(rows, ignore_index=True).head(n_show)
+    print(f"  Sample train rows (first {len(sample)}) for ratio {r:g}:")
+    print(sample.to_string(index=False))
+
+
+def _plot_ratio_lines(df, cols, title, ylabel, out_dir, filename, ylim=None):
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    x = df["ratio_requested"].astype(float).to_numpy()
+    labels = df["ratio_display"].astype(str).tolist()
+    for label, col in cols:
+        if col in df.columns:
+            ax.plot(x, df[col].astype(float), marker="o", label=label)
+    ax.set_xlabel("negative:positive ratio r")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    ax.grid(True, alpha=0.3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.legend(loc="best")
+    fig.tight_layout()
+    out = out_dir / filename
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    print("Saved", out)
+    plt.show()
+
+
+def run_ratio_sweep(cfg, print_train_samples=False):
+    label = cfg["label"]
+    out_dir = RATIO_OUT_ROOT / label
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fp_fit_ix = cfg["fp_fit_ix"]
+    tn_train_ordered = cfg["tn_train_ordered"]
+    fp_df = cfg["fp_df"]
+    ratios = cfg["ratios"]
+    n_pos_ratio = cfg["n_pos_ratio"]
+    n_fp_fit = cfg["n_fp_fit"]
+
+    ratio_rows = []
+    X_val_ratio, y_val_ratio = _xy(val_full_ix)
+    X_split_b, y_split_b = _xy(split_b_full_ix)
+    prev_tn_prefix = None
+    prev_k_tn = 0
+
+    print(f"\n=== Ratio sweep: {label} | fp_fit={n_fp_fit} | ratios={ratios} ===")
+    for step_i, r in enumerate(ratios, start=1):
+        n_neg_target = int(round(n_pos_ratio * float(r)))
+        X_tr, y_tr, train_ix, tn_used = _build_train(n_neg_target, fp_fit_ix, tn_train_ordered)
+        split_a_ix = _split_a_indices(n_neg_target, n_fp_fit, tn_train_ordered)
+
+        if prev_tn_prefix is not None:
+            if len(tn_used) < len(prev_tn_prefix):
+                raise RuntimeError(f"[{label}] ratio {r}: TN count shrank — not incremental")
+            if not np.array_equal(tn_used[: len(prev_tn_prefix)], prev_tn_prefix):
+                raise RuntimeError(f"[{label}] ratio {r}: TN prefix changed — not incremental")
+        prev_tn_prefix = tn_used.copy()
+
+        if set(map(int, train_ix.tolist())) & split_b_set:
+            raise RuntimeError(f"[{label}] ratio {r}: train overlaps split_b")
+        if set(map(int, train_ix.tolist())) & val_set:
+            raise RuntimeError(f"[{label}] ratio {r}: train overlaps validation")
+
+        tn_added = int(len(tn_used) - prev_k_tn)
+        print(
+            f"\nRatio {r:g} | train n={len(y_tr)} pos={int(y_tr.sum())} neg={int((y_tr == 0).sum())} "
+            f"| fp={n_fp_fit} tn={len(tn_used)} (+{tn_added} plain TNs vs prev step) "
+            f"| split_a n={len(split_a_ix)} split_b n={len(y_split_b)}"
+        )
+        prev_k_tn = int(len(tn_used))
+        if print_train_samples:
+            _print_train_sample(r, fp_fit_ix, tn_used, fp_df, n_show=10)
+
+        clf = make_tabpfn(RANDOM_STATE + 1000 + step_i + hash(label) % 10000)
+        clf.fit(X_tr, y_tr)
+        X_split_a, y_split_a = _xy(split_a_ix)
+        p_val = _pos_proba(clf, X_val_ratio)
+        p_a = _pos_proba(clf, X_split_a)
+        p_b = _pos_proba(clf, X_split_b)
+
+        val_t05, val_v05 = _best_t(y_val_ratio, p_val, 0.5)
+        val_t1, val_v1 = _best_t(y_val_ratio, p_val, 1.0)
+        val_t2, val_v2 = _best_t(y_val_ratio, p_val, 2.0)
+        a_t05, a_v05 = _best_t(y_split_a, p_a, 0.5)
+        a_t1, a_v1 = _best_t(y_split_a, p_a, 1.0)
+        a_t2, a_v2 = _best_t(y_split_a, p_a, 2.0)
+        b_t05, b_v05 = _best_t(y_split_b, p_b, 0.5)
+        b_t1, b_v1 = _best_t(y_split_b, p_b, 1.0)
+        b_t2, b_v2 = _best_t(y_split_b, p_b, 2.0)
+
+        row = {
+            "fp_set": label,
+            "ratio_requested": float(r),
+            "ratio_display": _ratio_label(r),
+            "n_neg_target": int(n_neg_target),
+            "n_fit_train": int(len(y_tr)),
+            "n_train_pos": int(y_tr.sum()),
+            "n_train_fp": int(n_fp_fit),
+            "n_train_tn": int(len(tn_used)),
+            "k_train_tn": int(len(tn_used)),
+            "k_test_a_tn": int(_k_split_a_tn(n_neg_target, n_fp_fit, tn_train_ordered)),
+            "split_a_n": int(len(y_split_a)),
+            "split_a_pos": int(y_split_a.sum()),
+            "split_b_n": int(len(y_split_b)),
+            "split_b_pos": int(y_split_b.sum()),
+            "val_n": int(len(y_val_ratio)),
+            "val_pos": int(y_val_ratio.sum()),
+            "active_fp_test_n": int(len(cfg["active_fp_test_ix"])),
+            "t_val_best_f05": val_t05,
+            "t_val_best_f1": val_t1,
+            "t_val_best_f2": val_t2,
+            "t_split_a_oracle_f05": a_t05,
+            "t_split_a_oracle_f1": a_t1,
+            "t_split_a_oracle_f2": a_t2,
+            "t_split_b_oracle_f05": b_t05,
+            "t_split_b_oracle_f1": b_t1,
+            "t_split_b_oracle_f2": b_t2,
+            "val_f05_best": val_v05,
+            "val_f1_best": val_v1,
+            "val_f2_best": val_v2,
+            "split_a_f05_oracle": a_v05,
+            "split_a_f1_oracle": a_v1,
+            "split_a_f2_oracle": a_v2,
+            "split_b_f05_oracle": b_v05,
+            "split_b_f1_oracle": b_v1,
+            "split_b_f2_oracle": b_v2,
+        }
+        for prefix, y, p, t05, t1, t2 in [
+            ("val", y_val_ratio, p_val, val_t05, val_t1, val_t2),
+            ("split_a", y_split_a, p_a, val_t05, val_t1, val_t2),
+            ("split_b", y_split_b, p_b, val_t05, val_t1, val_t2),
+        ]:
+            _add_metrics(row, prefix, y, p, 0.5, "t05")
+            _add_metrics(row, prefix, y, p, t05, "valt_f05")
+            _add_metrics(row, prefix, y, p, t1, "valt_f1")
+            _add_metrics(row, prefix, y, p, t2, "valt_f2")
+        _add_metrics(row, "split_a", y_split_a, p_a, a_t05, "oracle_f05")
+        _add_metrics(row, "split_a", y_split_a, p_a, a_t1, "oracle_f1")
+        _add_metrics(row, "split_a", y_split_a, p_a, a_t2, "oracle_f2")
+        _add_metrics(row, "split_b", y_split_b, p_b, b_t05, "oracle_f05")
+        _add_metrics(row, "split_b", y_split_b, p_b, b_t1, "oracle_f1")
+        _add_metrics(row, "split_b", y_split_b, p_b, b_t2, "oracle_f2")
+        ratio_rows.append(row)
+
+    ratio_df = pd.DataFrame(ratio_rows)
+    ratio_csv = out_dir / f"tabpfn_ratio_sweep_{label}.csv"
+    ratio_df.to_csv(ratio_csv, index=False)
+    print(f"Saved {ratio_csv} rows={len(ratio_df)}")
+    return ratio_df, out_dir
+
+########## CELL 19 [markdown] ##########
+## 10. Run ratio sweeps for all FP sets
+
+Runs three sweeps sharing the **same fixed split_b / validation / split_a core**:
+
+| FP set | Train FPs | Print 10-row samples |
+|--------|-----------|----------------------|
+| `t20_60` | 0.20..0.60 unique FPs | yes |
+| `t50` | threshold 0.50 only | no |
+| `all` | whole unique FP union | yes |
+
+########## CELL 20 [code] ##########
+ratio_results = {}
+for label, cfg in FP_SET_REGISTRY.items():
+    print_train = label in {"t20_60", "all"}
+    ratio_df, out_dir = run_ratio_sweep(cfg, print_train_samples=print_train)
+    ratio_results[label] = {"df": ratio_df, "out_dir": out_dir}
+
+ratio_df_20_60 = ratio_results.get("t20_60", {}).get("df")
+ratio_df_t50 = ratio_results.get("t50", {}).get("df")
+ratio_df_all = ratio_results.get("all", {}).get("df")
+print("\nCompleted ratio sweeps:", list(ratio_results.keys()))
+
+########## CELL 21 [markdown] ##########
+## 11. Ratio sweep charts (validation, split_a, split_b oracle)
+
+Same chart set as `tabpfn_fp_followup.ipynb` for each FP set.
+
+########## CELL 22 [code] ##########
+def plot_ratio_sweep_charts(ratio_df, out_dir, title_suffix):
+    if ratio_df is None or ratio_df.empty:
+        print("Skip charts — empty dataframe for", title_suffix)
+        return
+    sfx = title_suffix.replace(" ", "_").replace(".", "")
+    _plot_ratio_lines(
+        ratio_df,
+        [("F0.5 best", "val_f05_best"), ("F1 best", "val_f1_best"), ("F2 best", "val_f2_best"), ("F1 @0.5", "val_t05_f1")],
+        f"Validation F-scores vs ratio ({title_suffix})",
+        "score",
+        out_dir,
+        f"ratio_validation_f_scores_{sfx}.png",
+        ylim=(0, 1.02),
+    )
+    _plot_ratio_lines(
+        ratio_df,
+        [("F0.5 val-tuned", "split_a_valt_f05_f05"), ("F1 val-tuned", "split_a_valt_f1_f1"), ("F2 val-tuned", "split_a_valt_f2_f2"), ("F1 oracle", "split_a_oracle_f1_f1")],
+        f"Split_a F-scores vs ratio ({title_suffix})",
+        "score",
+        out_dir,
+        f"ratio_split_a_f_scores_{sfx}.png",
+        ylim=(0, 1.02),
+    )
+    _plot_ratio_lines(
+        ratio_df,
+        [("F0.5 val-tuned", "split_b_valt_f05_f05"), ("F1 val-tuned", "split_b_valt_f1_f1"), ("F2 val-tuned", "split_b_valt_f2_f2"), ("F1 oracle", "split_b_oracle_f1_f1")],
+        f"Split_b F-scores vs ratio ({title_suffix})",
+        "score",
+        out_dir,
+        f"ratio_split_b_f_scores_{sfx}.png",
+        ylim=(0, 1.02),
+    )
+    _plot_ratio_lines(
+        ratio_df,
+        [("Validation PR-AUC", "val_t05_pr_auc"), ("Split_a PR-AUC", "split_a_t05_pr_auc"), ("Split_b PR-AUC", "split_b_t05_pr_auc")],
+        f"PR-AUC vs ratio ({title_suffix})",
+        "PR-AUC",
+        out_dir,
+        f"ratio_pr_auc_{sfx}.png",
+        ylim=(0, 1.02),
+    )
+    _plot_ratio_lines(
+        ratio_df,
+        [("split_a FP val-F1", "split_a_valt_f1_fp"), ("split_a FN val-F1", "split_a_valt_f1_fn"), ("split_b FP oracle-F1", "split_b_oracle_f1_fp"), ("split_b FN oracle-F1", "split_b_oracle_f1_fn")],
+        f"FP/FN counts vs ratio ({title_suffix})",
+        "count",
+        out_dir,
+        f"ratio_fp_fn_{sfx}.png",
+    )
+
+for label, res in ratio_results.items():
+    plot_ratio_sweep_charts(res["df"], res["out_dir"], label)
