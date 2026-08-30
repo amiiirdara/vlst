@@ -2,13 +2,13 @@
 
 This document gathers publication-oriented figures and tables from the TabPFN interpretability notebook [tabpfn_interpretability.ipynb](tabpfn_interpretability.ipynb).
 
-**Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline predictor). Target = `Stent thrombosis`. The raw view keeps missingness and codes text columns as integer categoricals (no scaling / one-hot), which is the TabPFN-native representation. Feature ranking, PDP, and SHAP in this notebook are computed for **interpretability on the full pool** — they are exploratory associations, not a locked-in feature mask for downstream modelling.
+**Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline predictor). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” Text columns are coded as integer categoricals (no scaling / one-hot). That is the TabPFN-native representation; `Stent type-SES` is treated as a numeric code, so a PDP sweep across brand integers is not a meaningful nominal contrast. Feature ranking, PDP, and SHAP are **interpretability on the full pool** — not a locked-in feature mask for Part 4.
 
-**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ were intended to use tabpfn-client with thinking (`effort=high`, `metric=average_precision`); the stored run’s client calls failed (`Fitted train set is not ready`), so both fell back to local TabPFN + KV cache. SHAP explains **15 rows** (budget = 256, baseline imputer). k-SII / SHAP-IQ pairwise interactions are shown for **one positive-class row**.
+**Methods note — selection vs explanation.** Mutual information and stability (repeated forward SFS) use the **full cohort** (`X_all`, `y_all`): 92 events and 5,093 controls. They are not restricted to VLST = 1. SHAP is different (below).
+
+**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ were intended to use tabpfn-client with thinking (`effort=high`, `metric=average_precision`); the stored run’s client calls failed (`Fitted train set is not ready`), so both fell back to local TabPFN + KV cache. SHAP explains **15 rows** (budget = 256). The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. Those 15 rows are built as `concat(positives, negatives)[:15]` on a stratified 30% test split (28 events) — so they are **15 VLST cases and zero controls**, by construction, not by chance. k-SII / SHAP-IQ pairwise interactions are `X_explain[0]`: **one** of those cases.
 
 **Asset root:** [paper_figures/](paper_figures/) (also at `data/result/modeling_tabpfn/paper_figures/`)
-
-TabPFN assets share this folder with the classic-model selector report. Filenames do not overlap (`paper_fig1_pdp_continuous.png` vs `paper_fig1_unique_counts.png`).
 
 ---
 
@@ -31,14 +31,14 @@ TabPFN assets share this folder with the classic-model selector report. Filename
 
 ![Table 0](paper_figures/paper_table0_methods.png)
 
-**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). SHAP is local attribution magnitude on 15 held-out-style explained rows. Pairwise k-SII is a one-row interaction view, not a global interaction ranking.
+**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples) and is computed on the **full cohort**. SHAP is local attribution magnitude on **15 VLST cases** (no controls). Pairwise k-SII is a one-row interaction view, not a global interaction ranking.
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
-| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median-imputed raw matrix |
+| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median fill is inert (no NaNs) |
 | Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring |
 | PDP | Average predicted risk | local TabPFN | Continuous grid + binary 0 vs 1 bars |
-| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | 15 explained rows, budget=256 |
+| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | 15 VLST cases, 0 controls; budget=256 |
 | k-SII / SHAP-IQ | Pairwise interactions | local TabPFN (client fallback) | One positive-class row, budget=256 |
 | Consensus (Borda) | Mean of normalized ranks | aggregate | MI + stability frequency + mean(\|SHAP\|) |
 
@@ -52,7 +52,7 @@ TabPFN assets share this folder with the classic-model selector report. Filename
 
 ![Table 1](paper_figures/paper_table1_mutual_info.png)
 
-**Table 1.** `mutual_info_classif` ranking of the 81-column raw matrix (median imputation for this screen only). Calcium index (`CaI`), `WBC`, and `LV` lead. `Stent type-SES` and `eGFR` follow. Mutual-information values for `Fast-Glu` and `ZES` were not stored in the consensus table; those two names still appear in the notebook’s printed top-15 list. This is a marginal association screen, not a model attribution.
+**Table 1.** `mutual_info_classif` ranking of the 81-column raw matrix on the **full cohort**. The code applies a column-median fill before MI; the CSV has no missing values, so that fill does nothing. Calcium index (`CaI`), `WBC`, and `LV` lead. `Stent type-SES` and `eGFR` follow. Mutual-information values for `Fast-Glu` and `ZES` were not stored in the consensus table; those two names still appear in the notebook’s printed top-15 list. This is a marginal association screen, not a model attribution.
 
 | Rank | Feature | Mutual information |
 | ---: | --- | ---: |
@@ -113,6 +113,8 @@ TabPFN assets share this folder with the classic-model selector report. Filename
 
 PDP candidates were taken from the stability / MI screens. Continuous PDP uses grid resolution 30. Binary PDP forces each flag to 0 vs 1 and reports the change in average predicted P[Stent thrombosis].
 
+**Methods note — these are not absolute risks.** Every TabPFN fit in this notebook uses `balance_probabilities=True`, which rescales outputs toward a uniform class prior. True prevalence is 0.0177. Table 3 baselines around 0.13–0.26 and Figure 1’s LV curve “toward ~0.6” are **balanced-prior model output**, not predicted event probabilities a clinician can read as 24% or 60% risk.
+
 ### Figure 1. Continuous partial dependence
 
 ![Figure 1](paper_figures/paper_fig1_pdp_continuous.png)
@@ -133,7 +135,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Table 3](paper_figures/paper_table3_pdp_binary.png)
 
-**Table 3.** Printed PDP probabilities from the notebook. ΔP = P(y=1 | feature=1) − P(y=1 | feature=0). These are model-average effects, not causal estimates.
+**Table 3.** Printed PDP probabilities from the notebook. ΔP = P(y=1 | feature=1) − P(y=1 | feature=0). These are **balanced-prior** model-average effects, not absolute risks and not causal estimates.
 
 | Feature | P(y=1 \| 0) | P(y=1 \| 1) | ΔP |
 | --- | ---: | ---: | ---: |
@@ -150,13 +152,13 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ## 4. SHAP attributions
 
-Global-looking SHAP plots below are still **local**: they summarise 15 explained rows. Directional statements (high `LV` / `WBC` raise predicted risk; high `eGFR` lowers it) should be read as TabPFN attributions on that sample, not cohort-wide causal effects.
+Global-looking SHAP plots below are still **local**: they summarise **15 VLST cases and no controls**. Directional statements (high `LV` / `WBC` raise predicted risk; high `eGFR` lowers it) are attributions on events only — close to circular if read as “what distinguishes cases from controls.” They are not cohort-wide causal effects and not a population mean |SHAP|.
 
 ### Figure 3. SHAP summary (15 rows)
 
 ![Figure 3](paper_figures/paper_fig3_shap_summary.png)
 
-**Figure 3.** Beeswarm of SHAP values for P[Stent thrombosis] on 15 explained rows (colour = feature value; pink = high, blue = low). `LV` and `WBC` dominate: high values push predicted risk up. `eGFR` runs the other way (low filtration → positive SHAP). `LDL` is next among labs. Post-dilation and SES appear with smaller, more mixed attributions.
+**Figure 3.** Beeswarm of SHAP values for P[Stent thrombosis] on **15 VLST cases** (colour = feature value; pink = high, blue = low). `LV` and `WBC` dominate: high values push predicted risk up. `eGFR` runs the other way (low filtration → positive SHAP). `LDL` is next among labs. Post-dilation and SES appear with smaller, more mixed attributions.
 
 **Source file:** [paper_figures/paper_fig3_shap_summary.png](paper_figures/paper_fig3_shap_summary.png)
 
@@ -172,7 +174,7 @@ Global-looking SHAP plots below are still **local**: they summarise 15 explained
 
 ![Figure 5](paper_figures/paper_fig5_shap_bar.png)
 
-**Figure 5.** Mean(|SHAP|) over the 15 rows. Individual leaders: `LV` (1.24), `WBC` (1.16), `LDL` (0.64), `eGFR` (0.47). The bundled remainder (“sum of 72 other features”, 1.41) is large, so importance is not concentrated in the top four names alone.
+**Figure 5.** Mean(|SHAP|) over the **15 VLST cases**. This is not a population importance measure. Individual leaders: `LV` (1.24), `WBC` (1.16), `LDL` (0.64), `eGFR` (0.47). The bundled remainder (“sum of 72 other features”, 1.41) is large, so importance is not concentrated in the top four names alone.
 
 **Source file:** [paper_figures/paper_fig5_shap_bar.png](paper_figures/paper_fig5_shap_bar.png)
 
@@ -196,7 +198,7 @@ Global-looking SHAP plots below are still **local**: they summarise 15 explained
 
 ![Table 4](paper_figures/paper_table4_shap_mean_abs.png)
 
-**Table 4.** Mean absolute SHAP from the notebook CSV printout / consensus join. Used as one of the three consensus signals in Table 5.
+**Table 4.** Mean absolute SHAP over **15 VLST cases** (notebook CSV / consensus join). Used as one of the three consensus signals in Table 5. Not a full-cohort ranking.
 
 | Rank | Feature | mean(\|SHAP\|) |
 | ---: | --- | ---: |
@@ -288,7 +290,7 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ![Table 5](paper_figures/paper_table5_consensus.png)
 
-**Table 5.** The notebook’s `interpretability_feature_importance_report` top 15. `importance_score` is the Borda aggregate. `n_methods` counts how many of {MI top, stability, SHAP top} contributed. The six names with n_methods = 3 and high stability (`LV`, `WBC`, `eGFR`, `Stent type-SES`, plus `No postdilation` and `HbA1c`) are the most honest TabPFN associations in this run. `Cre` is stable (0.9) and in the SHAP top set but not the MI top set. `CaI` and `LDL` are strong on MI/SHAP but never selected by repeated SFS (frequency 0.0).
+**Table 5.** The notebook’s `interpretability_feature_importance_report` top 15. `importance_score` is the Borda aggregate. `n_methods` counts how many of {MI top, stability, SHAP top} contributed. The six names with n_methods = 3 and high stability (`LV`, `WBC`, `eGFR`, `Stent type-SES`, plus `No postdilation` and `HbA1c`) are the most honest TabPFN associations in this run. `Cre` is stable (0.9) and in the SHAP top set but not the MI top set. `CaI` and `LDL` are strong on MI/SHAP but never selected by repeated SFS (frequency 0.0). **`Cre` and `No.of stents per lesion` show `mutual_info = 0.000000` because they sit outside the stored MI top-15 and were filled with zeros — those are not measured zeros.**
 
 | Rank | Feature | Score | n methods | Stability | mean(\|SHAP\|) | MI | In MI top | In SHAP top |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
@@ -338,4 +340,4 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ---
 
-*Figures are the executed PNG outputs stored in `tabpfn_interpretability.ipynb`. Tables are reconstructed from those plots and the notebook’s printed CSVs. SHAP / SHAP-IQ used local TabPFN after the client thinking backend failed. Rankings on the full cohort are for interpretation only and should not be reused as a leakage-free feature mask.*
+*Figures are the executed PNG outputs stored in `tabpfn_interpretability.ipynb`. Tables are reconstructed from those plots and the notebook’s printed CSVs. SHAP / SHAP-IQ used local TabPFN after the client thinking backend failed. MI and stability use the full cohort; SHAP uses 15 cases only. Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*

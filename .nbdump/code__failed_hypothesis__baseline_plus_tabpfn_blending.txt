@@ -1,0 +1,1767 @@
+
+########## CELL 0 [markdown] ##########
+# VLST — Unified model comparison (`baseline_plus_tabpfn_blending.ipynb`)
+
+Consolidates **best configurations** from `baseline_blending.ipynb` and `../modeling/rating/tabpfn_playground.ipynb` with the six **baseline** learners (LR, RF, XGB, CatBoost, LGBM, TabPFN).
+
+| Protocol | Setting |
+|----------|---------|
+| **Split** | **70% train · 30% holdout test** (stratified, `RANDOM_STATE=42`) |
+| **Training** | **Stratified K-fold OOF** on train for **every** model — each row predicted by a model that never saw it |
+| **Test scores** | Mean of fold-model predictions on the frozen holdout (no leakage) |
+| **Threshold** | Max Fβ on **OOF train** scores (TabPFN β=1.5; others β=2.0); grid `[0.01…0.99]` × 199 |
+| **Blend weights** | SLSQP / Optuna / meta-LR fit on **OOF train** base predictions only |
+| **Data** | `../modeling/rating/tabpfn_playground.ipynb` minimal `load_raw()` · scaled view adds OHE |
+
+**Model families**
+- *Baselines*: `lr`, `rf`, `cat`, `xgb`, `lgb`, `tabpfn`
+- *Advanced extras*: `rf_b`, `xgb_b`; SLSQP blends on OOF (`adv_*`)
+- *TabPFN extras*: OOF-learned blends (`tabpfn_blend_*`, `tabpfn_stacking_lr`)
+
+---
+
+## Running on Kaggle
+
+1. **New notebook** → enable **GPU T4** + **Internet**.
+2. Add dataset [vlst-data](https://www.kaggle.com/datasets/amirmahdidaraei/vlst-data).
+3. Secrets: `TABPFN_TOKEN` (+ optional `HF_TOKEN`).
+4. **Run All** → outputs in `/kaggle/working/modeling_results/`.
+
+########## CELL 1 [code] ##########
+import importlib.util as _il
+
+_optional = []
+for _pkg, _mod in [("optuna", "optuna"), ("tabpfn", "tabpfn")]:
+    if _il.find_spec(_mod) is None:
+        _optional.append(_pkg)
+if _optional:
+    %pip install -q --no-warn-conflicts {" ".join(_optional)}
+---OUT---
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m753.2/753.2 kB[0m [31m14.6 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m40.3/40.3 kB[0m [31m2.3 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m12.2/12.2 MB[0m [31m95.9 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m394.6/394.6 kB[0m [31m24.3 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m5.2 MB/s[0m eta [36m0:00:00[0m
+[?25hNote: you may need to restart the kernel to use updated packages.
+
+
+########## CELL 2 [code] ##########
+import importlib.util as _il
+import json
+import os
+import warnings
+from pathlib import Path
+
+from IPython.display import display
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from catboost import CatBoostClassifier
+from lightgbm import LGBMClassifier
+from scipy.optimize import minimize as scipy_minimize
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    PrecisionRecallDisplay,
+    RocCurveDisplay,
+    accuracy_score,
+    average_precision_score,
+    f1_score,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from xgboost import XGBClassifier
+
+warnings.filterwarnings("ignore")
+sns.set_theme(style="whitegrid", context="notebook")
+plt.rcParams.update({"figure.dpi": 120, "axes.titlesize": 11, "axes.labelsize": 10})
+
+RANDOM_STATE = 42
+TEST_SIZE = 0.30  # holdout test (stratified)
+OOF_N_SPLITS = 5  # stratified OOF folds on train (all models)
+OOF_N_SPLITS_TABPFN = 10  # TabPFN OOF folds (matches tabpfn.ipynb threshold tuning)
+THRESHOLD_BETA = 2.0  # threshold objective for classical / advanced blends
+TABPFN_THRESHOLD_BETA = 1.5  # tabpfn.ipynb §5
+THRESHOLD_GRID_POINTS = 199  # tabpfn.ipynb select_threshold grid
+BLEND_OPTUNA_TRIALS = 200
+
+TARGET_COL = "Stent thrombosis"
+DROP_FEATURES = ["Time since stent implantation"]  # leakage control (tabpfn.ipynb)
+ID_COLS = ["NO.", "Name"]
+
+ADV_MEMBERS = ["cat", "xgb", "rf", "rf_b", "xgb_b", "lgb", "lr"]
+TABPFN_BLEND_MEMBERS = ["tabpfn", "lr", "rf", "cat", "xgb", "lgb"]
+
+KAGGLE_RAW_CSV = "/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"
+KAGGLE_RESULT_SUBDIR = "modeling_results"
+is_kaggle_env = os.path.isdir("/kaggle/working")
+
+
+def _find_repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for d in (here, *here.parents):
+        if (d / "data" / "raw" / "VLST.csv").is_file():
+            return d
+    raise FileNotFoundError("Could not locate data/raw/VLST.csv above cwd.")
+
+
+def _discover_vlst_csv() -> Path:
+    env = os.environ.get("VLST_RAW_CSV")
+    if env and Path(env).is_file():
+        return Path(env)
+    for p in (
+            Path(KAGGLE_RAW_CSV),
+            Path("/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"),
+            Path("/kaggle/input/vlst-data/VLST.csv"),
+    ):
+        if p.is_file():
+            return p
+    base = Path("/kaggle/input")
+    if base.is_dir():
+        for p in base.rglob("VLST.csv"):
+            if p.is_file():
+                return p
+    raise FileNotFoundError(
+        "VLST.csv not found. On Kaggle, add the vlst-data dataset or set VLST_RAW_CSV."
+    )
+
+
+def _resolve_paths():
+    if is_kaggle_env:
+        raw = _discover_vlst_csv()
+        result = Path(
+            os.environ.get(
+                "VLST_RESULT_DIR",
+                str(Path("/kaggle/working") / KAGGLE_RESULT_SUBDIR),
+            )
+        )
+        return raw, result, "Kaggle"
+    repo = _find_repo_root()
+    return (
+        Path(os.environ.get("VLST_RAW_CSV", repo / "data" / "raw" / "VLST.csv")),
+        Path(os.environ.get("VLST_RESULT_DIR", repo / "data" / "result" / "modeling_results")),
+        "local",
+    )
+
+
+RAW_PATH, RESULT_DIR, _runtime = _resolve_paths()
+RESULT_DIR.mkdir(parents=True, exist_ok=True)
+
+# GPU for boosters / TabPFN (matches baseline_blending.ipynb + tabpfn_playground.ipynb on Kaggle)
+try:
+    import torch
+
+    CUDA_AVAILABLE = torch.cuda.is_available()
+    DEVICE_NAME = torch.cuda.get_device_name(0) if CUDA_AVAILABLE else "cpu"
+except Exception:
+    CUDA_AVAILABLE = False
+    DEVICE_NAME = "cpu"
+
+CATBOOST_TASK_TYPE = "GPU" if CUDA_AVAILABLE else "CPU"
+XGB_DEVICE = "cuda" if CUDA_AVAILABLE else "cpu"
+LGB_DEVICE = "gpu" if CUDA_AVAILABLE else "cpu"
+
+print("Runtime:", _runtime)
+print("RAW_PATH:", RAW_PATH)
+print("RESULT_DIR:", RESULT_DIR)
+print("CUDA:", CUDA_AVAILABLE, "|", DEVICE_NAME)
+print("CatBoost:", CATBOOST_TASK_TYPE, "| XGB:", XGB_DEVICE)
+---OUT---
+Runtime: Kaggle
+RAW_PATH: /kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv
+RESULT_DIR: /kaggle/working/modeling_results
+CUDA: True | Tesla T4
+CatBoost: GPU | XGB: cuda
+
+
+########## CELL 3 [markdown] ##########
+## 1. Load data — one cleaned row set, dual views (scaled + raw TabPFN)
+
+########## CELL 4 [code] ##########
+def load_raw(raw_path):
+    """Minimal TabPFN-native handling (tabpfn.ipynb): keep NaNs, code text columns, no scaling/OHE."""
+    df = pd.read_csv(raw_path)
+    df = df.drop(columns=[c for c in ID_COLS if c in df.columns])
+    y = df[TARGET_COL].astype(int).to_numpy()
+    drop = [TARGET_COL] + [c for c in DROP_FEATURES if c in df.columns]
+    X_df = df.drop(columns=drop)
+    for c in X_df.columns:
+        if X_df[c].dtype == object:
+            coerced = pd.to_numeric(X_df[c].astype(str).str.strip(), errors="coerce")
+            if coerced.notna().mean() >= 0.5:  # genuinely numeric (e.g. "21.00 ")
+                X_df[c] = coerced
+            else:  # categorical text -> integer codes (NOT one-hot)
+                codes = X_df[c].astype("category").cat.codes.astype(float)
+                X_df[c] = codes.where(codes >= 0, np.nan)
+    return X_df.to_numpy(dtype=float), y, list(X_df.columns)
+
+
+def load_dataframe(raw_path):
+    """Same row set as load_raw, kept as a DataFrame for the scaled (OHE) view."""
+    df = pd.read_csv(raw_path)
+    df = df.drop(columns=[c for c in ID_COLS if c in df.columns])
+    df = df.drop(columns=[c for c in DROP_FEATURES if c in df.columns])
+    df[TARGET_COL] = pd.to_numeric(df[TARGET_COL], errors="coerce").astype(int)
+    return df
+
+
+def _feature_columns(df):
+    feature_cols = [c for c in df.columns if c != TARGET_COL]
+    numeric_cols = df[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = df[feature_cols].select_dtypes(include=["object"]).columns.tolist()
+    binary_cols = [c for c in numeric_cols if
+                   set(df[c].dropna().unique()).issubset({0, 1}) and df[c].nunique(dropna=True) <= 2]
+    continuous_cols = [c for c in numeric_cols if c not in binary_cols]
+    constant_cols = [c for c in feature_cols if df[c].nunique(dropna=False) <= 1]
+    if constant_cols:
+        feature_cols = [c for c in feature_cols if c not in constant_cols]
+        binary_cols = [c for c in binary_cols if c not in constant_cols]
+        continuous_cols = [c for c in continuous_cols if c not in constant_cols]
+        cat_cols = [c for c in cat_cols if c not in constant_cols]
+    return feature_cols, binary_cols, continuous_cols, cat_cols
+
+
+def _build_preprocessor(binary_cols, continuous_cols, cat_cols):
+    transformers = []
+    if continuous_cols:
+        transformers.append(("num", SimpleImputer(strategy="median"), continuous_cols))
+    if binary_cols:
+        transformers.append(("bin", SimpleImputer(strategy="most_frequent"), binary_cols))
+    if cat_cols:
+        ohe = OneHotEncoder(drop="first", handle_unknown="ignore")
+        transformers.append(
+            ("cat", Pipeline([("impute", SimpleImputer(strategy="constant", fill_value="missing")), ("ohe", ohe)]),
+             cat_cols))
+    return ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
+
+
+def df_to_scaled(df):
+    """Return raw feature DataFrame + a factory that builds a fresh preprocessing Pipeline.
+
+    IMPORTANT (leakage fix): preprocessing (impute + OHE + scale) is fit **inside** each
+    model Pipeline at model-fit time, so it only sees the current training fold. The
+    preview `names` list is computed once from a small slice **for reporting only**.
+    """
+    feature_cols, binary_cols, continuous_cols, cat_cols = _feature_columns(df)
+    X_df = df[feature_cols].copy()
+
+    def build_scaled_preprocessor():
+        return Pipeline([
+            ("enc", _build_preprocessor(binary_cols, continuous_cols, cat_cols)),
+            ("scale", StandardScaler(with_mean=False)),
+        ])
+
+    _preview = build_scaled_preprocessor()
+    _preview.fit(X_df.head(min(len(X_df), 500)))
+    names = list(_preview.named_steps["enc"].get_feature_names_out())
+    return X_df, names, build_scaled_preprocessor
+
+
+df = load_dataframe(RAW_PATH)
+X_raw, y_all, feature_names_raw = load_raw(RAW_PATH)
+assert np.array_equal(y_all, df[TARGET_COL].to_numpy())
+X_all, feature_names_scaled, build_scaled_preprocessor = df_to_scaled(df)
+assert len(y_all) == X_all.shape[0] == X_raw.shape[0]
+print(
+    f"Rows={len(y_all):,} | scaled features (per-fold OHE)~{len(feature_names_scaled)} | raw features={X_raw.shape[1]}")
+print(f"Class balance: 0={(y_all == 0).sum()} | 1={(y_all == 1).sum()}")
+---OUT---
+Rows=5,185 | scaled features (per-fold OHE)~119 | raw features=81
+Class balance: 0=5093 | 1=92
+
+
+########## CELL 5 [code] ##########
+# Index-based splits — identical rows in scaled & raw views
+idx = np.arange(len(y_all))
+train_idx, test_idx = train_test_split(
+    idx, test_size=TEST_SIZE, stratify=y_all, random_state=RANDOM_STATE,
+)
+
+X_train, y_train = X_all.iloc[train_idx], y_all[train_idx]
+X_test, y_test = X_all.iloc[test_idx], y_all[test_idx]
+X_raw_train = X_raw[train_idx]
+X_raw_test = X_raw[test_idx]
+
+split_stats = pd.DataFrame([
+    {"split": "train", "n": len(train_idx), "positives": int((y_train == 1).sum()), "rate": (y_train == 1).mean()},
+    {"split": "test", "n": len(test_idx), "positives": int((y_test == 1).sum()), "rate": (y_test == 1).mean()},
+])
+display(split_stats)
+assert abs(len(train_idx) / len(y_all) - (1.0 - TEST_SIZE)) < 0.02
+assert abs(len(test_idx) / len(y_all) - TEST_SIZE) < 0.02
+print(f"Test positives={int((y_test == 1).sum())} (tabpfn.ipynb uses same 70/30 split)")
+---OUT---
+   split     n  positives      rate
+0  train  3629         64  0.017636
+1   test  1556         28  0.017995
+Test positives=28 (tabpfn.ipynb uses same 70/30 split)
+
+
+########## CELL 6 [markdown] ##########
+## 2. Helpers, metrics, and blend utilities
+
+########## CELL 7 [code] ##########
+SCALE_POS_WEIGHT = float((y_train == 0).sum() / max((y_train == 1).sum(), 1))
+
+
+class CatBoostClassifierWrapper(ClassifierMixin, BaseEstimator):
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.model_ = CatBoostClassifier(**kwargs)
+
+    def get_params(self, deep=True):
+        return dict(self.kwargs)
+
+    def set_params(self, **params):
+        self.kwargs.update(params)
+        self.model_ = CatBoostClassifier(**self.kwargs)
+        return self
+
+    def fit(self, X, y, **fit_params):
+        self.model_.fit(X, y, **fit_params)
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
+        return self
+
+    def predict_proba(self, X):
+        return self.model_.predict_proba(X)
+
+
+def pos_proba(est, X):
+    p = est.predict_proba(X)
+    if hasattr(est, "classes_"):
+        idx = list(est.classes_).index(1) if 1 in est.classes_ else 1
+    else:
+        idx = 1
+    return np.asarray(p[:, idx], dtype=float)
+
+
+def ranking_metrics(y, p):
+    return {
+        "pr_auc": float(average_precision_score(y, p)),
+        "roc_auc": float(roc_auc_score(y, p)),
+    }
+
+
+def threshold_max_fbeta(y, p, beta=THRESHOLD_BETA, grid=None):
+    grid = np.linspace(0.01, 0.99, THRESHOLD_GRID_POINTS) if grid is None else grid
+    best_t, best_v = 0.5, -1.0
+    for t in grid:
+        v = fbeta_score(y, (p >= t).astype(int), beta=beta, zero_division=0)
+        if v > best_v:
+            best_t, best_v = float(t), float(v)
+    return best_t
+
+
+def operational_metrics(y, p, threshold):
+    pred = (p >= threshold).astype(int)
+    return {
+        **ranking_metrics(y, p),
+        "precision": float(precision_score(y, pred, zero_division=0)),
+        "recall": float(recall_score(y, pred, zero_division=0)),
+        "f1": float(f1_score(y, pred, zero_division=0)),
+        f"f{THRESHOLD_BETA:g}": float(fbeta_score(y, pred, beta=THRESHOLD_BETA, zero_division=0)),
+        "accuracy": float(accuracy_score(y, pred)),
+        "threshold": float(threshold),
+    }
+
+
+def _simplex(w, eps=1e-12):
+    w = np.clip(np.asarray(w, dtype=float), 0.0, None)
+    s = w.sum()
+    return w / s if s > eps else np.full_like(w, 1.0 / len(w))
+
+
+def learn_slsqp(P, y, *, n_starts=8, seed=RANDOM_STATE):
+    """Multi-start SLSQP on the simplex to escape the uniform local optimum.
+
+    Manus issue #3: with only ~64 positives, the PR-AUC surface over the simplex is
+    almost flat, so a single start from the uniform simplex almost always returned
+    the uniform weights unchanged. We now try `n_starts` initial points (uniform +
+    Dirichlet random) and keep the best-scoring solution.
+    """
+    n = P.shape[1]
+    rng = np.random.default_rng(seed)
+    starts = [np.full(n, 1.0 / n)] + [rng.dirichlet(np.full(n, 1.0)) for _ in range(max(0, n_starts - 1))]
+    cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0}]
+    best_w, best_score = np.full(n, 1.0 / n), -np.inf
+    for x0 in starts:
+        try:
+            res = scipy_minimize(
+                lambda w: -average_precision_score(y, P @ w),
+                x0=x0, method="SLSQP", bounds=[(0.0, 1.0)] * n, constraints=cons,
+                options={"maxiter": 300, "ftol": 1e-9},
+            )
+            w = _simplex(res.x)
+            s = average_precision_score(y, P @ w)
+            if s > best_score:
+                best_score, best_w = s, w
+        except Exception:
+            continue
+    return best_w
+
+
+def blend_scores(P, w):
+    return np.asarray(P, dtype=float) @ np.asarray(w, dtype=float)
+
+
+def grid_max_pr(P, y, step=0.05):
+    """Exhaustive 2-model simplex grid (advanced nocat-style)."""
+    best_w, best_pr = None, -1.0
+    for w0 in np.arange(0.0, 1.0 + step / 2, step):
+        w = np.array([w0, 1.0 - w0])
+        pr = average_precision_score(y, P @ w)
+        if pr > best_pr:
+            best_pr, best_w = pr, w
+    return best_w, float(best_pr)
+
+
+def threshold_policy(model_name):
+    """All models: tune threshold on OOF train scores."""
+    return "oof_train"
+
+
+def _threshold_beta(model_name):
+    if model_name == "tabpfn" or model_name.startswith("tabpfn_"):
+        return TABPFN_THRESHOLD_BETA
+    return THRESHOLD_BETA
+
+
+def _take(X, idx):
+    """Fancy-index a numpy array or pandas DataFrame uniformly."""
+    return X.iloc[idx] if hasattr(X, "iloc") else X[idx]
+
+
+def oof_train_test(factory, X_train, y_train, X_test, *, n_splits=OOF_N_SPLITS, seed=RANDOM_STATE):
+    """OOF train predictions + fold-averaged test predictions (stacking-safe, no leakage)."""
+    oof = np.zeros(len(y_train), dtype=float)
+    test_mean = np.zeros(X_test.shape[0], dtype=float)
+    fold_rows = []
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    for fold, (tr, va) in enumerate(skf.split(np.zeros(len(y_train)), y_train), 1):
+        m = factory()
+        m.fit(_take(X_train, tr), y_train[tr])
+        p_va = pos_proba(m, _take(X_train, va))
+        oof[va] = p_va
+        test_mean += pos_proba(m, X_test) / n_splits
+        fold_rows.append({"fold": fold, **ranking_metrics(y_train[va], p_va)})
+    return oof, test_mean, pd.DataFrame(fold_rows)
+
+
+def nested_oof_linear(P, y, learn_weights_fn, *, n_splits=OOF_N_SPLITS, seed=RANDOM_STATE):
+    """Honest nested OOF for linear blends: weights learned on outer-train only."""
+    oof = np.zeros(len(y), dtype=float)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    for tr, va in skf.split(P, y):
+        w = learn_weights_fn(P[tr], y[tr])
+        oof[va] = blend_scores(P[va], w)
+    return oof
+
+
+def nested_oof_meta_lr(P, y, *, n_splits=OOF_N_SPLITS, seed=RANDOM_STATE):
+    """Honest nested OOF for stacking LR: fit meta on outer-train only."""
+    oof = np.zeros(len(y), dtype=float)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    for tr, va in skf.split(P, y):
+        meta = LogisticRegression(C=1.0, class_weight="balanced", max_iter=2000, random_state=seed)
+        meta.fit(P[tr], y[tr])
+        oof[va] = meta.predict_proba(P[va])[:, 1]
+    return oof
+
+
+########## CELL 8 [markdown] ##########
+## 3. Model factories — frozen best hyperparameters from source notebooks
+
+########## CELL 9 [code] ##########
+
+
+
+# --- baseline_blending.ipynb §5 winners ---
+def make_lr(seed=RANDOM_STATE):
+    return LogisticRegression(C=2.0, solver="lbfgs", max_iter=2000, class_weight="balanced", random_state=seed)
+
+
+def make_rf(seed=RANDOM_STATE):
+    return RandomForestClassifier(
+        n_estimators=500, max_depth=None, min_samples_leaf=3,
+        class_weight="balanced_subsample", n_jobs=-1, random_state=seed,
+    )
+
+
+def make_rf_b(seed=RANDOM_STATE):
+    m = make_rf(seed=137 + seed)
+    m.set_params(max_samples=0.88)
+    return m
+
+
+def make_cat(seed=RANDOM_STATE):
+    return CatBoostClassifierWrapper(
+        depth=6, learning_rate=0.05, l2_leaf_reg=5.0, iterations=800,
+        eval_metric="AUC", logging_level="Silent", auto_class_weights="Balanced",
+        random_seed=seed, task_type=CATBOOST_TASK_TYPE,
+    )
+
+
+def make_xgb(seed=RANDOM_STATE):
+    # eval_metric dropped: no eval_set / early_stopping is used, so it was a no-op (Manus minor #2).
+    return XGBClassifier(
+        n_estimators=600, max_depth=5, learning_rate=0.05, reg_lambda=2.0,
+        subsample=0.9, colsample_bytree=0.9, objective="binary:logistic",
+        scale_pos_weight=SCALE_POS_WEIGHT, random_state=seed,
+        device=XGB_DEVICE,
+    )
+
+
+def make_xgb_b(seed=RANDOM_STATE):
+    return XGBClassifier(
+        n_estimators=600, max_depth=5, learning_rate=0.05, reg_lambda=2.0,
+        subsample=0.78, colsample_bytree=0.78, objective="binary:logistic",
+        scale_pos_weight=SCALE_POS_WEIGHT,
+        random_state=91 + seed, device=XGB_DEVICE,
+    )
+
+
+def make_lgb(seed=RANDOM_STATE):
+    return LGBMClassifier(
+        n_estimators=600, max_depth=8, num_leaves=31, learning_rate=0.05,
+        class_weight="balanced", random_state=seed, verbosity=-1, device=LGB_DEVICE,
+    )
+
+
+def _wrap_scaled(estimator_factory):
+    """Wrap an estimator factory in a Pipeline with per-fold-fit preprocessing.
+
+    Leakage fix (Manus issue #1): the preprocessor is instantiated fresh and fit only
+    on the training fold each time the wrapped factory is called and Pipeline.fit runs.
+    """
+
+    def _factory(seed=RANDOM_STATE):
+        return Pipeline([
+            ("pre", build_scaled_preprocessor()),
+            ("clf", estimator_factory(seed)),
+        ])
+
+    return _factory
+
+
+SCALED_FACTORIES = {
+    "lr": _wrap_scaled(make_lr),
+    "rf": _wrap_scaled(make_rf),
+    "rf_b": _wrap_scaled(make_rf_b),
+    "cat": _wrap_scaled(make_cat),
+    "xgb": _wrap_scaled(make_xgb),
+    "xgb_b": _wrap_scaled(make_xgb_b),
+    "lgb": _wrap_scaled(make_lgb),
+}
+
+
+# --- tabpfn.ipynb §9 calibrated classical bases (for TabPFN-native raw matrix) ---
+def _calibrate(est):
+    return CalibratedClassifierCV(est, method="sigmoid", cv=3)
+
+
+def make_lr_raw(seed=RANDOM_STATE):
+    pipe = Pipeline([
+        ("imp", SimpleImputer(strategy="median")),
+        ("sc", StandardScaler()),
+        ("lr", LogisticRegression(C=2.0, solver="lbfgs", class_weight="balanced", max_iter=2000, random_state=seed)),
+    ])
+    return _calibrate(pipe)
+
+
+def make_rf_raw(seed=RANDOM_STATE):
+    pipe = Pipeline([
+        ("imp", SimpleImputer(strategy="median")),
+        ("rf",
+         RandomForestClassifier(n_estimators=500, max_depth=None, min_samples_leaf=3, class_weight="balanced_subsample",
+                                n_jobs=-1, random_state=seed)),
+    ])
+    return _calibrate(pipe)
+
+
+def make_cat_raw(seed=RANDOM_STATE):
+    base = CatBoostClassifier(depth=6, learning_rate=0.05, l2_leaf_reg=5.0, iterations=600,
+                              auto_class_weights="Balanced", verbose=0, random_state=seed)
+    return _calibrate(Pipeline([("imp", SimpleImputer(strategy="median")), ("cat", base)]))
+
+
+def make_xgb_raw(seed=RANDOM_STATE):
+    base = XGBClassifier(max_depth=5, learning_rate=0.05, n_estimators=600, reg_lambda=2.0,
+                         scale_pos_weight=SCALE_POS_WEIGHT, eval_metric="logloss", tree_method="hist", n_jobs=-1,
+                         random_state=seed)
+    return _calibrate(Pipeline([("imp", SimpleImputer(strategy="median")), ("xgb", base)]))
+
+
+def make_lgb_raw(seed=RANDOM_STATE):
+    base = LGBMClassifier(max_depth=8, learning_rate=0.05, num_leaves=31, n_estimators=600, class_weight="balanced",
+                          n_jobs=-1, random_state=seed, verbosity=-1)
+    return _calibrate(Pipeline([("imp", SimpleImputer(strategy="median")), ("lgb", base)]))
+
+
+RAW_CLASSICAL_FACTORIES = {
+    "lr": make_lr_raw,
+    "rf": make_rf_raw,
+    "cat": make_cat_raw,
+    "xgb": make_xgb_raw,
+    "lgb": make_lgb_raw,
+}
+
+TABPFN_AVAILABLE = False
+make_tabpfn = None
+
+
+def _load_tabpfn_tokens():
+    hf = os.environ.get("HF_TOKEN", "").strip()
+    tabpfn = os.environ.get("TABPFN_TOKEN", "").strip()
+    if tabpfn:
+        return hf, tabpfn
+    if is_kaggle_env:
+        from kaggle_secrets import UserSecretsClient
+        secrets = UserSecretsClient()
+        hf = secrets.get_secret("HF_TOKEN") or ""
+        tabpfn = secrets.get_secret("NEW_TABPFN_TOKEN") or secrets.get_secret("TABPFN_TOKEN") or ""
+        return hf, tabpfn
+    return hf, tabpfn
+
+
+try:
+    import torch
+    from tabpfn import TabPFNClassifier
+
+    _tabpfn_device = "cuda" if torch.cuda.is_available() else "cpu"
+    _hf_token, _tabpfn_token = _load_tabpfn_tokens()
+    if _tabpfn_token:
+        os.environ["TABPFN_TOKEN"] = _tabpfn_token
+    if _hf_token:
+        os.environ["HF_TOKEN"] = _hf_token
+
+
+    def make_tabpfn(seed=RANDOM_STATE):
+        return TabPFNClassifier(
+            device=_tabpfn_device, n_estimators=-1, balance_probabilities=True,
+            ignore_pretraining_limits=False, random_state=seed,
+        )
+
+
+    if _tabpfn_token:
+        TABPFN_AVAILABLE = True
+        print(f"TabPFN ready on {_tabpfn_device}")
+    else:
+        print("TABPFN_TOKEN not set — TabPFN models will be skipped.")
+except Exception as exc:
+    print("TabPFN unavailable:", exc)
+
+OPTUNA_AVAILABLE = _il.find_spec("optuna") is not None
+print("Optuna:", "yes" if OPTUNA_AVAILABLE else "no (SLSQP blends still run)")
+---OUT---
+TabPFN ready on cuda
+Optuna: yes
+
+
+########## CELL 10 [markdown] ##########
+## 4. OOF training — all base models
+
+Stratified K-fold on **train only**. Each training row gets one out-of-fold score; holdout **test** scores are the mean of fold-model predictions (no leakage).
+
+########## CELL 11 [code] ##########
+P_train_oof, P_test = {}, {}
+cv_frames = []
+
+for name, factory in SCALED_FACTORIES.items():
+    oof, p_test, fold_df = oof_train_test(factory, X_train, y_train, X_test, n_splits=OOF_N_SPLITS)
+    P_train_oof[name] = oof
+    P_test[name] = p_test
+    fold_df["model"] = name
+    fold_df["family"] = "baseline" if name in {"lr", "rf", "cat", "xgb", "lgb"} else "advanced"
+    cv_frames.append(fold_df)
+    print(
+        f"{name:6s} | OOF PR-AUC {average_precision_score(y_train, oof):.4f} | test PR-AUC {average_precision_score(y_test, p_test):.4f}")
+
+if TABPFN_AVAILABLE:
+    oof, p_test, fold_df = oof_train_test(
+        make_tabpfn, X_raw_train, y_train, X_raw_test, n_splits=OOF_N_SPLITS_TABPFN,
+    )
+    P_train_oof["tabpfn"] = oof
+    P_test["tabpfn"] = p_test
+    fold_df["model"] = "tabpfn"
+    fold_df["family"] = "baseline"
+    cv_frames.append(fold_df)
+    print(
+        f"{'tabpfn':6s} | OOF PR-AUC {average_precision_score(y_train, oof):.4f} | test PR-AUC {average_precision_score(y_test, p_test):.4f}")
+
+for name, factory in RAW_CLASSICAL_FACTORIES.items():
+    key = f"{name}_raw"
+    oof, p_test, fold_df = oof_train_test(factory, X_raw_train, y_train, X_raw_test, n_splits=OOF_N_SPLITS)
+    P_train_oof[key] = oof
+    P_test[key] = p_test
+    fold_df["model"] = key
+    fold_df["family"] = "tabpfn_base"
+    cv_frames.append(fold_df)
+    print(
+        f"{key:10s} | OOF PR-AUC {average_precision_score(y_train, oof):.4f} | test PR-AUC {average_precision_score(y_test, p_test):.4f}")
+
+cv_detail = pd.concat(cv_frames, ignore_index=True)
+cv_summary = (
+    cv_detail.groupby(["model", "family"], as_index=False)
+    .agg(pr_auc_mean=("pr_auc", "mean"), pr_auc_std=("pr_auc", "std"), roc_auc_mean=("roc_auc", "mean"),
+         roc_auc_std=("roc_auc", "std"))
+    .assign(oof_pr_auc_train=lambda d: d["model"].map(
+        {m: average_precision_score(y_train, P_train_oof[m]) for m in P_train_oof}))
+    .sort_values("oof_pr_auc_train", ascending=False)
+)
+display(cv_summary.round(4))
+print(f"OOF folds: {OOF_N_SPLITS} (TabPFN: {OOF_N_SPLITS_TABPFN}) | Test positives={int((y_test == 1).sum())}")
+---OUT---
+lr     | OOF PR-AUC 0.2860 | test PR-AUC 0.4888
+rf     | OOF PR-AUC 0.5179 | test PR-AUC 0.5687
+rf_b   | OOF PR-AUC 0.5203 | test PR-AUC 0.5871
+
+Default metric period is 5 because AUC is/are not implemented for GPU
+Default metric period is 5 because AUC is/are not implemented for GPU
+Default metric period is 5 because AUC is/are not implemented for GPU
+Default metric period is 5 because AUC is/are not implemented for GPU
+Default metric period is 5 because AUC is/are not implemented for GPU
+
+cat    | OOF PR-AUC 0.6146 | test PR-AUC 0.6658
+xgb    | OOF PR-AUC 0.6766 | test PR-AUC 0.6655
+xgb_b  | OOF PR-AUC 0.6446 | test PR-AUC 0.6662
+
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+1 warning generated.
+
+lgb    | OOF PR-AUC 0.6847 | test PR-AUC 0.6872
+
+tabpfn-v3-classifier-v3_default.ckpt:   0%|          | 0.00/213M [00:00<?, ?B/s]
+config.json:   0%|          | 0.00/33.0 [00:00<?, ?B/s]
+tabpfn | OOF PR-AUC 0.6015 | test PR-AUC 0.8126
+lr_raw     | OOF PR-AUC 0.2575 | test PR-AUC 0.4498
+rf_raw     | OOF PR-AUC 0.5445 | test PR-AUC 0.5980
+cat_raw    | OOF PR-AUC 0.6727 | test PR-AUC 0.6491
+xgb_raw    | OOF PR-AUC 0.6339 | test PR-AUC 0.6589
+lgb_raw    | OOF PR-AUC 0.5778 | test PR-AUC 0.6414
+
+      model       family  pr_auc_mean  pr_auc_std  roc_auc_mean  roc_auc_std  \
+2       lgb     baseline       0.6970      0.0947        0.9677       0.0271   
+10      xgb     baseline       0.6920      0.0568        0.9730       0.0185   
+1   cat_raw  tabpfn_base       0.6845      0.1286        0.9676       0.0201   
+11    xgb_b     advanced       0.6538      0.1019        0.9697       0.0219   
+12  xgb_raw  tabpfn_base       0.6483      0.1209        0.9661       0.0250   
+0       cat     baseline       0.6425      0.0432        0.9717       0.0103   
+9    tabpfn     baseline       0.6451      0.1842        0.9614       0.0420   
+3   lgb_raw  tabpfn_base       0.6299      0.0770        0.9731       0.0130   
+8    rf_raw  tabpfn_base       0.5698      0.0980        0.9624       0.0275   
+7      rf_b     advanced       0.5707      0.0763        0.9560       0.0389   
+6        rf     baseline       0.5479      0.1033        0.9595       0.0261   
+4        lr     baseline       0.3151      0.1491        0.8703       0.0689   
+5    lr_raw  tabpfn_base       0.3103      0.0778        0.8853       0.0628   
+
+    oof_pr_auc_train  
+2             0.6847  
+10            0.6766  
+1             0.6727  
+11            0.6446  
+12            0.6339  
+0             0.6146  
+9             0.6015  
+3             0.5778  
+8             0.5445  
+7             0.5203  
+6             0.5179  
+4             0.2860  
+5             0.2575  
+OOF folds: 5 (TabPFN: 10) | Test positives=28
+
+
+########## CELL 12 [markdown] ##########
+## 5. Ensemble blends (weights from OOF train)
+
+All blend weights are learned on **OOF train** base predictions; test scores use fold-averaged base predictions.
+
+########## CELL 13 [code] ##########
+# Base models trained via OOF in §4 — P_train_oof, P_test ready for blends.
+print(f"OOF bases ready: {len(P_train_oof)} models | test positives={int((y_test == 1).sum())}")
+---OUT---
+OOF bases ready: 13 models | test positives=28
+
+
+########## CELL 14 [code] ##########
+blend_specs = {}
+Poof = None
+
+# --- baseline_blending.ipynb-style blends (weights on OOF train) ---
+adv4 = [m for m in ["cat", "xgb", "rf", "rf_b"] if m in P_train_oof]
+P4_oof = np.column_stack([P_train_oof[m] for m in adv4])
+P4_test = np.column_stack([P_test[m] for m in adv4])
+w4 = learn_slsqp(P4_oof, y_train)
+blend_specs["adv_4way_slsqp"] = {"members": adv4, "weights": w4, "P_oof": P4_oof, "P_test": P4_test,
+                                 "family": "advanced"}
+
+adv3 = [m for m in ["cat", "xgb", "rf"] if m in P_train_oof]
+P3_oof = np.column_stack([P_train_oof[m] for m in adv3])
+P3_test = np.column_stack([P_test[m] for m in adv3])
+w3 = learn_slsqp(P3_oof, y_train)
+blend_specs["adv_3way_slsqp"] = {"members": adv3, "weights": w3, "P_oof": P3_oof, "P_test": P3_test,
+                                 "family": "advanced"}
+
+adv7 = [m for m in ADV_MEMBERS if m in P_train_oof]
+P7_oof = np.column_stack([P_train_oof[m] for m in adv7])
+P7_test = np.column_stack([P_test[m] for m in adv7])
+w7 = learn_slsqp(P7_oof, y_train)
+blend_specs["adv_7way_slsqp"] = {"members": adv7, "weights": w7, "P_oof": P7_oof, "P_test": P7_test,
+                                 "family": "advanced"}
+
+nocat = [m for m in ["xgb", "rf"] if m in P_train_oof]
+Pn_oof = np.column_stack([P_train_oof[m] for m in nocat])
+Pn_test = np.column_stack([P_test[m] for m in nocat])
+wn, _ = grid_max_pr(Pn_oof, y_train)
+blend_specs["adv_nocat_grid_f2"] = {"members": nocat, "weights": wn, "P_oof": Pn_oof, "P_test": Pn_test,
+                                    "family": "advanced"}
+
+# --- tabpfn.ipynb-style blends (OOF weights) ---
+if TABPFN_AVAILABLE:
+    tab_members = ["tabpfn"] + [f"{m}_raw" for m in ["lr", "rf", "cat", "xgb", "lgb"]]
+    tab_members = [m for m in tab_members if m in P_train_oof]
+    Poof = np.column_stack([P_train_oof[m] for m in tab_members])
+    Pt = np.column_stack([P_test[m] for m in tab_members])
+
+    w_uni = np.full(len(tab_members), 1.0 / len(tab_members))
+    blend_specs["tabpfn_blend_uniform"] = {"members": tab_members, "weights": w_uni, "P_oof": Poof, "P_test": Pt,
+                                           "family": "tabpfn"}
+
+    w_slsqp = learn_slsqp(Poof, y_train)
+    blend_specs["tabpfn_blend_slsqp"] = {"members": tab_members, "weights": w_slsqp, "P_oof": Poof, "P_test": Pt,
+                                         "family": "tabpfn"}
+
+    meta_lr = LogisticRegression(C=1.0, class_weight="balanced", max_iter=2000, random_state=RANDOM_STATE)
+    meta_lr.fit(Poof, y_train)
+    blend_specs["tabpfn_stacking_lr"] = {
+        "members": tab_members, "weights": None, "meta": meta_lr, "P_oof": Poof, "P_test": Pt, "family": "tabpfn",
+    }
+
+    if OPTUNA_AVAILABLE:
+        import optuna
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+
+        def _optuna_objective(trial):
+            raw = np.array([trial.suggest_float(f"w_{m}", 1e-3, 1.0) for m in tab_members])
+            mask = np.array([trial.suggest_int(f"use_{m}", 0, 1) for m in tab_members], dtype=bool)
+            if mask.sum() < 2:
+                top = np.argsort(-raw)[:2]
+                mask = np.zeros(len(tab_members), dtype=bool)
+                mask[top] = True
+            w = np.zeros(len(tab_members))
+            w[mask] = _simplex(raw[mask])
+            return average_precision_score(y_train, Poof @ w)
+
+
+        study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE))
+        study.optimize(_optuna_objective, n_trials=BLEND_OPTUNA_TRIALS, show_progress_bar=False)
+        raw = np.array([study.best_params[f"w_{m}"] for m in tab_members])
+        mask = np.array([study.best_params[f"use_{m}"] for m in tab_members], dtype=bool)
+        if mask.sum() < 2:
+            mask[np.argsort(-raw)[:2]] = True
+        w_opt = np.zeros(len(tab_members))
+        w_opt[mask] = _simplex(raw[mask])
+        blend_specs["tabpfn_blend_optuna"] = {"members": tab_members, "weights": w_opt, "P_oof": Poof, "P_test": Pt,
+                                              "family": "tabpfn"}
+
+for label, spec in blend_specs.items():
+    if spec.get("meta") is not None:
+        spec["scores_oof_train"] = nested_oof_meta_lr(spec["P_oof"], y_train)
+        spec["scores_test"] = spec["meta"].predict_proba(spec["P_test"])[:, 1]
+        wtxt = "meta_lr"
+    else:
+        if label == "tabpfn_blend_slsqp":
+            spec["scores_oof_train"] = nested_oof_linear(spec["P_oof"], y_train, learn_slsqp)
+        elif label == "tabpfn_blend_optuna" and OPTUNA_AVAILABLE:
+            def _learn_optuna_nested(P_tr, y_tr):
+                import optuna
+                optuna.logging.set_verbosity(optuna.logging.WARNING)
+                n = P_tr.shape[1]
+
+                def _obj(trial):
+                    raw = np.array([trial.suggest_float(f"w_{i}", 1e-3, 1.0) for i in range(n)])
+                    mask = np.array([trial.suggest_int(f"use_{i}", 0, 1) for i in range(n)], dtype=bool)
+                    if mask.sum() < 2:
+                        top = np.argsort(-raw)[:2]
+                        mask = np.zeros(n, dtype=bool)
+                        mask[top] = True
+                    w = np.zeros(n)
+                    w[mask] = _simplex(raw[mask])
+                    return average_precision_score(y_tr, P_tr @ w)
+
+                study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE))
+                study.optimize(_obj, n_trials=min(80, BLEND_OPTUNA_TRIALS), show_progress_bar=False)
+                raw = np.array([study.best_params[f"w_{i}"] for i in range(n)])
+                mask = np.array([study.best_params[f"use_{i}"] for i in range(n)], dtype=bool)
+                if mask.sum() < 2:
+                    mask[np.argsort(-raw)[:2]] = True
+                w = np.zeros(n)
+                w[mask] = _simplex(raw[mask])
+                return w
+
+
+            spec["scores_oof_train"] = nested_oof_linear(spec["P_oof"], y_train, _learn_optuna_nested)
+        elif label.startswith("adv_"):
+            if label == "adv_nocat_grid_f2":
+                spec["scores_oof_train"] = nested_oof_linear(spec["P_oof"], y_train, lambda P, y: grid_max_pr(P, y)[0])
+            else:
+                spec["scores_oof_train"] = nested_oof_linear(spec["P_oof"], y_train, learn_slsqp)
+        else:
+            spec["scores_oof_train"] = blend_scores(spec["P_oof"], spec["weights"])
+        spec["scores_test"] = blend_scores(spec["P_test"], spec["weights"])
+        wtxt = np.round(spec["weights"], 3).tolist()
+    print(f"{label:22s} | members={spec['members']} | weights={wtxt}")
+---OUT---
+adv_4way_slsqp         | members=['cat', 'xgb', 'rf', 'rf_b'] | weights=[0.325, 0.315, 0.322, 0.038]
+adv_3way_slsqp         | members=['cat', 'xgb', 'rf'] | weights=[0.306, 0.677, 0.017]
+adv_7way_slsqp         | members=['cat', 'xgb', 'rf', 'rf_b', 'xgb_b', 'lgb', 'lr'] | weights=[0.046, 0.376, 0.251, 0.134, 0.085, 0.093, 0.016]
+adv_nocat_grid_f2      | members=['xgb', 'rf'] | weights=[0.65, 0.35]
+tabpfn_blend_uniform   | members=['tabpfn', 'lr_raw', 'rf_raw', 'cat_raw', 'xgb_raw', 'lgb_raw'] | weights=[0.167, 0.167, 0.167, 0.167, 0.167, 0.167]
+tabpfn_blend_slsqp     | members=['tabpfn', 'lr_raw', 'rf_raw', 'cat_raw', 'xgb_raw', 'lgb_raw'] | weights=[0.167, 0.167, 0.167, 0.167, 0.167, 0.167]
+tabpfn_stacking_lr     | members=['tabpfn', 'lr_raw', 'rf_raw', 'cat_raw', 'xgb_raw', 'lgb_raw'] | weights=meta_lr
+tabpfn_blend_optuna    | members=['tabpfn', 'lr_raw', 'rf_raw', 'cat_raw', 'xgb_raw', 'lgb_raw'] | weights=[0.276, 0.0, 0.11, 0.614, 0.0, 0.0]
+
+
+########## CELL 15 [code] ##########
+rows = []
+model_thresholds = {}
+
+
+def _tune_threshold(model, scores_oof_train):
+    return threshold_max_fbeta(y_train, scores_oof_train, beta=_threshold_beta(model))
+
+
+def _append_rows(model, family, scores_oof_train, scores_test):
+    t = _tune_threshold(model, scores_oof_train)
+    model_thresholds[model] = t
+    for split, y_true, scores in (("oof_train", y_train, scores_oof_train), ("test", y_test, scores_test)):
+        mets = operational_metrics(y_true, scores, t)
+        rows.append({
+            "model": model, "family": family, "split": split,
+            "threshold_policy": threshold_policy(model), "threshold": t, **mets,
+        })
+
+
+baseline_names = ["lr", "rf", "cat", "xgb", "lgb"] + (["tabpfn"] if TABPFN_AVAILABLE else [])
+for name in baseline_names + ["rf_b", "xgb_b"]:
+    family = "baseline" if name in baseline_names else "advanced"
+    _append_rows(name, family, P_train_oof[name], P_test[name])
+
+for label, spec in blend_specs.items():
+    _append_rows(label, spec["family"], spec["scores_oof_train"], spec["scores_test"])
+
+results = pd.DataFrame(rows)
+results = results.merge(cv_summary[["model", "pr_auc_mean", "pr_auc_std", "oof_pr_auc_train"]], on="model", how="left")
+
+test_leaderboard = (
+    results[results["split"] == "test"]
+    .sort_values("pr_auc", ascending=False)
+    .reset_index(drop=True)
+)
+display(test_leaderboard[[
+    "model", "family", "pr_auc", "roc_auc", "f1", "recall", "precision",
+    "threshold", "threshold_policy", "pr_auc_mean", "oof_pr_auc_train",
+]].round(4))
+
+results.to_csv(RESULT_DIR / "results_metrics.csv", index=False)
+cv_detail.to_csv(RESULT_DIR / "results_cv_folds.csv", index=False)
+test_leaderboard.to_csv(RESULT_DIR / "results_test_leaderboard.csv", index=False)
+print("Saved CSVs to", RESULT_DIR)
+if TABPFN_AVAILABLE and "tabpfn" in P_test:
+    print(
+        f"Standalone tabpfn test PR-AUC={average_precision_score(y_test, P_test['tabpfn']):.4f} (tabpfn.ipynb target ~0.82)")
+---OUT---
+                   model    family  pr_auc  roc_auc      f1  recall  \
+0                 tabpfn  baseline  0.8126   0.9921  0.7200  0.6429   
+1     tabpfn_stacking_lr    tabpfn  0.7920   0.9914  0.7018  0.7143   
+2    tabpfn_blend_optuna    tabpfn  0.7868   0.9913  0.6923  0.6429   
+3   tabpfn_blend_uniform    tabpfn  0.7827   0.9910  0.6885  0.7500   
+4     tabpfn_blend_slsqp    tabpfn  0.7827   0.9910  0.6087  0.5000   
+5                    lgb  baseline  0.6872   0.9655  0.6038  0.5714   
+6         adv_7way_slsqp  advanced  0.6807   0.9636  0.6000  0.6429   
+7         adv_4way_slsqp  advanced  0.6785   0.9614  0.5479  0.7143   
+8      adv_nocat_grid_f2  advanced  0.6741   0.9610  0.5902  0.6429   
+9         adv_3way_slsqp  advanced  0.6724   0.9633  0.5806  0.6429   
+10                 xgb_b  advanced  0.6662   0.9608  0.5574  0.6071   
+11                   cat  baseline  0.6658   0.9580  0.4835  0.7857   
+12                   xgb  baseline  0.6655   0.9639  0.5143  0.6429   
+13                  rf_b  advanced  0.5871   0.9580  0.5000  0.6786   
+14                    rf  baseline  0.5687   0.9567  0.5231  0.6071   
+15                    lr  baseline  0.4888   0.9533  0.4103  0.2857   
+
+    precision  threshold threshold_policy  pr_auc_mean  oof_pr_auc_train  
+0      0.8182     0.8811        oof_train       0.6451            0.6015  
+1      0.6897     0.8811        oof_train          NaN               NaN  
+2      0.7500     0.2872        oof_train          NaN               NaN  
+3      0.6364     0.1832        oof_train          NaN               NaN  
+4      0.7778     0.2674        oof_train          NaN               NaN  
+5      0.6400     0.0149        oof_train       0.6970            0.6847  
+6      0.5625     0.1139        oof_train          NaN               NaN  
+7      0.4444     0.0793        oof_train          NaN               NaN  
+8      0.5455     0.1040        oof_train          NaN               NaN  
+9      0.5294     0.0743        oof_train          NaN               NaN  
+10     0.5152     0.0842        oof_train       0.6538            0.6446  
+11     0.3492     0.0248        oof_train       0.6425            0.6146  
+12     0.4286     0.0545        oof_train       0.6920            0.6766  
+13     0.3958     0.1238        oof_train       0.5707            0.5203  
+14     0.4595     0.1387        oof_train       0.5479            0.5179  
+15     0.7273     0.9653        oof_train       0.3151            0.2860  
+Saved CSVs to /kaggle/working/modeling_results
+Standalone tabpfn test PR-AUC=0.8126 (tabpfn.ipynb target ~0.82)
+
+
+########## CELL 16 [markdown] ##########
+## 6. Figure panels — CV · test ranking · curves · operations
+
+########## CELL 17 [code] ##########
+palette = {"baseline": "#4C78A8", "advanced": "#F58518", "tabpfn": "#54A24B"}
+top_models = test_leaderboard.head(10)["model"].tolist()
+baseline_keep = [m for m in (["lr", "rf", "cat", "xgb", "lgb"] + (["tabpfn"] if TABPFN_AVAILABLE else []))]
+curve_models = list(dict.fromkeys(baseline_keep + [m for m in top_models if m not in baseline_keep]))[:8]
+
+fig = plt.figure(figsize=(16, 11))
+gs = fig.add_gridspec(2, 3, hspace=0.35, wspace=0.28)
+
+# Panel A — Test PR-AUC (primary ranking)
+ax_a = fig.add_subplot(gs[0, 0])
+plot_test = test_leaderboard.sort_values("pr_auc", ascending=True).tail(12)
+colors_a = [palette.get(f, "#888") for f in plot_test["family"]]
+ax_a.barh(plot_test["model"], plot_test["pr_auc"], color=colors_a)
+ax_a.set_xlabel("PR-AUC (30% test · tabpfn.ipynb split)")
+ax_a.set_title("A · Test ranking (PR-AUC)")
+
+# Panel B — OOF train PR-AUC (all models)
+ax_b = fig.add_subplot(gs[0, 1])
+plot_oof = cv_summary.sort_values("oof_pr_auc_train", ascending=True)
+colors_b = [palette.get(f, "#888") for f in plot_oof["family"]]
+ax_b.barh(plot_oof["model"], plot_oof["oof_pr_auc_train"], color=colors_b)
+ax_b.set_xlabel("PR-AUC (OOF on train)")
+ax_b.set_title("B · OOF train ranking")
+
+# Panel C — OOF vs test (TabPFN diagnostic)
+ax_c = fig.add_subplot(gs[0, 2])
+if TABPFN_AVAILABLE and "tabpfn" in P_train_oof:
+    ax_c.bar([0], [average_precision_score(y_train, P_train_oof["tabpfn"])], width=0.35, label="OOF train")
+    ax_c.bar([1], [float(test_leaderboard.loc[test_leaderboard["model"] == "tabpfn", "pr_auc"].iloc[0])], width=0.35,
+             label="test")
+    ax_c.set_xticks([0, 1]);
+    ax_c.set_xticklabels(["tabpfn OOF", "tabpfn test"])
+    ax_c.legend(fontsize=8)
+else:
+    ax_c.text(0.5, 0.5, "TabPFN N/A", ha="center", va="center")
+ax_c.set_title("C · TabPFN diagnostic")
+
+# Panel D — ROC curves on test
+ax_d = fig.add_subplot(gs[1, 0])
+for name in curve_models:
+    if name in blend_specs:
+        scores = blend_specs[name]["scores_test"]
+    else:
+        scores = P_test[name]
+    RocCurveDisplay.from_predictions(y_test, scores, ax=ax_d, name=name)
+ax_d.set_title("D · ROC curves (test)")
+ax_d.legend(fontsize=7, loc="lower right")
+
+# Panel E — PR curves on test
+ax_e = fig.add_subplot(gs[1, 1])
+for name in curve_models:
+    if name in blend_specs:
+        scores = blend_specs[name]["scores_test"]
+    else:
+        scores = P_test[name]
+    PrecisionRecallDisplay.from_predictions(y_test, scores, ax=ax_e, name=name)
+ax_e.set_title("E · PR curves (test)")
+ax_e.legend(fontsize=7, loc="upper right")
+
+# Panel F — Operational metrics at tuned threshold (test, top 10)
+ax_f = fig.add_subplot(gs[1, 2])
+ops = test_leaderboard.head(10).melt(
+    id_vars=["model", "family"], value_vars=["precision", "recall", "f1"], var_name="metric", value_name="value"
+)
+sns.barplot(data=ops, y="model", x="value", hue="metric", ax=ax_f)
+ax_f.set_xlim(0, 1)
+ax_f.set_title("F · Precision / recall / F1 (test)")
+ax_f.legend(fontsize=8, loc="lower right")
+
+fig.suptitle("VLST unified model comparison — OOF training · 70/30 holdout test", fontsize=14, y=1.01)
+fig.savefig(RESULT_DIR / "results_comparison_panels.png", dpi=150, bbox_inches="tight")
+plt.show()
+print("Saved figure:", RESULT_DIR / "results_comparison_panels.png")
+---OUT---
+<Figure size 1920x1320 with 6 Axes>
+<PNG image>
+Saved figure: /kaggle/working/modeling_results/results_comparison_panels.png
+
+
+########## CELL 18 [markdown] ##########
+## 7. Supplementary heatmap and manifest
+
+All-splits × key-metrics heatmap for every model, plus the run manifest saved for downstream reporting. Metrics are already aggregated per-model from the OOF train + fold-averaged test predictions produced in §4-§5. Nothing new is computed here — this section only reshapes and persists the numbers.
+
+########## CELL 19 [code] ##########
+# Supplementary heatmap — all splits × key metrics
+heat_metrics = ["pr_auc", "roc_auc", "f1", "recall", "precision"]
+heat = results.pivot_table(index="model", columns="split", values="pr_auc")
+heat = heat.loc[test_leaderboard["model"].head(15)]
+
+fig2, ax = plt.subplots(figsize=(6, 8))
+sns.heatmap(heat, annot=True, fmt=".3f", cmap="YlGnBu", ax=ax)
+ax.set_title("PR-AUC: OOF train vs test (top 15)")
+fig2.savefig(RESULT_DIR / "results_pr_auc_heatmap.png", dpi=150, bbox_inches="tight")
+plt.show()
+
+manifest = {
+    "split": {"train": 1.0 - TEST_SIZE, "test": TEST_SIZE},
+    "oof_n_splits": OOF_N_SPLITS,
+    "oof_n_splits_tabpfn": OOF_N_SPLITS_TABPFN,
+    "random_state": RANDOM_STATE,
+    "n_train": int(len(y_train)),
+    "n_test": int(len(y_test)),
+    "test_positives": int((y_test == 1).sum()),
+    "tabpfn_ran": TABPFN_AVAILABLE,
+    "optuna_ran": OPTUNA_AVAILABLE,
+    "tabpfn_test_pr_auc": (
+        float(test_leaderboard.loc[test_leaderboard["model"] == "tabpfn", "pr_auc"].iloc[0])
+        if TABPFN_AVAILABLE and "tabpfn" in test_leaderboard["model"].values else None
+    ),
+    "tabpfn_oof_pr_auc_train": (
+        float(average_precision_score(y_train, P_train_oof["tabpfn"]))
+        if TABPFN_AVAILABLE and "tabpfn" in P_train_oof else None
+    ),
+    "top_test_model": test_leaderboard.iloc[0]["model"],
+    "top_test_pr_auc": float(test_leaderboard.iloc[0]["pr_auc"]),
+}
+with open(RESULT_DIR / "results_manifest.json", "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
+print(json.dumps(manifest, indent=2))
+---OUT---
+<Figure size 720x960 with 2 Axes>
+<PNG image>
+{
+  "split": {
+    "train": 0.7,
+    "test": 0.3
+  },
+  "oof_n_splits": 5,
+  "oof_n_splits_tabpfn": 10,
+  "random_state": 42,
+  "n_train": 3629,
+  "n_test": 1556,
+  "test_positives": 28,
+  "tabpfn_ran": true,
+  "optuna_ran": true,
+  "tabpfn_test_pr_auc": 0.8125643010654924,
+  "tabpfn_oof_pr_auc_train": 0.6014793672670014,
+  "top_test_model": "tabpfn",
+  "top_test_pr_auc": 0.8125643010654924
+}
+
+
+########## CELL 20 [markdown] ##########
+## 8. Fair primary comparison — Repeated Stratified Holdout (Monte-Carlo CV)
+
+The single-run OOF metrics above **systematically underestimate TabPFN**: OOF shrinks its in-context "prompt" to ~80% of the training data, while the final test prediction gets 100%. Tree models are almost insensitive to that difference; TabPFN is not.
+
+For the paper-ready comparison every model is evaluated under an **identical context budget**:
+
+**Protocol**
+- `StratifiedShuffleSplit` — `N_REPEATS=30` repeats × **70% train / 30% holdout** stratified on the target.
+- Toggle `USE_SCALED_OHE` (default **off**) — when off, only the raw-feature path (`../modeling/rating/tabpfn_playground.ipynb` style) and TabPFN are evaluated; when on, the scaled-OHE classical models and their `adv_*` blends are added. All scaled preprocessing (impute + OHE + StandardScaler) is now **inside a Pipeline that fits per-fold**, so no test-set information leaks into training features.
+- Per repeat, for every base model (`lr, rf, cat, xgb, lgb, tabpfn` and optionally `*_scaled`):
+  1. Fit on **full 70% train** and score the 30% holdout → this is the standalone metric.
+  2. Also generate inner `INNER_OOF_SPLITS`-fold OOF on the train slice — used **only** to (a) fit blend/meta weights and (b) tune the decision threshold.
+- Blends (`adv_*`, `tabpfn_blend_*`, `tabpfn_stacking_lr`) use inner OOF for weight/meta learning, and their **`blend_oof` scores are recomputed with honest nested OOF** (weights re-fit on outer-train slices only) before threshold tuning. `blend_ho` still uses full-train weights, which is the correct held-out prediction.
+- Threshold policy: once max F1 on inner OOF + once max F2 on inner OOF (both reported side by side).
+- Aggregate across repeats: **mean ± std** and **95% percentile CI** for PR-AUC, ROC-AUC, F1, F2, precision, recall.
+- **Paired Wilcoxon signed-rank test** on per-repeat PR-AUC of every model vs `tabpfn`. With `N_REPEATS=30` the minimum achievable two-sided p-value is `2/2**30 ≈ 2e-9`, so moderate true effects are now detectable.
+
+**Reported artefacts**
+- `results_repeated_holdout_raw.csv` — per-repeat per-model metrics.
+- `results_repeated_holdout_leaderboard.csv` — aggregated leaderboard with CIs and p-values.
+- `results_repeated_holdout_boxplots.png` — 3-panel distribution across repeats: PR-AUC, F1 @ max-F1 threshold, F2 @ max-F2 threshold.
+
+*Caveat on the small positive class*: with ~92 positives across 5,185 rows a 30% holdout still contains only ~28 positives, so PR-AUC and F-scores are inherently noisy — the paper should quote the **95% CI** alongside the mean, not the point estimate.
+
+########## CELL 21 [code] ##########
+from sklearn.model_selection import StratifiedShuffleSplit
+
+USE_SCALED_OHE = False  # default OFF -> raw-feature path only (tabpfn.ipynb style)
+N_REPEATS = 30  # Manus issue #4: was 10 -> now 30 for adequate Wilcoxon power
+HOLDOUT_FRAC = 0.30  # 70% train / 30% holdout per user request
+INNER_OOF_SPLITS = 5
+THRESHOLD_BETAS = (1.0, 2.0)
+BLEND_OPTUNA_TRIALS_REPEATED = 40  # per-fold trial budget for honest nested Optuna (bounds runtime)
+
+
+def _fit_full_and_predict(factory, X_tr, y_tr, X_ho):
+    m = factory()
+    m.fit(X_tr, y_tr)
+    return pos_proba(m, X_ho)
+
+
+def _score_model(y_tr, y_ho, p_oof, p_ho, beta):
+    t = threshold_max_fbeta(y_tr, p_oof, beta=beta)
+    return {"threshold_beta": float(beta), **operational_metrics(y_ho, p_ho, t)}
+
+
+def _run_repeat(train_idx, ho_idx, repeat_seed):
+    Xs_tr, Xs_ho = X_all.iloc[train_idx], X_all.iloc[ho_idx]
+    Xr_tr, Xr_ho = X_raw[train_idx], X_raw[ho_idx]
+    y_tr, y_ho = y_all[train_idx], y_all[ho_idx]
+
+    P_oof, P_ho, family = {}, {}, {}
+
+    if USE_SCALED_OHE:
+        for name, fac in SCALED_FACTORIES.items():
+            key = f"{name}_scaled"
+            oof, _, _ = oof_train_test(fac, Xs_tr, y_tr, Xs_ho, n_splits=INNER_OOF_SPLITS, seed=repeat_seed)
+            P_oof[key] = oof
+            P_ho[key] = _fit_full_and_predict(fac, Xs_tr, y_tr, Xs_ho)
+            family[key] = "scaled"
+
+    if TABPFN_AVAILABLE:
+        oof, _, _ = oof_train_test(make_tabpfn, Xr_tr, y_tr, Xr_ho,
+                                   n_splits=INNER_OOF_SPLITS, seed=repeat_seed)
+        P_oof["tabpfn"] = oof
+        P_ho["tabpfn"] = _fit_full_and_predict(make_tabpfn, Xr_tr, y_tr, Xr_ho)
+        family["tabpfn"] = "tabpfn"
+
+    for name, fac in RAW_CLASSICAL_FACTORIES.items():
+        oof, _, _ = oof_train_test(fac, Xr_tr, y_tr, Xr_ho, n_splits=INNER_OOF_SPLITS, seed=repeat_seed)
+        P_oof[name] = oof
+        P_ho[name] = _fit_full_and_predict(fac, Xr_tr, y_tr, Xr_ho)
+        family[name] = "baseline"
+
+    blend_oof, blend_ho, blend_family = {}, {}, {}
+
+    def _learn_optuna_weights(P, y, n_members, *, n_trials, seed):
+        """Optuna weight search used both full-train and inside nested OOF."""
+        import optuna
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+        def _obj(trial):
+            raw = np.array([trial.suggest_float(f"w_{i}", 1e-3, 1.0) for i in range(n_members)])
+            mask = np.array([trial.suggest_int(f"use_{i}", 0, 1) for i in range(n_members)], dtype=bool)
+            if mask.sum() < 2:
+                top = np.argsort(-raw)[:2]
+                mask = np.zeros(n_members, dtype=bool)
+                mask[top] = True
+            w = np.zeros(n_members)
+            w[mask] = _simplex(raw[mask])
+            return average_precision_score(y, P @ w)
+
+        study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=seed))
+        study.optimize(_obj, n_trials=n_trials, show_progress_bar=False)
+        raw = np.array([study.best_params[f"w_{i}"] for i in range(n_members)])
+        mask = np.array([study.best_params[f"use_{i}"] for i in range(n_members)], dtype=bool)
+        if mask.sum() < 2:
+            top = np.argsort(-raw)[:2]
+            mask = np.zeros(n_members, dtype=bool)
+            mask[top] = True
+        w_opt = np.zeros(n_members)
+        w_opt[mask] = _simplex(raw[mask])
+        return w_opt
+
+    def _add_learned_blend(label, members, weights_full, learn_weights_fn, fam):
+        """Register a learned linear blend with honest nested OOF for threshold tuning.
+
+        Manus issue #2: `blend_oof` used to reuse weights that were fit on the full inner-OOF
+        matrix, biasing the threshold tuner. We now recompute `blend_oof` via nested_oof_linear
+        (weights re-fit on outer-train slices only), while `blend_ho` still uses the full-train
+        weights (that is the correct held-out prediction).
+        """
+        Po = np.column_stack([P_oof[m] for m in members])
+        Ph = np.column_stack([P_ho[m] for m in members])
+        blend_ho[label] = Ph @ weights_full
+        if learn_weights_fn is None:
+            blend_oof[label] = Po @ weights_full  # fixed weights (uniform) -> no leakage to fix
+        else:
+            blend_oof[label] = nested_oof_linear(Po, y_tr, learn_weights_fn,
+                                                 n_splits=INNER_OOF_SPLITS, seed=repeat_seed)
+        blend_family[label] = fam
+
+    def _slsqp_blend(label, members, fam):
+        members = [m for m in members if m in P_oof]
+        if len(members) < 2:
+            return
+        Po = np.column_stack([P_oof[m] for m in members])
+        w_full = learn_slsqp(Po, y_tr, seed=repeat_seed)
+        _add_learned_blend(label, members, w_full,
+                           lambda P_, y_: learn_slsqp(P_, y_, seed=repeat_seed), fam)
+
+    if USE_SCALED_OHE:
+        _slsqp_blend("adv_4way_slsqp", [f"{m}_scaled" for m in ["cat", "xgb", "rf", "rf_b"]], "advanced")
+        _slsqp_blend("adv_3way_slsqp", [f"{m}_scaled" for m in ["cat", "xgb", "rf"]], "advanced")
+        _slsqp_blend("adv_7way_slsqp", [f"{m}_scaled" for m in ADV_MEMBERS], "advanced")
+
+        nocat = [f"{m}_scaled" for m in ["xgb", "rf"] if f"{m}_scaled" in P_oof]
+        if len(nocat) == 2:
+            Po = np.column_stack([P_oof[m] for m in nocat])
+            w_full, _ = grid_max_pr(Po, y_tr)
+            # Renamed from adv_nocat_grid_f2 (Manus issue #5): objective is PR-AUC, not F2.
+            _add_learned_blend("adv_nocat_grid_prauc", nocat, w_full,
+                               lambda P_, y_: grid_max_pr(P_, y_)[0], "advanced")
+
+    if TABPFN_AVAILABLE and "tabpfn" in P_oof:
+        tab_members = ["tabpfn"] + ["lr", "rf", "cat", "xgb", "lgb"]
+        tab_members = [m for m in tab_members if m in P_oof]
+        Po = np.column_stack([P_oof[m] for m in tab_members])
+        Ph = np.column_stack([P_ho[m] for m in tab_members])
+
+        w_uni = np.full(len(tab_members), 1.0 / len(tab_members))
+        _add_learned_blend("tabpfn_blend_uniform", tab_members, w_uni, None, "tabpfn")
+
+        w_slsqp = learn_slsqp(Po, y_tr, seed=repeat_seed)
+        _add_learned_blend("tabpfn_blend_slsqp", tab_members, w_slsqp,
+                           lambda P_, y_: learn_slsqp(P_, y_, seed=repeat_seed), "tabpfn")
+
+        # Manus issue #2 fix: honest nested OOF for the stacking meta-learner.
+        meta_full = LogisticRegression(C=1.0, class_weight="balanced", max_iter=2000, random_state=repeat_seed)
+        meta_full.fit(Po, y_tr)
+        blend_ho["tabpfn_stacking_lr"] = meta_full.predict_proba(Ph)[:, 1]
+        blend_oof["tabpfn_stacking_lr"] = nested_oof_meta_lr(Po, y_tr, n_splits=INNER_OOF_SPLITS, seed=repeat_seed)
+        blend_family["tabpfn_stacking_lr"] = "tabpfn"
+
+        if OPTUNA_AVAILABLE:
+            w_opt_full = _learn_optuna_weights(Po, y_tr, len(tab_members),
+                                               n_trials=min(80, BLEND_OPTUNA_TRIALS), seed=repeat_seed)
+            _add_learned_blend(
+                "tabpfn_blend_optuna", tab_members, w_opt_full,
+                lambda P_, y_: _learn_optuna_weights(P_, y_, P_.shape[1],
+                                                     n_trials=BLEND_OPTUNA_TRIALS_REPEATED, seed=repeat_seed),
+                "tabpfn",
+            )
+
+    rows = []
+    for name in P_ho:
+        for beta in THRESHOLD_BETAS:
+            rows.append({"model": name, "family": family[name],
+                         **_score_model(y_tr, y_ho, P_oof[name], P_ho[name], beta)})
+    for label in blend_ho:
+        for beta in THRESHOLD_BETAS:
+            rows.append({"model": label, "family": blend_family[label],
+                         **_score_model(y_tr, y_ho, blend_oof[label], blend_ho[label], beta)})
+    return rows
+
+
+sss = StratifiedShuffleSplit(n_splits=N_REPEATS, test_size=HOLDOUT_FRAC, random_state=RANDOM_STATE)
+repeat_records = []
+for rep, (tr, ho) in enumerate(sss.split(np.arange(len(y_all)), y_all), 1):
+    print(f"[repeat {rep:2d}/{N_REPEATS}] train={len(tr)} holdout={len(ho)} "
+          f"holdout_pos={int(y_all[ho].sum())}/{len(ho)}")
+    seed = RANDOM_STATE + rep
+    for row in _run_repeat(tr, ho, seed):
+        row["repeat"] = rep
+        repeat_records.append(row)
+
+repeat_df = pd.DataFrame(repeat_records)
+repeat_df.to_csv(RESULT_DIR / "results_repeated_holdout_raw.csv", index=False)
+print(f"\nSaved {len(repeat_df)} rows to {RESULT_DIR / 'results_repeated_holdout_raw.csv'}")
+with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 200):
+    display(repeat_df)
+---OUT---
+[repeat  1/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  2/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  3/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  4/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  5/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  6/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  7/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  8/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat  9/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 10/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 11/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 12/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 13/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 14/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 15/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 16/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 17/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 18/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 19/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 20/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 21/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 22/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 23/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 24/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 25/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 26/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 27/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 28/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 29/30] train=3629 holdout=1556 holdout_pos=28/1556
+[repeat 30/30] train=3629 holdout=1556 holdout_pos=28/1556
+
+Saved 600 rows to /kaggle/working/modeling_results/results_repeated_holdout_raw.csv
+
+                    model    family  threshold_beta    pr_auc   roc_auc  precision    recall        f1        f2  accuracy  threshold  repeat
+0                  tabpfn    tabpfn             1.0  0.818045  0.991118   0.937500  0.535714  0.681818  0.585938  0.991003   0.960303       1
+1                  tabpfn    tabpfn             2.0  0.818045  0.991118   0.740741  0.714286  0.727273  0.719424  0.990360   0.871212       1
+2                      lr  baseline             1.0  0.436748  0.941754   0.545455  0.428571  0.480000  0.447761  0.983290   0.104040       1
+3                      lr  baseline             2.0  0.436748  0.941754   0.290909  0.571429  0.385542  0.479042  0.967224   0.069394       1
+4                      rf  baseline             1.0  0.596938  0.955100   0.571429  0.571429  0.571429  0.571429  0.984576   0.222828       1
+5                      rf  baseline             2.0  0.596938  0.955100   0.500000  0.642857  0.562500  0.608108  0.982005   0.143636       1
+6                     cat  baseline             1.0  0.675248  0.969919   0.812500  0.464286  0.590909  0.507812  0.988432   0.173333       1
+7                     cat  baseline             2.0  0.675248  0.969919   0.551724  0.571429  0.561404  0.567376  0.983933   0.039697       1
+8                     xgb  baseline             1.0  0.670365  0.968142   0.866667  0.464286  0.604651  0.511811  0.989075   0.188182       1
+9                     xgb  baseline             2.0  0.670365  0.968142   0.666667  0.571429  0.615385  0.588235  0.987147   0.039697       1
+10                    lgb  baseline             1.0  0.650204  0.973378   0.733333  0.392857  0.511628  0.433071  0.986504   0.029798       1
+11                    lgb  baseline             2.0  0.650204  0.973378   0.666667  0.500000  0.571429  0.526316  0.986504   0.014949       1
+12   tabpfn_blend_uniform    tabpfn             1.0  0.811424  0.992287   0.761905  0.571429  0.653061  0.601504  0.989075   0.232727       1
+13   tabpfn_blend_uniform    tabpfn             2.0  0.811424  0.992287   0.696970  0.821429  0.754098  0.793103  0.990360   0.183232       1
+14     tabpfn_blend_slsqp    tabpfn             1.0  0.832240  0.992404   0.900000  0.642857  0.750000  0.681818  0.992288   0.445556       1
+15     tabpfn_blend_slsqp    tabpfn             2.0  0.832240  0.992404   0.785714  0.785714  0.785714  0.785714  0.992288   0.405960       1
+16     tabpfn_stacking_lr    tabpfn             1.0  0.834637  0.992614   0.800000  0.571429  0.666667  0.606061  0.989717   0.950404       1
+17     tabpfn_stacking_lr    tabpfn             2.0  0.834637  0.992614   0.769231  0.714286  0.740741  0.724638  0.991003   0.881111       1
+18    tabpfn_blend_optuna    tabpfn             1.0  0.824318  0.992754   0.916667  0.392857  0.550000  0.443548  0.988432   0.519798       1
+19    tabpfn_blend_optuna    tabpfn             2.0  0.824318  0.992754   0.863636  0.678571  0.760000  0.708955  0.992288   0.336667       1
+20                 tabpfn    tabpfn             1.0  0.512787  0.964169   0.586207  0.607143  0.596491  0.602837  0.985219   0.940505       2
+21                 tabpfn    tabpfn             2.0  0.512787  0.964169   0.243902  0.714286  0.363636  0.515464  0.955013   0.742525       2
+22                     lr  baseline             1.0  0.395884  0.926515   0.392857  0.392857  0.392857  0.392857  0.978149   0.143636       2
+23                     lr  baseline             2.0  0.395884  0.926515   0.180180  0.714286  0.287770  0.448430  0.936375   0.059495       2
+24                     rf  baseline             1.0  0.434575  0.941216   0.440000  0.392857  0.415094  0.401460  0.980077   0.173333       2
+25                     rf  baseline             2.0  0.434575  0.941216   0.340909  0.535714  0.416667  0.480769  0.973008   0.094141       2
+26                    cat  baseline             1.0  0.634204  0.964777   0.576923  0.535714  0.555556  0.543478  0.984576   0.188182       2
+27                    cat  baseline             2.0  0.634204  0.964777   0.431818  0.678571  0.527778  0.608974  0.978149   0.044646       2
+28                    xgb  baseline             1.0  0.643917  0.953160   0.558824  0.678571  0.612903  0.650685  0.984576   0.069394       2
+29                    xgb  baseline             2.0  0.643917  0.953160   0.343284  0.821429  0.484211  0.642458  0.968509   0.014949       2
+30                    lgb  baseline             1.0  0.614571  0.965945   0.590909  0.464286  0.520000  0.485075  0.984576   0.183232       2
+31                    lgb  baseline             2.0  0.614571  0.965945   0.588235  0.714286  0.645161  0.684932  0.985861   0.014949       2
+32   tabpfn_blend_uniform    tabpfn             1.0  0.620066  0.972046   0.527778  0.678571  0.593750  0.641892  0.983290   0.217879       2
+33   tabpfn_blend_uniform    tabpfn             2.0  0.620066  0.972046   0.500000  0.750000  0.600000  0.681818  0.982005   0.203030       2
+34     tabpfn_blend_slsqp    tabpfn             1.0  0.607852  0.971087   0.705882  0.428571  0.533333  0.465116  0.986504   0.480202       2
+35     tabpfn_blend_slsqp    tabpfn             2.0  0.607852  0.971087   0.317460  0.714286  0.439560  0.571429  0.967224   0.282222       2
+36     tabpfn_stacking_lr    tabpfn             1.0  0.581922  0.968423   0.583333  0.500000  0.538462  0.514706  0.984576   0.975152       2
+37     tabpfn_stacking_lr    tabpfn             2.0  0.581922  0.968423   0.475000  0.678571  0.558824  0.625000  0.980720   0.945455       2
+38    tabpfn_blend_optuna    tabpfn             1.0  0.602720  0.971952   0.714286  0.357143  0.476190  0.396825  0.985861   0.420808       2
+39    tabpfn_blend_optuna    tabpfn             2.0  0.602720  0.971952   0.631579  0.428571  0.510638  0.458015  0.985219   0.326768       2
+40                 tabpfn    tabpfn             1.0  0.471648  0.970328   0.600000  0.428571  0.500000  0.454545  0.984576   0.960303       3
+41                 tabpfn    tabpfn             2.0  0.471648  0.970328   0.269841  0.607143  0.373626  0.485714  0.963368   0.861313       3
+42                     lr  baseline             1.0  0.369281  0.921746   0.285714  0.357143  0.317460  0.340136  0.972365   0.113939       3
+43                     lr  baseline             2.0  0.369281  0.921746   0.169231  0.392857  0.236559  0.310734  0.954370   0.079293       3
+44                     rf  baseline             1.0  0.671759  0.976393   0.442308  0.821429  0.575000  0.701220  0.978149   0.108990       3
+45                     rf  baseline             2.0  0.671759  0.976393   0.442308  0.821429  0.575000  0.701220  0.978149   0.108990       3
+46                    cat  baseline             1.0  0.647965  0.978800   0.526316  0.714286  0.606061  0.666667  0.983290   0.064444       3
+47                    cat  baseline             2.0  0.647965  0.978800   0.423077  0.785714  0.550000  0.670732  0.976864   0.034747       3
+48                    xgb  baseline             1.0  0.722146  0.984620   0.488372  0.750000  0.591549  0.677419  0.981362   0.039697       3
+49                    xgb  baseline             2.0  0.722146  0.984620   0.433962  0.821429  0.567901  0.696970  0.977506   0.019899       3
+50                    lgb  baseline             1.0  0.752316  0.981886   0.636364  0.750000  0.688525  0.724138  0.987789   0.014949       3
+51                    lgb  baseline             2.0  0.752316  0.981886   0.636364  0.750000  0.688525  0.724138  0.987789   0.014949       3
+52   tabpfn_blend_uniform    tabpfn             1.0  0.732940  0.987051   0.588235  0.714286  0.645161  0.684932  0.985861   0.232727       3
+53   tabpfn_blend_uniform    tabpfn             2.0  0.732940  0.987051   0.370968  0.821429  0.511111  0.660920  0.971722   0.173333       3
+54     tabpfn_blend_slsqp    tabpfn             1.0  0.752236  0.988290   1.000000  0.250000  0.400000  0.294118  0.986504   0.653434       3
+55     tabpfn_blend_slsqp    tabpfn             2.0  0.752236  0.988290   0.846154  0.392857  0.536585  0.440000  0.987789   0.504949       3
+56     tabpfn_stacking_lr    tabpfn             1.0  0.699706  0.984433   0.500000  0.785714  0.611111  0.705128  0.982005   0.920707       3
+57     tabpfn_stacking_lr    tabpfn             2.0  0.699706  0.984433   0.431373  0.785714  0.556962  0.674847  0.977506   0.910808       3
+58    tabpfn_blend_optuna    tabpfn             1.0  0.697269  0.982774   0.761905  0.571429  0.653061  0.601504  0.989075   0.544545       3
+59    tabpfn_blend_optuna    tabpfn             2.0  0.697269  0.982774   0.465116  0.714286  0.563380  0.645161  0.980077   0.480202       3
+60                 tabpfn    tabpfn             1.0  0.666778  0.968960   0.575758  0.678571  0.622951  0.655172  0.985219   0.930606       4
+61                 tabpfn    tabpfn             2.0  0.666778  0.968960   0.487179  0.678571  0.567164  0.629139  0.981362   0.895960       4
+62                     lr  baseline             1.0  0.222024  0.874159   0.250000  0.285714  0.266667  0.277778  0.971722   0.123838       4
+63                     lr  baseline             2.0  0.222024  0.874159   0.180328  0.392857  0.247191  0.317919  0.956941   0.074343       4
+64                     rf  baseline             1.0  0.462175  0.943624   0.592593  0.571429  0.581818  0.575540  0.985219   0.212929       4
+65                     rf  baseline             2.0  0.462175  0.943624   0.395349  0.607143  0.478873  0.548387  0.976221   0.084242       4
+66                    cat  baseline             1.0  0.537425  0.969802   0.500000  0.392857  0.440000  0.410448  0.982005   0.217879       4
+67                    cat  baseline             2.0  0.537425  0.969802   0.483871  0.535714  0.508475  0.524476  0.981362   0.064444       4
+68                    xgb  baseline             1.0  0.547928  0.963164   0.636364  0.500000  0.560000  0.522388  0.985861   0.163434       4
+69                    xgb  baseline             2.0  0.547928  0.963164   0.444444  0.571429  0.500000  0.540541  0.979434   0.029798       4
+70                    lgb  baseline             1.0  0.566772  0.961177   0.636364  0.500000  0.560000  0.522388  0.985861   0.024848       4
+71                    lgb  baseline             2.0  0.566772  0.961177   0.608696  0.500000  0.549020  0.518519  0.985219   0.014949       4
+72   tabpfn_blend_uniform    tabpfn             1.0  0.626688  0.970082   0.565217  0.464286  0.509804  0.481481  0.983933   0.252525       4
+73   tabpfn_blend_uniform    tabpfn             2.0  0.626688  0.970082   0.478261  0.785714  0.594595  0.696203  0.980720   0.178283       4
+74     tabpfn_blend_slsqp    tabpfn             1.0  0.646361  0.972466   0.586207  0.607143  0.596491  0.602837  0.985219   0.321818       4
+75     tabpfn_blend_slsqp    tabpfn             2.0  0.646361  0.972466   0.511628  0.785714  0.619718  0.709677  0.982648   0.282222       4
+76     tabpfn_stacking_lr    tabpfn             1.0  0.665029  0.971742   0.575758  0.678571  0.622951  0.655172  0.985219   0.920707       4
+77     tabpfn_stacking_lr    tabpfn             2.0  0.665029  0.971742   0.575758  0.678571  0.622951  0.655172  0.985219   0.915758       4
+78    tabpfn_blend_optuna    tabpfn             1.0  0.651922  0.968937   0.785714  0.392857  0.523810  0.436508  0.987147   0.460404       4
+79    tabpfn_blend_optuna    tabpfn             2.0  0.651922  0.968937   0.687500  0.392857  0.500000  0.429688  0.985861   0.420808       4
+80                 tabpfn    tabpfn             1.0  0.525261  0.973109   0.600000  0.428571  0.500000  0.454545  0.984576   0.955354       5
+81                 tabpfn    tabpfn             2.0  0.525261  0.973109   0.485714  0.607143  0.539683  0.578231  0.981362   0.886061       5
+82                     lr  baseline             1.0  0.405963  0.921349   0.259259  0.500000  0.341463  0.421687  0.965296   0.094141       5
+83                     lr  baseline             2.0  0.405963  0.921349   0.217391  0.535714  0.309278  0.414365  0.956941   0.074343       5
+84                     rf  baseline             1.0  0.656316  0.980366   0.558824  0.678571  0.612903  0.650685  0.984576   0.118889       5
+85                     rf  baseline             2.0  0.656316  0.980366   0.463415  0.678571  0.550725  0.620915  0.980077   0.094141       5
+86                    cat  baseline             1.0  0.690671  0.984854   0.514286  0.642857  0.571429  0.612245  0.982648   0.079293       5
+87                    cat  baseline             2.0  0.690671  0.984854   0.512195  0.750000  0.608696  0.686275  0.982648   0.049596       5
+88                    xgb  baseline             1.0  0.768391  0.985509   0.666667  0.642857  0.654545  0.647482  0.987789   0.054545       5
+89                    xgb  baseline             2.0  0.768391  0.985509   0.418182  0.821429  0.554217  0.688623  0.976221   0.014949       5
+90                    lgb  baseline             1.0  0.795241  0.988243   0.894737  0.607143  0.723404  0.648855  0.991645   0.039697       5
+91                    lgb  baseline             2.0  0.795241  0.988243   0.894737  0.607143  0.723404  0.648855  0.991645   0.014949       5
+92   tabpfn_blend_uniform    tabpfn             1.0  0.758503  0.985181   0.800000  0.714286  0.754717  0.729927  0.991645   0.267374       5
+93   tabpfn_blend_uniform    tabpfn             2.0  0.758503  0.985181   0.617647  0.750000  0.677419  0.719178  0.987147   0.222828       5
+94     tabpfn_blend_slsqp    tabpfn             1.0  0.784692  0.987332   1.000000  0.428571  0.600000  0.483871  0.989717   0.386162       5
+95     tabpfn_blend_slsqp    tabpfn             2.0  0.784692  0.987332   0.818182  0.642857  0.720000  0.671642  0.991003   0.133737       5
+96     tabpfn_stacking_lr    tabpfn             1.0  0.743807  0.982166   0.720000  0.642857  0.679245  0.656934  0.989075   0.935556       5
+97     tabpfn_stacking_lr    tabpfn             2.0  0.743807  0.982166   0.617647  0.750000  0.677419  0.719178  0.987147   0.910808       5
+98    tabpfn_blend_optuna    tabpfn             1.0  0.758029  0.983148   1.000000  0.428571  0.600000  0.483871  0.989717   0.435657       5
+99    tabpfn_blend_optuna    tabpfn             2.0  0.758029  0.983148   0.944444  0.607143  0.739130  0.653846  0.992288   0.297071       5
+100                tabpfn    tabpfn             1.0  0.796497  0.989213   0.888889  0.571429  0.695652  0.615385  0.991003   0.985051       6
+101                tabpfn    tabpfn             2.0  0.796497  0.989213   0.452830  0.857143  0.592593  0.727273  0.978792   0.762323       6
+102                    lr  baseline             1.0  0.267770  0.923009   0.300000  0.214286  0.250000  0.227273  0.976864   0.148586       6
+103                    lr  baseline             2.0  0.267770  0.923009   0.208333  0.535714  0.300000  0.407609  0.955013   0.069394       6
+104                    rf  baseline             1.0  0.501511  0.938552   0.517241  0.535714  0.526316  0.531915  0.982648   0.153535       6
+105                    rf  baseline             2.0  0.501511  0.938552   0.472222  0.607143  0.531250  0.574324  0.980720   0.113939       6
+106                   cat  baseline             1.0  0.614367  0.964519   0.681818  0.535714  0.600000  0.559701  0.987147   0.227778       6
+107                   cat  baseline             2.0  0.614367  0.964519   0.425532  0.714286  0.533333  0.628931  0.977506   0.029798       6
+108                   xgb  baseline             1.0  0.712171  0.961364   0.593750  0.678571  0.633333  0.659722  0.985861   0.044646       6
+109                   xgb  baseline             2.0  0.712171  0.961364   0.527778  0.678571  0.593750  0.641892  0.983290   0.029798       6
+110                   lgb  baseline             1.0  0.707506  0.964590   0.750000  0.642857  0.692308  0.661765  0.989717   0.024848       6
+111                   lgb  baseline             2.0  0.707506  0.964590   0.692308  0.642857  0.666667  0.652174  0.988432   0.014949       6
+112  tabpfn_blend_uniform    tabpfn             1.0  0.755729  0.987869   0.633333  0.678571  0.655172  0.669014  0.987147   0.212929       6
+113  tabpfn_blend_uniform    tabpfn             2.0  0.755729  0.987869   0.558140  0.857143  0.676056  0.774194  0.985219   0.173333       6
+114    tabpfn_blend_slsqp    tabpfn             1.0  0.817927  0.990066   0.750000  0.750000  0.750000  0.750000  0.991003   0.435657       6
+115    tabpfn_blend_slsqp    tabpfn             2.0  0.817927  0.990066   0.750000  0.750000  0.750000  0.750000  0.991003   0.435657       6
+116    tabpfn_stacking_lr    tabpfn             1.0  0.803229  0.989739   0.760000  0.678571  0.716981  0.693431  0.990360   0.945455       6
+117    tabpfn_stacking_lr    tabpfn             2.0  0.803229  0.989739   0.594595  0.785714  0.676923  0.738255  0.986504   0.900909       6
+118   tabpfn_blend_optuna    tabpfn             1.0  0.797973  0.989459   0.677419  0.750000  0.711864  0.734266  0.989075   0.490101       6
+119   tabpfn_blend_optuna    tabpfn             2.0  0.797973  0.989459   0.677419  0.750000  0.711864  0.734266  0.989075   0.490101       6
+120                tabpfn    tabpfn             1.0  0.559621  0.948345   0.545455  0.642857  0.590164  0.620690  0.983933   0.925657       7
+121                tabpfn    tabpfn             2.0  0.559621  0.948345   0.395833  0.678571  0.500000  0.593750  0.975578   0.881111       7
+122                    lr  baseline             1.0  0.311655  0.921653   0.309524  0.464286  0.371429  0.422078  0.971722   0.123838       7
+123                    lr  baseline             2.0  0.311655  0.921653   0.166667  0.642857  0.264706  0.409091  0.935733   0.054545       7
+124                    rf  baseline             1.0  0.618117  0.957180   0.531250  0.607143  0.566667  0.590278  0.983290   0.168384       7
+125                    rf  baseline             2.0  0.618117  0.957180   0.252874  0.785714  0.382609  0.552764  0.954370   0.044646       7
+126                   cat  baseline             1.0  0.689213  0.968633   0.527778  0.678571  0.593750  0.6418
+...[OUTPUT TRUNCATED]...
+
+########## CELL 22 [code] ##########
+from scipy.stats import wilcoxon
+
+_METRICS_TO_AGG = ["pr_auc", "roc_auc", "f1", "f2", "precision", "recall", "accuracy", "threshold"]
+
+
+def _aggregate(df, metrics=_METRICS_TO_AGG):
+    rows = []
+    for (m, fam, beta), g in df.groupby(["model", "family", "threshold_beta"]):
+        row = {"model": m, "family": fam, "threshold_beta": float(beta), "n_repeats": len(g)}
+        for metric in metrics:
+            if metric not in g.columns:
+                continue
+            vals = g[metric].to_numpy(dtype=float)
+            row[f"{metric}_mean"] = float(np.mean(vals))
+            row[f"{metric}_std"] = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
+            row[f"{metric}_p2p5"] = float(np.percentile(vals, 2.5))
+            row[f"{metric}_p97p5"] = float(np.percentile(vals, 97.5))
+        rows.append(row)
+    return (pd.DataFrame(rows)
+            .sort_values(["pr_auc_mean", "threshold_beta"], ascending=[False, True])
+            .reset_index(drop=True))
+
+
+agg = _aggregate(repeat_df)
+
+ref = "tabpfn"
+if ref in repeat_df["model"].unique():
+    p_values, deltas = {}, {}
+    for beta in sorted(repeat_df["threshold_beta"].unique()):
+        ref_scores = (repeat_df[(repeat_df["model"] == ref) & (repeat_df["threshold_beta"] == beta)]
+        .set_index("repeat")["pr_auc"])
+        for m in agg["model"].unique():
+            s = (repeat_df[(repeat_df["model"] == m) & (repeat_df["threshold_beta"] == beta)]
+            .set_index("repeat")["pr_auc"])
+            common = ref_scores.index.intersection(s.index)
+            key = (m, float(beta))
+            if m == ref or len(common) < 3:
+                p_values[key] = np.nan
+                deltas[key] = 0.0 if m == ref else np.nan
+            else:
+                diff = s.loc[common].to_numpy() - ref_scores.loc[common].to_numpy()
+                deltas[key] = float(np.mean(diff))
+                try:
+                    if np.allclose(diff, 0):
+                        p_values[key] = 1.0
+                    else:
+                        _, p = wilcoxon(diff, zero_method="wilcox", alternative="two-sided")
+                        p_values[key] = float(p)
+                except ValueError:
+                    p_values[key] = np.nan
+    agg["pr_auc_delta_vs_tabpfn"] = agg.apply(lambda r: deltas.get((r["model"], r["threshold_beta"]), np.nan), axis=1)
+    agg["wilcoxon_p_vs_tabpfn"] = agg.apply(lambda r: p_values.get((r["model"], r["threshold_beta"]), np.nan), axis=1)
+
+display_cols = [
+    "model", "family", "threshold_beta", "n_repeats",
+    "pr_auc_mean", "pr_auc_std", "pr_auc_p2p5", "pr_auc_p97p5",
+    "roc_auc_mean", "f1_mean", "f2_mean", "precision_mean", "recall_mean",
+    "threshold_mean",
+]
+if "wilcoxon_p_vs_tabpfn" in agg.columns:
+    display_cols += ["pr_auc_delta_vs_tabpfn", "wilcoxon_p_vs_tabpfn"]
+
+leaderboard = agg[display_cols].round(
+    {c: 4 for c in display_cols if c not in {"model", "family", "threshold_beta", "n_repeats"}})
+print(
+    f"Leaderboard across {N_REPEATS} stratified {int((1 - HOLDOUT_FRAC) * 100)}/{int(HOLDOUT_FRAC * 100)} holdouts | scaled_ohe={USE_SCALED_OHE} | thresholds={{max-F1, max-F2}}:")
+with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 200):
+    display(leaderboard)
+
+agg.to_csv(RESULT_DIR / "results_repeated_holdout_leaderboard.csv", index=False)
+print(f"\nSaved leaderboard to {RESULT_DIR / 'results_repeated_holdout_leaderboard.csv'}")
+---OUT---
+Leaderboard across 30 stratified 70/30 holdouts | scaled_ohe=False | thresholds={max-F1, max-F2}:
+
+                   model    family  threshold_beta  n_repeats  pr_auc_mean  pr_auc_std  pr_auc_p2p5  pr_auc_p97p5  roc_auc_mean  f1_mean  f2_mean  precision_mean  recall_mean  threshold_mean  \
+0     tabpfn_blend_slsqp    tabpfn             1.0         30       0.7414      0.0805       0.5868        0.8476        0.9806   0.6700   0.6549          0.7396       0.6512          0.3413   
+1     tabpfn_blend_slsqp    tabpfn             2.0         30       0.7414      0.0805       0.5868        0.8476        0.9806   0.6388   0.6903          0.5909       0.7405          0.2840   
+2     tabpfn_stacking_lr    tabpfn             1.0         30       0.7342      0.0864       0.5732        0.8611        0.9796   0.6702   0.6740          0.6770       0.6798          0.9377   
+3     tabpfn_stacking_lr    tabpfn             2.0         30       0.7342      0.0864       0.5732        0.8611        0.9796   0.6454   0.7081          0.5716       0.7643          0.9037   
+4   tabpfn_blend_uniform    tabpfn             1.0         30       0.7323      0.0790       0.5781        0.8422        0.9806   0.6592   0.6683          0.6615       0.6786          0.2334   
+5   tabpfn_blend_uniform    tabpfn             2.0         30       0.7323      0.0790       0.5781        0.8422        0.9806   0.6135   0.7152          0.5015       0.8107          0.1803   
+6    tabpfn_blend_optuna    tabpfn             1.0         30       0.7296      0.0768       0.5929        0.8513        0.9790   0.5981   0.5737          0.7213       0.5762          0.5543   
+7    tabpfn_blend_optuna    tabpfn             2.0         30       0.7296      0.0768       0.5929        0.8513        0.9790   0.5621   0.6060          0.5685       0.6893          0.4225   
+8                    lgb  baseline             1.0         30       0.7017      0.0725       0.5461        0.7996        0.9710   0.6534   0.6170          0.7355       0.5964          0.0392   
+9                    lgb  baseline             2.0         30       0.7017      0.0725       0.5461        0.7996        0.9710   0.6577   0.6505          0.6790       0.6476          0.0158   
+10                   xgb  baseline             1.0         30       0.6989      0.0650       0.5780        0.7997        0.9683   0.6350   0.6201          0.6809       0.6143          0.1555   
+11                   xgb  baseline             2.0         30       0.6989      0.0650       0.5780        0.7997        0.9683   0.6016   0.6686          0.5262       0.7298          0.0465   
+12                tabpfn    tabpfn             1.0         30       0.6644      0.1346       0.4341        0.8410        0.9740   0.6142   0.5788          0.7154       0.5619          0.9524   
+13                tabpfn    tabpfn             2.0         30       0.6644      0.1346       0.4341        0.8410        0.9740   0.5458   0.6249          0.4720       0.7095          0.8435   
+14                   cat  baseline             1.0         30       0.6574      0.0732       0.5031        0.7637        0.9705   0.6037   0.6082          0.6103       0.6143          0.1537   
+15                   cat  baseline             2.0         30       0.6574      0.0732       0.5031        0.7637        0.9705   0.5658   0.6415          0.4822       0.7119          0.0564   
+16                    rf  baseline             1.0         30       0.5700      0.1001       0.3570        0.7119        0.9598   0.5486   0.5658          0.5386       0.5833          0.1765   
+17                    rf  baseline             2.0         30       0.5700      0.1001       0.3570        0.7119        0.9598   0.5165   0.6136          0.4139       0.7083          0.0938   
+18                    lr  baseline             1.0         30       0.3292      0.0686       0.2144        0.4390        0.9167   0.3396   0.3699          0.3110       0.4000          0.1195   
+19                    lr  baseline             2.0         30       0.3292      0.0686       0.2144        0.4390        0.9167   0.2859   0.4026          0.1953       0.5690          0.0671   
+
+    pr_auc_delta_vs_tabpfn  wilcoxon_p_vs_tabpfn  
+0                   0.0770                0.0002  
+1                   0.0770                0.0002  
+2                   0.0698                0.0000  
+3                   0.0698                0.0000  
+4                   0.0680                0.0019  
+5                   0.0680                0.0019  
+6                   0.0653                0.0009  
+7                   0.0653                0.0009  
+8                   0.0373                0.2801  
+9                   0.0373                0.2801  
+10                  0.0345                0.2710  
+11                  0.0345                0.2710  
+12                  0.0000                   NaN  
+13                  0.0000                   NaN  
+14                 -0.0069                0.9354  
+15                 -0.0069                0.9354  
+16                 -0.0943                0.0037  
+17                 -0.0943                0.0037  
+18                 -0.3352                0.0000  
+19                 -0.3352                0.0000  
+
+Saved leaderboard to /kaggle/working/modeling_results/results_repeated_holdout_leaderboard.csv
+
+
+########## CELL 23 [code] ##########
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+_repeat_palette = {
+    "baseline": "#4C78A8",
+    "advanced": "#F58518",
+    "tabpfn": "#54A24B",
+    "scaled": "#B07AA1",
+}
+
+pr_df = repeat_df[
+    repeat_df["threshold_beta"] == THRESHOLD_BETAS[0]].copy()  # PR-AUC/ROC-AUC are threshold-invariant → dedupe
+order = (pr_df.groupby("model")["pr_auc"].mean().sort_values(ascending=True).index.tolist())
+
+
+def _boxpanel(ax, data, metric, title, xlabel):
+    sns.boxplot(
+        data=data, y="model", x=metric, order=order,
+        hue="family", palette=_repeat_palette, dodge=False, ax=ax,
+        fliersize=3, linewidth=1,
+    )
+    sns.stripplot(
+        data=data, y="model", x=metric, order=order,
+        color="black", size=2.5, alpha=0.55, ax=ax, jitter=0.15,
+    )
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("")
+    ax.legend(loc="lower right", fontsize=8, title="family")
+    ax.grid(axis="x", linestyle=":", alpha=0.5)
+
+
+fig, axes = plt.subplots(1, 3, figsize=(22, max(6, 0.4 * len(order))))
+split_tag = f"{N_REPEATS} repeats × {int((1 - HOLDOUT_FRAC) * 100)}/{int(HOLDOUT_FRAC * 100)} stratified holdout"
+
+_boxpanel(axes[0], pr_df, "pr_auc", f"PR-AUC — {split_tag}", "PR-AUC (holdout)")
+
+f1_df = repeat_df[repeat_df["threshold_beta"] == 1.0]
+_boxpanel(axes[1], f1_df, "f1", f"F1 @ max-F1 threshold — {split_tag}", "F1 (holdout)")
+
+f2_df = repeat_df[repeat_df["threshold_beta"] == 2.0]
+_boxpanel(axes[2], f2_df, "f2", f"F2 @ max-F2 threshold — {split_tag}", "F2 (holdout)")
+
+plt.tight_layout()
+fig_path = RESULT_DIR / "results_repeated_holdout_boxplots.png"
+fig.savefig(fig_path, dpi=150, bbox_inches="tight")
+plt.show()
+print(f"Saved figure: {fig_path}")
+
+top_row = leaderboard.iloc[0]
+repeated_manifest = {
+    "protocol": "repeated_stratified_holdout",
+    "use_scaled_ohe": bool(USE_SCALED_OHE),
+    "n_repeats": N_REPEATS,
+    "holdout_frac": HOLDOUT_FRAC,
+    "inner_oof_splits": INNER_OOF_SPLITS,
+    "threshold_betas": list(THRESHOLD_BETAS),
+    "random_state": RANDOM_STATE,
+    "tabpfn_ran": bool(TABPFN_AVAILABLE),
+    "optuna_ran": bool(OPTUNA_AVAILABLE),
+    "top_model": top_row["model"],
+    "top_threshold_beta": float(top_row["threshold_beta"]),
+    "top_pr_auc_mean": float(top_row["pr_auc_mean"]),
+    "top_pr_auc_ci95": [float(top_row["pr_auc_p2p5"]),
+                        float(top_row["pr_auc_p97p5"])],
+}
+with open(RESULT_DIR / "results_repeated_holdout_manifest.json", "w", encoding="utf-8") as f:
+    json.dump(repeated_manifest, f, indent=2)
+print("Manifest:", repeated_manifest)
+---OUT---
+<Figure size 2640x720 with 3 Axes>
+<PNG image>
+Saved figure: /kaggle/working/modeling_results/results_repeated_holdout_boxplots.png
+Manifest: {'protocol': 'repeated_stratified_holdout', 'use_scaled_ohe': False, 'n_repeats': 30, 'holdout_frac': 0.3, 'inner_oof_splits': 5, 'threshold_betas': [1.0, 2.0], 'random_state': 42, 'tabpfn_ran': True, 'optuna_ran': True, 'top_model': 'tabpfn_blend_slsqp', 'top_threshold_beta': 1.0, 'top_pr_auc_mean': 0.7414, 'top_pr_auc_ci95': [0.5868, 0.8476]}

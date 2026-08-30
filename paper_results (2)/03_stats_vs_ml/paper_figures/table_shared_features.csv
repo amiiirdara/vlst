@@ -1,6 +1,0 @@
-Feature,Domain,Statistical evidence,ML evidence,Why both methods keep it
-WBC,Laboratory,"MW r=0.13, q=9.5e-20",Global ML intersection; CatBoost/XGB/RF,Mean shift and ranking feature (inflammation)
-eGFR,Laboratory,"Welch d=-0.71, q=3.7e-19",Global ML intersection; LOCO/SHAP core,Renal filtration: models cannot compensate if dropped
-LV,Cardiac,"Welch d=1.13, q=3.3e-16",LOCO/SHAP cross-model; CatBoost/XGB,Large location shift and a high-gain tree split
-Fiberinogen,Laboratory,"MW r=0.035, q=0.029",RF F2 consensus,Weak haemostasis effect still used at recall-heavy F2
-Previous PCI,History,"Fisher OR=6.5, q=2e-4",RF F1 consensus,Rare high-OR flag: 2x2 discovery and a pure binary split

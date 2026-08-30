@@ -1,0 +1,552 @@
+
+########## CELL 0 [markdown] ##########
+# Data Preprocessing for VLST Dataset
+
+## Overview
+
+This notebook prepares the VLST (Very Late Stent Thrombosis) data for modeling, based on findings from the EDA. It implements a reproducible, **leak-aware** pipeline that:
+
+1. **Loads raw data** and drops identifiers, **leakage columns**, and duplicate rows
+2. **Handles missing values** (imputation)
+3. **Encodes categorical variables**
+4. **Splits data** into train/test (stratified, frozen test holdout)
+5. **Transforms continuous features** (scaling fit on train only)
+6. **Saves preprocessed datasets and artifacts** for the modeling phase
+
+### EDA Summary (from `../../analyzes/eda.ipynb`)
+
+- **Target**: `Stent thrombosis` (binary: 0/1, ~1.8% positive rate)
+- **Leakage**: `Time since stent implantation` is dropped here (strong label coupling; not a fair pre-event predictor)
+- **Features**: Binary, continuous, and **stent brand** (canonicalized from mislabeled `Stent type-SES` text; PES/ZES/EVS stay as 0/1 flags)
+- **Paths**: Raw data `data/raw/VLST.csv`; outputs to `data/processed/` (resolved from repo root)
+
+########## CELL 1 [markdown] ##########
+## 1. Setup and Imports
+
+########## CELL 2 [code] ##########
+import pandas as pd
+import numpy as np
+import os
+import re
+import joblib
+import warnings
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from pathlib import Path
+
+warnings.filterwarnings("ignore")
+
+def _find_repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for p in [here, *here.parents]:
+        if (p / "data" / "raw" / "VLST.csv").is_file():
+            return p
+    raise FileNotFoundError("Could not locate data/raw/VLST.csv above cwd.")
+
+np.random.seed(42)
+
+# Paths (repo root, independent of notebook cwd)
+REPO_ROOT = _find_repo_root()
+RAW_PATH = str(REPO_ROOT / "data" / "raw" / "VLST.csv")
+OUT_DIR = str(REPO_ROOT / "data" / "processed")
+os.makedirs(OUT_DIR, exist_ok=True)
+
+TARGET_COL = "Stent thrombosis"
+TEST_SIZE = 0.30  # 70% train / 30% test (was 80/20)
+RANDOM_STATE = 42
+
+# Columns that must never enter the model (identifiers + known leakage)
+ID_COLS = ["NO.", "Name"]
+LEAKAGE_COLS = ["Time since stent implantation"]
+
+# Stent columns: raw CSV mislabels product names as "Stent type-SES"; PES/ZES/EVS are true 0/1 flags
+STENT_BRAND_RAW_COL = "Stent type-SES"
+STENT_BRAND_COL = "stent_brand"
+STENT_TYPE_FLAG_COLS = ["PES", "ZES", "EVS"]
+STENT_BRAND_MIN_COUNT = 30  # rare brands -> "other" before OHE
+
+print(f"✓ Raw data: {RAW_PATH}")
+print(f"✓ Output dir: {OUT_DIR}")
+print(f"✓ Split: test_size={TEST_SIZE}, random_state={RANDOM_STATE}")
+---OUT---
+✓ Raw data: ../data/raw/VLST.csv
+✓ Output dir: ../data/processed
+✓ Split: test_size=0.3, random_state=42
+
+
+########## CELL 3 [markdown] ##########
+## 2. Load Raw Data and Drop Non-Predictive / Leakage Columns
+
+We remove:
+- **Identifiers** (`NO.`, `Name`) — not predictors
+- **`Time since stent implantation`** — structural leakage for VLST (post-implant timing; EDA |corr| ~ 0.54 with thrombosis)
+- **Exact duplicate rows** before any split
+
+########## CELL 4 [code] ##########
+df = pd.read_csv(RAW_PATH)
+print(f"Raw shape: {df.shape}")
+
+# Identifiers
+id_drop = [c for c in ID_COLS if c in df.columns]
+if id_drop:
+    df = df.drop(columns=id_drop)
+
+# Leakage (must happen before train/test split)
+leak_drop = [c for c in LEAKAGE_COLS if c in df.columns]
+if leak_drop:
+    df = df.drop(columns=leak_drop)
+    print(f"Dropped leakage column(s): {leak_drop}")
+else:
+    print("Note: leakage column(s) not found in CSV (already removed?)")
+
+# Exact duplicate rows (features + target)
+n_before = len(df)
+df = df.drop_duplicates()
+n_dup = n_before - len(df)
+if n_dup:
+    print(f"Dropped {n_dup} exact duplicate row(s)")
+
+# Coerce target to int
+df[TARGET_COL] = pd.to_numeric(df[TARGET_COL], errors="coerce").astype("Int64")
+if df[TARGET_COL].isna().any():
+    raise ValueError("Target contains non-numeric values after coercion")
+
+print(f"Shape after cleaning: {df.shape}")
+print(f"Target distribution:\n{df[TARGET_COL].value_counts()}")
+df.head(3)
+---OUT---
+Raw shape: (5185, 85)
+Dropped leakage column(s): ['Time since stent implantation']
+Shape after cleaning: (5185, 82)
+Target distribution:
+Stent thrombosis
+0    5093
+1      92
+Name: count, dtype: Int64
+
+   Stent thrombosis  Age  Men  Diabetes  Hypertension  HL  Current smoker  \
+0                 0   36    1         1             1   0               1   
+1                 0   47    1         0             0   0               1   
+2                 0   45    1         1             0   1               1   
+
+   Current drinking  Stroke/TIA  History of peripheral vascualr disease  ...  \
+0                 1           0                                       0  ...   
+1                 0           0                                       0  ...   
+2                 0           0                                       0  ...   
+
+    LDL   HDL    TG  Fast-Glu  HbA1c  Fiberinogen  Aspirin  Clopidogrel  \
+0  2.60  0.87  4.20      7.64    6.8         2.14        1            0   
+1  1.41  1.88  1.37      4.99    4.6         1.71        1            1   
+2  2.71  1.03  2.38      8.10    9.3         3.01        1            1   
+
+   Ticagrelor  DAPT  
+0           0     0  
+1           0     1  
+2           0     1  
+
+[3 rows x 82 columns]
+
+########## CELL 5 [markdown] ##########
+## 2b. Stent columns (brand text + drug-eluting flags)
+
+The column **`Stent type-SES`** in the raw file stores **stent product names** (e.g. Partner, Resolute), not a sirolimus-eluting (SES) binary. **`PES`**, **`ZES`**, and **`EVS`** are the actual drug-eluting type indicators (0/1).
+
+We:
+1. Canonicalize free-text brands → **`stent_brand`**
+2. Collapse rare brands to **`other`** (keeps OHE small)
+3. Coerce **PES / ZES / EVS** to integers in `{0, 1}`
+
+########## CELL 6 [code] ##########
+def canonicalize_stent_brand(value):
+    """Normalize free-text stent product names."""
+    if pd.isna(value) or str(value).strip() == "":
+        return "missing"
+    s = str(value).strip().replace("：", ":").lower()
+    s = re.sub(r"\s+", "", s)
+    if ":" in s:
+        s = s.split(":")[-1]
+    for sep in ("，", ",", "/"):
+        if sep in s:
+            s = s.split(sep)[0]
+    aliases = {
+        "xiencex": "xiencev",
+        "resolut": "resolute",
+        "parnter": "partner",
+        "endeavor": "endeavor",
+        "cypher": "cypher",
+    }
+    return aliases.get(s, s)
+
+
+def collapse_rare_brands(series, min_count):
+    counts = series.value_counts()
+    rare = set(counts[counts < min_count].index)
+    if not rare:
+        return series
+    return series.where(~series.isin(rare), "other")
+
+
+if STENT_BRAND_RAW_COL in df.columns:
+    raw_nuniq = df[STENT_BRAND_RAW_COL].nunique()
+    df[STENT_BRAND_COL] = df[STENT_BRAND_RAW_COL].map(canonicalize_stent_brand)
+    df = df.drop(columns=[STENT_BRAND_RAW_COL])
+    df[STENT_BRAND_COL] = collapse_rare_brands(
+        df[STENT_BRAND_COL], STENT_BRAND_MIN_COUNT
+    )
+    print(
+        f"Stent brand: {raw_nuniq} raw text values -> "
+        f"{df[STENT_BRAND_COL].nunique()} categories "
+        f"(min_count={STENT_BRAND_MIN_COUNT})"
+    )
+    print(df[STENT_BRAND_COL].value_counts())
+else:
+    print(f"Note: {STENT_BRAND_RAW_COL} not found (already renamed?)")
+
+for col in STENT_TYPE_FLAG_COLS:
+    if col not in df.columns:
+        continue
+    s = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+    bad = ~s.isin([0, 1])
+    if bad.any():
+        raise ValueError(
+            f"{col}: expected 0/1 after coercion, got {df.loc[bad, col].unique()[:10]}"
+        )
+    df[col] = s
+    print(f"{col}: {s.value_counts().to_dict()}")
+
+print(f"Shape after stent encoding: {df.shape}")
+---OUT---
+Stent brand: 106 raw text values -> 9 categories (min_count=30)
+stent_brand
+partner     1088
+excel       1018
+resolute     882
+firebird     816
+tivoli       635
+xx           249
+xiencev      217
+xv           198
+other         82
+Name: count, dtype: int64
+PES: {1: 3578, 0: 1607}
+ZES: {0: 4287, 1: 898}
+EVS: {0: 4476, 1: 709}
+Shape after stent encoding: (5185, 82)
+
+
+########## CELL 7 [markdown] ##########
+## 3. Feature Categorization
+
+Separate columns into numeric (binary + continuous) and categorical, consistent with EDA.
+
+########## CELL 8 [code] ##########
+# All feature columns (exclude target)
+feature_cols = [c for c in df.columns if c != TARGET_COL]
+numeric_cols = df[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
+cat_cols = df[feature_cols].select_dtypes(include=["object"]).columns.tolist()
+
+# Binary: numeric with only 0/1 (and possibly NaN)
+binary_cols = []
+for c in numeric_cols:
+    uniq = df[c].dropna().unique()
+    if len(uniq) <= 2 and set(uniq).issubset({0, 1}):
+        binary_cols.append(c)
+continuous_cols = [c for c in numeric_cols if c not in binary_cols]
+
+# Drop zero-variance columns before building the preprocessor (must run before §5)
+constant_cols = [c for c in feature_cols if df[c].nunique(dropna=False) <= 1]
+if constant_cols:
+    print(f"Dropping constant columns: {constant_cols}")
+    feature_cols = [c for c in feature_cols if c not in constant_cols]
+    binary_cols = [c for c in binary_cols if c not in constant_cols]
+    continuous_cols = [c for c in continuous_cols if c not in constant_cols]
+    cat_cols = [c for c in cat_cols if c not in constant_cols]
+
+print(
+    f"Binary: {len(binary_cols)}, Continuous: {len(continuous_cols)}, Categorical: {len(cat_cols)}"
+)
+print(f"Categorical columns: {cat_cols}")
+print(f"Total feature columns for modeling: {len(feature_cols)}")
+---OUT---
+Binary: 57, Continuous: 23, Categorical: 1
+Categorical columns: ['stent_brand']
+Total feature columns for modeling: 81
+
+
+########## CELL 9 [markdown] ##########
+## 4. Missing Value Summary
+
+Before imputation, we report missing counts per column (EDA-informed strategy: impute continuous with median, binary/categorical with mode).
+
+########## CELL 10 [code] ##########
+missing = df[feature_cols].isnull().sum()
+missing = missing[missing > 0].sort_values(ascending=False)
+if len(missing) > 0:
+    print("Columns with missing values:")
+    print(missing)
+else:
+    print("No missing values in feature columns.")
+---OUT---
+No missing values in feature columns.
+
+
+########## CELL 11 [markdown] ##########
+## 5. Build Preprocessing Pipeline
+
+- **Continuous**: Impute with median, then standardize (fit on train later).
+- **Binary**: Impute with mode (most frequent 0/1).
+- **Categorical**: Impute with mode, then one-hot encode (drop first to avoid collinearity in linear models).
+
+########## CELL 12 [code] ##########
+# Imputation + scaling/encoding (numeric scaled in step 7 after split)
+imputer_cont = SimpleImputer(strategy="median")
+imputer_bin = SimpleImputer(strategy="most_frequent")
+imputer_cat = SimpleImputer(strategy="constant", fill_value="missing")
+ohe = OneHotEncoder(drop="first", handle_unknown="ignore")
+
+# ColumnTransformer for imputation + encoding (no scaling yet)
+transformers = []
+if continuous_cols:
+    transformers.append(("num", imputer_cont, continuous_cols))
+if binary_cols:
+    transformers.append(("bin", imputer_bin, binary_cols))
+if cat_cols:
+    transformers.append(
+        ("cat", Pipeline([("impute", imputer_cat), ("ohe", ohe)]), cat_cols)
+    )
+
+preprocessor = ColumnTransformer(
+    transformers, remainder="drop", verbose_feature_names_out=False
+)
+print("Preprocessor (imputation + OHE for categorical):")
+print(preprocessor)
+---OUT---
+Preprocessor (imputation + OHE for categorical):
+ColumnTransformer(transformers=[('num', SimpleImputer(strategy='median'),
+                                 ['Age', 'NO.of vessels', 'Min-stent diameter',
+                                  'Max-stent diameter', 'Total stent length',
+                                  'Stent release pressure',
+                                  'No.of stents per lesion', 'LV', 'LVEF',
+                                  'CaI', 'WBC', 'HGB', 'Platelet', 'Cre',
+                                  'eGFR', 'CKD5', 'TCL', 'LDL', 'HDL', 'TG',
+                                  'Fast-Glu', 'HbA1c', 'Fiberinogen']),
+                                ('bin', SimpleImputer(strategy='m...
+                                  '3-vessel disease', 'Chronic total occlusion',
+                                  'Moderate/severe calcification',
+                                  'Moderate/severe tortuosity',
+                                  'Lesion location-Ostial', 'Proximal',
+                                  'Bifurcation', 'Visual thrombus', 'Aneurysm', ...]),
+                                ('cat',
+                                 Pipeline(steps=[('impute',
+                                                  SimpleImputer(fill_value='missing',
+                                                                strategy='constant')),
+                                                 ('ohe',
+                                                  OneHotEncoder(drop='first',
+                                                                handle_unknown='ignore'))]),
+                                 ['stent_brand'])],
+                  verbose_feature_names_out=False)
+
+
+########## CELL 13 [markdown] ##########
+## 5b. Constant features
+
+Zero-variance columns are dropped in **§3** (before the preprocessor is built) so the fitted `ColumnTransformer` matches the final `feature_cols` list.
+
+########## CELL 14 [code] ##########
+# Constant columns were removed in §3; this cell is a no-op placeholder for notebook flow.
+print(
+    f"Using {len(feature_cols)} features "
+    f"({len(binary_cols)} binary, {len(continuous_cols)} continuous, {len(cat_cols)} categorical)."
+)
+---OUT---
+Using 81 features (57 binary, 23 continuous, 1 categorical).
+
+
+########## CELL 15 [markdown] ##########
+## 6. Train/Test Split (Stratified)
+
+Stratify by target to preserve class proportion (**default 70% train / 30% test**). **Test is frozen** for final evaluation only; all tuning belongs in `../../failed_hypothesis/baseline_blending.ipynb` on `X_train` (fit / early_stop / calibration).
+
+########## CELL 16 [code] ##########
+X = df[feature_cols].copy()
+y = df[TARGET_COL].copy()
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
+)
+y_train = y_train.astype(np.int64)
+y_test = y_test.astype(np.int64)
+print(f"Train: {X_train.shape[0]}, Test: {X_test.shape[0]}")
+print(f"Train target: {y_train.value_counts().to_dict()}")
+print(f"Test target:  {y_test.value_counts().to_dict()}")
+---OUT---
+Train: 3629, Test: 1556
+Train target: {0: 3565, 1: 64}
+Test target:  {0: 1528, 1: 28}
+
+
+########## CELL 17 [markdown] ##########
+## 7. Fit Preprocessor on Train and Transform
+
+Imputation and one-hot encoding are fitted on the training set only, then applied to both train and test.
+
+########## CELL 18 [code] ##########
+# Fit on train, transform both
+X_train_enc = preprocessor.fit_transform(X_train)
+X_test_enc = preprocessor.transform(X_test)
+
+# Get feature names after preprocessing
+feature_names_out = preprocessor.get_feature_names_out()
+print(f"Feature matrix shape - Train: {X_train_enc.shape}, Test: {X_test_enc.shape}")
+print(f"Feature names (first 15): {list(feature_names_out[:15])}")
+---OUT---
+Feature matrix shape - Train: (3629, 88), Test: (1556, 88)
+Feature names (first 15): ['Age', 'NO.of vessels', 'Min-stent diameter', 'Max-stent diameter', 'Total stent length', 'Stent release pressure', 'No.of stents per lesion', 'LV', 'LVEF', 'CaI', 'WBC', 'HGB', 'Platelet', 'Cre', 'eGFR']
+
+
+########## CELL 19 [markdown] ##########
+## 8. Scale Features (Fit on Train)
+
+StandardScaler is fitted on the training set only to avoid data leakage.
+
+########## CELL 20 [code] ##########
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_enc)
+X_test_scaled = scaler.transform(X_test_enc)
+
+# Preprocessed arrays (float, ready for modeling)
+print(f"Final shapes - Train: {X_train_scaled.shape}, Test: {X_test_scaled.shape}")
+print(f"Train sample (first row, first 5): {X_train_scaled[0, :5]}")
+---OUT---
+Final shapes - Train: (3629, 88), Test: (1556, 88)
+Train sample (first row, first 5): [ 1.21445302  0.15818934  1.28954949  1.10060706 -0.70128594]
+
+
+########## CELL 21 [markdown] ##########
+## 9. Save Preprocessed Data and Artifacts
+
+Save NumPy arrays (X_train, X_test, y_train, y_test), feature names, and fitted preprocessor + scaler for the modeling phase.
+
+########## CELL 22 [code] ##########
+# Manifest for downstream notebooks (reproducibility)
+import json
+
+manifest = {
+    "raw_path": RAW_PATH,
+    "n_rows_after_clean": int(len(df)),
+    "test_size": TEST_SIZE,
+    "random_state": RANDOM_STATE,
+    "dropped_id_cols": id_drop,
+    "dropped_leakage_cols": leak_drop,
+    "n_duplicate_rows_dropped": int(n_dup),
+    "stent_brand_col": STENT_BRAND_COL,
+    "stent_brand_min_count": STENT_BRAND_MIN_COUNT,
+    "stent_type_flag_cols": STENT_TYPE_FLAG_COLS,
+    "n_features_after_preprocess": int(len(feature_names_out)),
+    "train_positives": int((y_train == 1).sum()),
+    "test_positives": int((y_test == 1).sum()),
+}
+with open(os.path.join(OUT_DIR, "preprocess_manifest.json"), "w") as f:
+    json.dump(manifest, f, indent=2)
+print("Wrote preprocess_manifest.json")
+
+# Save arrays
+np.save(os.path.join(OUT_DIR, "X_train.npy"), X_train_scaled)
+np.save(os.path.join(OUT_DIR, "X_test.npy"), X_test_scaled)
+np.save(os.path.join(OUT_DIR, "y_train.npy"), y_train.values)
+np.save(os.path.join(OUT_DIR, "y_test.npy"), y_test.values)
+
+# Feature names
+pd.Series(feature_names_out).to_csv(
+    os.path.join(OUT_DIR, "feature_names.csv"), index=False, header=["feature_name"]
+)
+
+# Fitted objects (for inference / reproducibility)
+joblib.dump(preprocessor, os.path.join(OUT_DIR, "preprocessor.joblib"))
+joblib.dump(scaler, os.path.join(OUT_DIR, "scaler.joblib"))
+
+# Column role config (for reproducibility / reporting)
+pd.concat(
+    [
+        pd.DataFrame({"role": "binary", "column": binary_cols}),
+        pd.DataFrame({"role": "continuous", "column": continuous_cols}),
+        pd.DataFrame({"role": "categorical", "column": cat_cols}),
+    ],
+    ignore_index=True,
+).to_csv(os.path.join(OUT_DIR, "column_config.csv"), index=False)
+
+# Also save as DataFrames for convenience (with target)
+train_df = pd.DataFrame(X_train_scaled, columns=feature_names_out)
+train_df[TARGET_COL] = y_train.values
+test_df = pd.DataFrame(X_test_scaled, columns=feature_names_out)
+test_df[TARGET_COL] = y_test.values
+try:
+    train_df.to_parquet(os.path.join(OUT_DIR, "train.parquet"), index=False)
+    test_df.to_parquet(os.path.join(OUT_DIR, "test.parquet"), index=False)
+except Exception:
+    train_df.to_csv(os.path.join(OUT_DIR, "train.csv"), index=False)
+    test_df.to_csv(os.path.join(OUT_DIR, "test.csv"), index=False)
+
+print("Saved to", OUT_DIR)
+for f in sorted(os.listdir(OUT_DIR)):
+    p = os.path.join(OUT_DIR, f)
+    print(f"  - {f} ({os.path.getsize(p) / 1024:.1f} KB)")
+---OUT---
+Wrote preprocess_manifest.json
+Saved to ../data/processed
+  - X_test.npy (1069.9 KB)
+  - X_train.npy (2495.1 KB)
+  - column_config.csv (1.6 KB)
+  - feature_names.csv (1.1 KB)
+  - preprocess_manifest.json (0.5 KB)
+  - preprocessor.joblib (7.5 KB)
+  - scaler.joblib (2.6 KB)
+  - test.csv (2671.9 KB)
+  - train.csv (6231.0 KB)
+  - y_test.npy (12.3 KB)
+  - y_train.npy (28.5 KB)
+
+
+########## CELL 23 [markdown] ##########
+## 10. Quick Verification
+
+Load back and check shapes and target balance.
+
+########## CELL 24 [code] ##########
+# Reload and verify
+X_tr = np.load(os.path.join(OUT_DIR, "X_train.npy"))
+X_te = np.load(os.path.join(OUT_DIR, "X_test.npy"))
+y_tr = np.load(os.path.join(OUT_DIR, "y_train.npy"))
+y_te = np.load(os.path.join(OUT_DIR, "y_test.npy"))
+names = pd.read_csv(os.path.join(OUT_DIR, "feature_names.csv"))["feature_name"].tolist()
+
+assert X_tr.shape[1] == len(names) == X_te.shape[1]
+assert np.isnan(X_tr).sum() == 0 and np.isnan(X_te).sum() == 0
+print("✓ Shapes and feature count consistent")
+print("✓ No NaN in preprocessed arrays")
+print(
+    f"✓ Ready for modeling: {X_tr.shape[0]} train, {X_te.shape[0]} test, {len(names)} features"
+)
+---OUT---
+✓ Shapes and feature count consistent
+✓ No NaN in preprocessed arrays
+✓ Ready for modeling: 3629 train, 1556 test, 88 features
+
+
+########## CELL 25 [markdown] ##########
+## 11. Summary
+
+Preprocessing is complete. For modeling you can:
+
+- **NumPy**: `np.load('data/processed/X_train.npy')`, same for `X_test`, `y_train`, `y_test`.
+- **DataFrames**: `pd.read_parquet('data/processed/train.parquet')` (or `train.csv` if parquet unavailable), same for test.
+- **Feature names**: `pd.read_csv('data/processed/feature_names.csv')`.
+- **Column roles**: `pd.read_csv('data/processed/column_config.csv')`.
+- **Inference**: Load `preprocessor.joblib` and `scaler.joblib` to transform new raw data the same way.
+
+**Leakage**: `Time since stent implantation` is excluded in this notebook. Re-run preprocessing after changing raw data, then re-run modeling notebooks.
+
+**Class imbalance**: ~1–2% positives. Prefer **PR-AUC**, recall/precision at a calibrated threshold, and **balanced accuracy** over raw accuracy in modeling.

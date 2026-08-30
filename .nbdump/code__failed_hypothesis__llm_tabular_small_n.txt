@@ -1,0 +1,464 @@
+
+########## CELL 0 [markdown] ##########
+# VLST — LLM few-shot classification on **small** tabular cohorts
+
+## Motivation
+
+Recent work on **large language models (LLMs)** for tabular data suggests that **prompting** with **serialized** tables (feature–value lines per patient) can be competitive with classical ML when **labeled patients are scarce** (on the order of **tens to low hundreds** of rows). Models such as **GPT-4o** or **Llama 3** can bring in **general medical and commonsense** context that tree ensembles or shallow models do not explicitly encode.
+
+This notebook is **experimental**: it does **not** replace your main `../modeling/rating/tabpfn_playground.ipynb` / baseline pipelines. Use it to explore **small-$N$** regimes (e.g. subsampled VLST), compare to classical baselines on the **same** held-out IDs, and document **API cost** and **reproducibility** limits.
+
+## Caveats
+
+- **Cost & latency**: cloud APIs charge per token; local **Ollama** is free but slower and hardware-dependent.
+- **Non-determinism**: even at `temperature=0`, providers may vary; log raw replies when auditing.
+- **Clinical use**: treat as **research / exploration** only unless you validate under your governance rules.
+- **Leakage**: we drop **`Time since stent implantation`** like other VLST modeling notebooks.
+
+
+########## CELL 1 [markdown] ##########
+## 1. Optional: install API client
+
+Run in your project **venv** (same idea as `../modeling/rating/tabpfn_playground.ipynb` §1). For Ollama-only usage, `httpx` is sufficient.
+
+########## CELL 2 [code] ##########
+import subprocess
+import sys
+from pathlib import Path
+
+
+def _repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for d in (here, *here.parents):
+        if (d / "requirements.txt").is_file():
+            return d
+    raise RuntimeError("Could not find repo root (requirements.txt).")
+
+
+def _in_venv() -> bool:
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
+if not _in_venv():
+    raise RuntimeError("Use the project .venv kernel (see scripts/setup_notebook_venv.sh).")
+
+subprocess.check_call(
+    [sys.executable, "-m", "pip", "install", "-q", "httpx>=0.27"],
+    cwd=str(_repo_root()),
+)
+print("OK: httpx")
+---OUT---
+OK: httpx
+
+
+########## CELL 3 [markdown] ##########
+## 2. Configuration
+
+########## CELL 4 [code] ##########
+import json
+import os
+import re
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import train_test_split
+
+# --- VLST paths (same discovery style as tabpfn.ipynb) ---
+MANUAL_VLST_ROOT: Path | None = None
+
+
+def _data_root() -> Path:
+    if MANUAL_VLST_ROOT is not None:
+        r = Path(MANUAL_VLST_ROOT).expanduser().resolve()
+        if (r / "data" / "raw" / "VLST.csv").is_file():
+            return r
+        raise FileNotFoundError(f"MANUAL_VLST_ROOT set but missing {r / 'data' / 'raw' / 'VLST.csv'}")
+    cwd = Path.cwd().resolve()
+    for root in [cwd, *cwd.parents][:16]:
+        for parts in (("data", "raw"), ("vlst_repo", "data", "raw")):
+            cand = root.joinpath(*parts)
+            if (cand / "VLST.csv").is_file():
+                return cand.parent.parent
+    raise FileNotFoundError(
+        "Could not find data/raw/VLST.csv. Set MANUAL_VLST_ROOT to the repo root "
+        f"(folder containing data/). cwd={cwd}"
+    )
+
+
+DATA_ROOT = _data_root()
+RAW_PATH = DATA_ROOT / "data" / "raw" / "VLST.csv"
+RESULT_DIR = DATA_ROOT / "data" / "result" / "modeling_llm_tabular"
+RESULT_DIR.mkdir(parents=True, exist_ok=True)
+
+TARGET_COL = "Stent thrombosis"
+DROP_FEATURES = ["Time since stent implantation"]
+RANDOM_STATE = 42
+
+# --- Small-N study design ---
+# Total labeled rows used after cleaning (cap for cost); stratified split inside this pool.
+MAX_LABELED_PATIENTS = 96  # e.g. ~80 train+val few-shot pool + held-out test
+TRAIN_POOL_FRAC = 0.75  # remainder = held-out test for metrics
+# From the train pool, how many labeled examples shown in the prompt (few-shot), stratified by class.
+FEW_SHOT_PER_CLASS = 6  # 6+6 = 12 in-context examples if both classes exist
+
+# --- LLM backend: "openai" | "ollama" ---
+LLM_BACKEND = os.environ.get("LLM_BACKEND", "ollama")
+# OpenAI (set OPENAI_API_KEY in environment)
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+# Ollama local chat API
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
+
+# Inference (low temperature for classification)
+TEMPERATURE = 0.0
+REQUEST_SLEEP_S = 0.15  # gentle pacing for cloud API
+
+print(f"DATA_ROOT={DATA_ROOT}")
+print(f"RAW_PATH={RAW_PATH}")
+print(f"RESULT_DIR={RESULT_DIR}")
+print(f"BACKEND={LLM_BACKEND} model={OPENAI_MODEL if LLM_BACKEND == 'openai' else OLLAMA_MODEL}")
+
+---OUT---
+DATA_ROOT=/Users/am.daraei/Projects/personal/vlst
+RAW_PATH=/Users/am.daraei/Projects/personal/vlst/data/raw/VLST.csv
+RESULT_DIR=/Users/am.daraei/Projects/personal/vlst/data/result/modeling_llm_tabular
+BACKEND=ollama model=llama3
+
+
+########## CELL 5 [markdown] ##########
+## 3. Load VLST and subsample a small cohort
+
+We use **raw** CSV rows so the LLM sees **interpretable** feature names. IDs / name columns are dropped when present.
+
+########## CELL 6 [code] ##########
+df = pd.read_csv(RAW_PATH)
+for col in ("NO.", "Name"):
+    if col in df.columns:
+        df = df.drop(columns=[col])
+
+if TARGET_COL not in df.columns:
+    raise KeyError(f"Missing target column {TARGET_COL!r}")
+
+# Coerce target to 0/1
+_y = pd.to_numeric(df[TARGET_COL], errors="coerce")
+if _y.isna().any():
+    df = df.loc[~_y.isna()].copy()
+    _y = pd.to_numeric(df[TARGET_COL], errors="coerce")
+y_all = _y.astype(int).values
+
+for c in DROP_FEATURES:
+    if c in df.columns:
+        df = df.drop(columns=[c])
+
+feature_df = df.drop(columns=[TARGET_COL])
+# Light cleaning: stringify for prompt stability
+X_table = feature_df.astype(str).replace({"nan": ""})
+
+# Stratified subsample to MAX_LABELED_PATIENTS
+n = min(MAX_LABELED_PATIENTS, len(y_all))
+if n < len(y_all):
+    # train_test_split returns (train_indices, test_indices) — keep the n-sized train part
+    idx, _ = train_test_split(
+        np.arange(len(y_all)),
+        train_size=n,
+        stratify=y_all,
+        random_state=RANDOM_STATE,
+    )
+    X_table = X_table.iloc[idx].reset_index(drop=True)
+    y_all = y_all[idx]
+
+# Train pool (few-shot + optional calib) vs held-out test
+idx = np.arange(len(y_all))
+tr_idx, te_idx = train_test_split(
+    idx,
+    train_size=TRAIN_POOL_FRAC,
+    stratify=y_all,
+    random_state=RANDOM_STATE,
+)
+
+X_train_pool = X_table.iloc[tr_idx].reset_index(drop=True)
+y_train_pool = y_all[tr_idx]
+X_test = X_table.iloc[te_idx].reset_index(drop=True)
+y_test = y_all[te_idx]
+
+print(f"Subsample: n_total={len(y_all)}  train_pool={len(y_train_pool)}  test={len(y_test)}")
+print(f"Train pool class balance: 0={(y_train_pool == 0).sum()}  1={(y_train_pool == 1).sum()}")
+print(f"Test class balance: 0={(y_test == 0).sum()}  1={(y_test == 1).sum()}")
+
+---OUT---
+Subsample: n_total=96  train_pool=72  test=24
+Train pool class balance: 0=70  1=2
+Test class balance: 0=24  1=0
+
+
+########## CELL 7 [markdown] ##########
+## 4. Serialize rows and call the LLM
+
+**Few-shot**: labeled training rows are embedded in the prompt. Each test patient is scored by asking the model for **one line of JSON**: `{"label": 0 or 1, "p_event": P(thrombosis)}` so we can compute **ROC-AUC** and **PR-AUC** from `p_event`, and hard **0/1** metrics from `label`.
+
+**Before §4**: run **Ollama** (`ollama serve`) and pull a model (for example `ollama pull llama3`). If you switch to OpenAI, set **`OPENAI_API_KEY`** and `LLM_BACKEND=openai`.
+
+########## CELL 8 [code] ##########
+from __future__ import annotations
+
+import httpx
+
+
+def row_to_lines(row: pd.Series) -> str:
+    lines = [f"- {c}: {row[c]}" for c in row.index]
+    return "\n".join(lines)
+
+
+def build_few_shot_indices(y_tr: np.ndarray, k_per_class: int, rng: np.random.Generator) -> list[int]:
+    idx0 = np.where(y_tr == 0)[0]
+    idx1 = np.where(y_tr == 1)[0]
+    if len(idx1) == 0 or len(idx0) == 0:
+        raise ValueError("Few-shot needs at least one example per class in train_pool.")
+    k0 = min(k_per_class, len(idx0))
+    k1 = min(k_per_class, len(idx1))
+    pick0 = rng.choice(idx0, size=k0, replace=False)
+    pick1 = rng.choice(idx1, size=k1, replace=False)
+    return np.concatenate([pick0, pick1]).tolist()
+
+
+def make_messages(few_shot_block: str, query_block: str) -> list[dict]:
+    system = (
+        "You are a careful clinical data assistant. Stent thrombosis is RARE; do not always predict 0. "
+        "Each patient is a bullet list of feature names and values. "
+        "Binary label: 0 = no stent thrombosis, 1 = stent thrombosis. "
+        'Reply with exactly ONE line of JSON and nothing else: '
+        '{"label": 0 or 1, "p_event": your estimated probability (0 to 1) that label is 1}. '
+        "Use prior knowledge only as soft guidance; base the decision mainly on the given features."
+    )
+    user = (
+        "Labeled training patients (features then correct label).\n\n"
+        f"{few_shot_block}\n\n"
+        "Now output one JSON line for this patient (label + p_event):\n\n"
+        f"{query_block}"
+    )
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+
+def _coerce_probability(value: object) -> float:
+    if isinstance(value, (int, float)):
+        return float(np.clip(float(value), 0.0, 1.0))
+
+    s = str(value).strip().lower()
+    # Accept common variants from local models.
+    if s in {"yes", "true", "positive", "event", "stent thrombosis", "thrombosis"}:
+        return 1.0
+    if s in {"no", "false", "negative", "no event", "no thrombosis"}:
+        return 0.0
+
+    m = re.search(r"-?\d+(?:\.\d+)?", s)
+    if not m:
+        raise ValueError(f"Invalid probability value: {value!r}")
+    return float(np.clip(float(m.group(0)), 0.0, 1.0))
+
+
+def parse_label_and_prob(text: str) -> tuple[int, float]:
+    t = text.strip()
+    t = re.sub(r"^```(?:json)?\s*", "", t)
+    t = re.sub(r"\s*```$", "", t)
+    start, end = t.find("{"), t.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError(f"No JSON object found in: {text!r}")
+    o = json.loads(t[start: end + 1])
+    lab = int(o["label"])
+    if lab not in (0, 1):
+        raise ValueError(f"label must be 0 or 1, got {lab}")
+
+    p_raw = o.get("p_event", o.get("probability", o.get("p")))
+    if p_raw is None:
+        p = float(lab)
+    else:
+        p = _coerce_probability(p_raw)
+    return lab, p
+
+
+def predict_openai(messages: list[dict]) -> str:
+    from openai import OpenAI
+
+    client = OpenAI()
+    r = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=messages,
+        temperature=TEMPERATURE,
+        max_tokens=64,
+    )
+    return r.choices[0].message.content or ""
+
+
+def predict_ollama(messages: list[dict]) -> str:
+    # Ollama chat API
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": TEMPERATURE},
+    }
+    try:
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(OLLAMA_URL, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.ConnectError as exc:
+        raise RuntimeError(
+            "Cannot connect to Ollama at OLLAMA_URL. "
+            "Install and start Ollama first, then retry: "
+            "1) brew install --cask ollama  "
+            "2) open -a Ollama (or run `ollama serve`)  "
+            "3) ollama pull llama3"
+        ) from exc
+    return (data.get("message") or {}).get("content", "")
+
+
+def assert_ollama_ready() -> None:
+    # Fast preflight check to fail early with clear setup guidance.
+    tags_url = OLLAMA_URL.replace("/api/chat", "/api/tags")
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(tags_url)
+            resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise RuntimeError(
+            f"Ollama is not reachable at {tags_url}. "
+            "Make sure Ollama is installed and running."
+        ) from exc
+
+
+rng = np.random.default_rng(RANDOM_STATE)
+fs_idx = build_few_shot_indices(y_train_pool, FEW_SHOT_PER_CLASS, rng)
+fs_blocks = []
+for i in fs_idx:
+    fs_blocks.append(
+        f"Patient features:\n{row_to_lines(X_train_pool.iloc[i])}\nLabel: {int(y_train_pool[i])}"
+    )
+FEW_SHOT_BLOCK = "\n\n---\n\n".join(fs_blocks)
+
+print(f"Few-shot examples in prompt: {len(fs_idx)}")
+
+
+def predict_one(row: pd.Series) -> tuple[int, float]:
+    q = f"Patient features:\n{row_to_lines(row)}"
+    msgs = make_messages(FEW_SHOT_BLOCK, q)
+
+    for attempt in range(2):
+        if LLM_BACKEND == "openai":
+            raw = predict_openai(msgs)
+        elif LLM_BACKEND == "ollama":
+            raw = predict_ollama(msgs)
+        else:
+            raise ValueError(f"Unknown LLM_BACKEND={LLM_BACKEND!r}")
+
+        try:
+            return parse_label_and_prob(raw)
+        except (ValueError, json.JSONDecodeError):
+            if attempt == 1:
+                raise
+            # Retry once with a stricter parser reminder.
+            msgs.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Your last reply was not valid for parsing. "
+                        "Return ONLY one JSON object with numeric fields exactly like: "
+                        '{"label": 0, "p_event": 0.23}'
+                    ),
+                }
+            )
+
+    raise RuntimeError("Unreachable")
+
+
+if LLM_BACKEND == "openai" and not os.environ.get("OPENAI_API_KEY"):
+    raise RuntimeError(
+        "OPENAI_API_KEY is not set. Export it before §4, e.g. export OPENAI_API_KEY='...'. "
+        "(Previously each failed call fell back to label=0, which looks like predicting only the majority class.)"
+    )
+
+if LLM_BACKEND == "ollama":
+    assert_ollama_ready()
+
+# Evaluate on held-out test (small N)
+y_pred: list[int] = []
+y_prob: list[float] = []
+for j in range(len(X_test)):
+    row = X_test.iloc[j]
+    lab, p = predict_one(row)
+    y_pred.append(lab)
+    y_prob.append(p)
+    time.sleep(REQUEST_SLEEP_S)
+
+y_pred = np.array(y_pred, dtype=int)
+y_prob = np.array(y_prob, dtype=float)
+print(f"Done predicting test set (n={len(y_pred)}).")
+
+---OUT---
+Few-shot examples in prompt: 8
+Done predicting test set (n=24).
+
+
+########## CELL 9 [markdown] ##########
+## 5. Metrics and saved run summary
+
+Uses **`y_pred`** (from JSON `label`) for the classification report and **`p_event`** for **ROC-AUC** and **PR-AUC** (average precision). Predictions CSV includes **`p_event`** for threshold tuning outside the notebook.
+
+########## CELL 10 [code] ##########
+print(classification_report(y_test, y_pred, digits=4, zero_division=0))
+print("Confusion matrix:\n", confusion_matrix(y_test, y_pred))
+
+metrics = {
+    "n_total_subsample": int(len(y_all)),
+    "n_test": int(len(y_test)),
+    "few_shot_per_class": FEW_SHOT_PER_CLASS,
+    "backend": LLM_BACKEND,
+    "model": OPENAI_MODEL if LLM_BACKEND == "openai" else OLLAMA_MODEL,
+    "accuracy": float(accuracy_score(y_test, y_pred)),
+    "f1": float(f1_score(y_test, y_pred, zero_division=0)),
+}
+
+if len(np.unique(y_test)) >= 2 and y_prob.std() > 1e-12:
+    metrics["roc_auc"] = float(roc_auc_score(y_test, y_prob))
+    metrics["pr_auc"] = float(average_precision_score(y_test, y_prob))
+    print(f"roc_auc: {metrics['roc_auc']:.4f}")
+    print(f"pr_auc (average precision): {metrics['pr_auc']:.4f}")
+else:
+    metrics["roc_auc"] = None
+    metrics["pr_auc"] = None
+    print("roc_auc / pr_auc: skipped (single class in y_test or constant scores)")
+
+pd.DataFrame(
+    {"y_true": y_test, "y_pred": y_pred, "p_event": y_prob}
+).to_csv(RESULT_DIR / "llm_small_n_holdout_predictions.csv", index=False)
+meta_path = RESULT_DIR / "llm_small_n_meta.json"
+meta_path.write_text(json.dumps(metrics, indent=2))
+print("Wrote", RESULT_DIR / "llm_small_n_holdout_predictions.csv")
+print("Wrote", meta_path)
+
+---OUT---
+              precision    recall  f1-score   support
+
+           0     0.0000    0.0000    0.0000      24.0
+           1     0.0000    0.0000    0.0000       0.0
+
+    accuracy                         0.0000      24.0
+   macro avg     0.0000    0.0000    0.0000      24.0
+weighted avg     0.0000    0.0000    0.0000      24.0
+
+Confusion matrix:
+ [[ 0 24]
+ [ 0  0]]
+roc_auc / pr_auc: skipped (single class in y_test or constant scores)
+Wrote /Users/am.daraei/Projects/personal/vlst/data/result/modeling_llm_tabular/llm_small_n_holdout_predictions.csv
+Wrote /Users/am.daraei/Projects/personal/vlst/data/result/modeling_llm_tabular/llm_small_n_meta.json

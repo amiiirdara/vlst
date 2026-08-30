@@ -2,7 +2,7 @@
 
 This document gathers publication-oriented figures and tables from the exploratory data analysis of very late stent thrombosis (VLST) in `eda.ipynb`.
 
-**Cohort context.** Analyses use the VLST dataset (n ≈ 5,185; VLST events ≈ 92). Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical risk factor.
+**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed to levels with n ≥ 30 plus `other` (**9 levels**) for the χ² screen — not the 106 raw brand strings one-hot-encoded in Parts 2 and 4. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical risk factor.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -17,8 +17,9 @@ This document gathers publication-oriented figures and tables from the explorato
 3. [Univariate binary associations](#3-univariate-binary-associations)
 4. [Categorical associations](#4-categorical-associations)
 5. [Multivariable adjustment](#5-multivariable-adjustment)
-6. [Medical-domain analysis (supplementary)](#6-medical-domain-analysis-supplementary)
-7. [File index](#7-file-index)
+6. [Pairwise / bivariate structure](#6-pairwise--bivariate-structure)
+7. [Medical-domain analysis (supplementary)](#7-medical-domain-analysis-supplementary)
+8. [File index](#8-file-index)
 
 ---
 
@@ -165,6 +166,8 @@ Rendered table image: [paper_figures/paper_table3_categorical.png](paper_figures
 
 **Source files:** [paper_figures/paper_table3_categorical.png](paper_figures/paper_table3_categorical.png), [paper_figures/paper_table3_categorical.csv](paper_figures/paper_table3_categorical.csv)
 
+**Methods note — 20 FDR names ≈ 12 constructs.** Pooling Tables 1–3 (and excluding `Time since stent implantation`) gives **20** FDR q < 0.05 names. At least 8 are redundant re-encodings: post-dilation complements (2 slots for 1 bit), the vessel-disease family (`3-vessel`, `Multi-vessel`, `Single-vessel`, `NO.of vessels` — 4 slots for 1 construct), and the renal family (`CKD5`, `CKD90` with continuous `eGFR` — 3 slots for 1 construct). Report the headline as roughly **12 distinct clinical constructs**, not 20 independent discoveries.
+
 ---
 
 ## 5. Multivariable adjustment
@@ -173,7 +176,7 @@ Rendered table image: [paper_figures/paper_table3_categorical.png](paper_figures
 
 Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png)
 
-**Table 4.** Exploratory multivariable logistic regression for VLST. Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Odds ratios are shown with bootstrap 95% confidence intervals where available. Given ~92 events, the model is sparse and intended for screening/confounding context rather than definitive risk prediction.
+**Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). Given ~92 events, EPV is low and the model is for screening/confounding context, not prediction. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
 
 | Feature | Type | Univariate OR | Adjusted OR | 95% CI |
 | --- | --- | --- | --- | --- |
@@ -207,7 +210,35 @@ Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_fi
 
 ---
 
-## 6. Medical-domain analysis (supplementary)
+## 6. Pairwise / bivariate structure
+
+A separate “bivariate feature extraction” step is **not** required. The correlation heatmap *is* the feature–feature bivariate analysis; predictor-versus-outcome bivariate work is already the FDR screens in sections 2–4 (the notebook calls those tests “univariate” because each model has one predictor). The three layers already in `eda.ipynb` answer different questions:
+
+| Layer | What is paired | Role in the paper | Where |
+| --- | --- | --- | --- |
+| Predictor × VLST | Each column vs the outcome | Discovery catalogue (FDR q < 0.05) | Sections 2–4 |
+| Feature × feature | Numeric columns vs each other | Multicollinearity / clustering before sparse models | Heatmaps below; Supplementary Figure S2 |
+| Pair × VLST | Chosen interactions vs the outcome | Hypothesis-generating likelihood-ratio tests | Supplementary Table S2 |
+
+Heatmaps that include `Stent thrombosis` also show predictor–outcome Pearson/Spearman *r*. That is a linear association measure and is **not** a substitute for the Welch / Mann–Whitney / Fisher screens, which allow non-Gaussian, rank, and 2×2 associations and apply FDR. The heatmap does not produce a second “bivariate FDR set.”
+
+### Supplementary Figure S5. Pearson and Spearman heatmaps (top-42 vs next-41, with target)
+
+![Figure S5a](paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png)
+
+**Figure S5a.** Pearson correlation among the 42 numeric columns with strongest |r| versus the outcome, against the next 41, including `Stent thrombosis`. Produced by `eda.ipynb` (no re-run). Off-diagonal blocks are feature–feature structure; the target row/column is the linear predictor–outcome slice.
+
+![Figure S5b](paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png)
+
+**Figure S5b.** Spearman rank correlation for the same layout. Prefer this panel when tails or monotonic-but-nonlinear associations matter.
+
+Publication clustering of the same numeric block is Supplementary Figure S2 (global and per-domain Spearman clustermaps). Pairwise *with outcome* beyond linear *r* is Table S2.
+
+**Source files:** [paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png), [paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png)
+
+---
+
+## 7. Medical-domain analysis (supplementary)
 
 Clinical-block analysis (section 10g): predictors grouped by medical domain; correlation clustering used to drop redundant mates before sparse domain-wise and joint models.
 
@@ -258,13 +289,13 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 ![Figure S3](paper_figures/domain_multivariable_or_panels.png)
 
-**Figure S3.** Domain-specific sparse logistic models (core demographics plus up to five non-redundant domain representatives). Points show adjusted ORs with bootstrap 95% CIs on a log scale; the dashed line marks OR = 1.
+**Figure S3.** Domain-specific sparse logistic models (core demographics plus up to five non-redundant domain representatives). The stored PNG uses the previous bootstrap CIs. Notebook cells 10f / 10g-3 now fit **unweighted** `statsmodels.Logit` with **Wald 95% CIs** as primary (2,000-replicate percentile bootstrap stored as robustness). Re-run before quoting the new intervals. The dashed line marks OR = 1.
 
 ### Supplementary Figure S4. Joint cross-domain model (uni vs adjusted OR)
 
 ![Figure S4](paper_figures/domain_joint_uni_vs_multi_or.png)
 
-**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs (bootstrap 95% CIs). Continuous covariates are per 1 SD; time-since-stent is excluded.
+**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs. Continuous covariates are per 1 SD; time-since-stent is excluded. Same inferential note as Figure S3: stored figure is the old bootstrap run; current code uses unweighted Wald CIs (primary) plus a 2,000-replicate bootstrap robustness check. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model.
 
 | Feature | Domain | Univariate OR | Adjusted OR | OR lower | OR upper |
 | --- | --- | --- | --- | --- | --- |
@@ -300,7 +331,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 ---
 
-## 7. File index
+## 8. File index
 
 | ID | Type | File |
 | --- | --- | --- |
@@ -315,7 +346,9 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Table 3 | Table | [paper_table3_categorical.png](paper_figures/paper_table3_categorical.png) |
 | Table 4 | Table | [paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png) |
 | Fig 6 | Figure | [paper_fig6_uni_vs_multivariable_or.png](paper_figures/paper_fig6_uni_vs_multivariable_or.png) |
-| Fig S1 | Supp. figure | [domain_univariate_top_hits.png](paper_figures/domain_univariate_top_hits.png) |
+| Fig S5a | Supp. figure | [03_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png) |
+| Fig S5b | Supp. figure | [03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png) |
+| Fig S1 | Supp. figure | [domain_univariate_top_hits.png](paper_figures/domain_univariate_top_hits.png)
 | Table S1 | Supp. table | [domain_strength_summary.csv](paper_figures/domain_strength_summary.csv) |
 | Fig S2a | Supp. figure | [domain_clustermap_global.png](paper_figures/domain_clustermap_global.png) |
 | Fig S2b | Supp. figure | [domain_clustermap_lab.png](paper_figures/domain_clustermap_lab.png) |

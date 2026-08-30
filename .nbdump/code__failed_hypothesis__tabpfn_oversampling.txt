@@ -1,0 +1,942 @@
+
+########## CELL 0 [markdown] ##########
+# VLST — TabPFN oversampling & resampling ensemble comparison
+
+TabPFN is an in-context learner: training rows become the model context. Its internal feature-permutation mapping is stochastic (`random_state`), so **a single fit can vary across runs** even on identical data.
+
+This notebook compares **row-level resampling ensembles** on raw VLST features (90/10 stratified holdout):
+
+| Method | What varies |
+|--------|-------------|
+| `baseline` | Single fit on full training context |
+| `bootstrap_ensemble` | Stratified bootstrap bags (with replacement) |
+| `mc_kfold_ensemble` | Monte Carlo K-fold: R shuffle seeds × K complementary subsets |
+| `balanced_minority_oversample` | Duplicate minority rows until 1:1 (imbalance-focused) |
+
+Distinct from [`tabpfn_synthesis.ipynb`](tabpfn_synthesis.ipynb), which compares **feature-space synthesis** (SMOTE family) on processed arrays.
+
+
+########## CELL 1 [markdown] ##########
+## 1. Install dependencies (run once per environment)
+
+########## CELL 2 [code] ##########
+import importlib.util
+import sys
+
+
+def _missing(mod):
+    return importlib.util.find_spec(mod) is None
+
+
+to_install = []
+if _missing("tabpfn"):
+    to_install.append("tabpfn")
+if _missing("tabpfn_client"):
+    to_install.append("tabpfn-client")
+if _missing("imblearn"):
+    to_install.append("imbalanced-learn")
+
+if to_install:
+    print("Installing:", to_install)
+    get_ipython().run_line_magic("pip", "install -q --no-warn-conflicts " + " ".join(to_install))
+    print("Done. If imports fail, restart the kernel and re-run.")
+else:
+    print("tabpfn and imbalanced-learn already available.")
+
+---OUT---
+Installing: ['tabpfn', 'tabpfn-client']
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m753.2/753.2 kB[0m [31m4.9 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m56.3/56.3 kB[0m [31m3.2 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m47.6/47.6 MB[0m [31m32.3 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m53.2/53.2 kB[0m [31m3.0 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m394.6/394.6 kB[0m [31m24.7 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m4.7 MB/s[0m eta [36m0:00:00[0m
+[?25hNote: you may need to restart the kernel to use updated packages.
+Done. If imports fail, restart the kernel and re-run.
+
+
+########## CELL 3 [markdown] ##########
+## 2. Imports and device detection
+
+########## CELL 4 [code] ##########
+import json
+import os
+import time
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    PrecisionRecallDisplay,
+)
+
+from imblearn.over_sampling import RandomOverSampler
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+is_kaggle_env = os.path.isdir("/kaggle/working")
+
+try:
+    import torch
+
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    DEVICE_NAME = torch.cuda.get_device_name(0) if DEVICE == "cuda" else "CPU"
+except Exception:
+    DEVICE = "cpu"
+    DEVICE_NAME = "CPU"
+
+print(f"Runtime: {'Kaggle' if is_kaggle_env else 'local'} | TabPFN device: {DEVICE} ({DEVICE_NAME})")
+
+---OUT---
+Runtime: Kaggle | TabPFN device: cpu (CPU)
+
+
+########## CELL 5 [markdown] ##########
+## 3. Configuration
+
+########## CELL 6 [code] ##########
+TARGET_COL = "Stent thrombosis"
+DROP_FEATURES = ["Time since stent implantation"]
+ID_COLS = ["NO.", "Name"]
+RANDOM_STATE = 42
+TEST_SIZE = 0.10
+
+RUN_MODE = "smoke"  # "smoke" | "full"
+
+# TabPFN inference knobs (mirrors tabpfn.ipynb)
+N_ESTIMATORS_LOCAL = -1
+TABPFN_CLIENT_N_ESTIMATORS = max(int(os.environ.get("TABPFN_N_ESTIMATORS", "8")), 1)
+BALANCE_PROBABILITIES = True
+IGNORE_PRETRAINING_LIMITS = False
+USE_TABPFN_CLIENT = False
+
+# Threshold tuning
+THRESHOLD_STRATEGY = "f2"
+THRESHOLD_BETA = 1.5
+MIN_PRECISION = 0.40
+TARGET_RECALL = 0.80
+# OOF threshold tuning applies only to mc_kfold_ensemble (R×K Monte Carlo CV).
+
+# Ensemble sizes
+if RUN_MODE == "smoke":
+    N_BOOTSTRAP = 3
+    N_MC_SEEDS = 2
+    MC_K_FOLDS = 3
+    N_VARIANCE_SEEDS = 3
+    N_BOOTSTRAP_CI = 500
+else:
+    N_BOOTSTRAP = 20
+    N_MC_SEEDS = 5
+    MC_K_FOLDS = 5
+    N_VARIANCE_SEEDS = 10
+    N_BOOTSTRAP_CI = 2000
+
+BOOTSTRAP_CI = 95
+
+KAGGLE_RAW_CSV = "/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"
+KAGGLE_RESULT_SUBDIR = "modeling_tabpfn_oversampling"
+
+if is_kaggle_env:
+    USE_TABPFN_CLIENT = DEVICE != "cuda"
+    print(
+        "Kaggle mode: USE_TABPFN_CLIENT =", USE_TABPFN_CLIENT,
+        "(local GPU)" if not USE_TABPFN_CLIENT else "(cloud API)",
+    )
+
+N_ESTIMATORS = TABPFN_CLIENT_N_ESTIMATORS if USE_TABPFN_CLIENT else N_ESTIMATORS_LOCAL
+print(
+    f"RUN_MODE={RUN_MODE} | TEST_SIZE={TEST_SIZE} | "
+    f"B={N_BOOTSTRAP} R={N_MC_SEEDS} K={MC_K_FOLDS} | n_estimators={N_ESTIMATORS}"
+)
+
+---OUT---
+Kaggle mode: USE_TABPFN_CLIENT = True (cloud API)
+RUN_MODE=smoke | TEST_SIZE=0.1 | B=3 R=2 K=3 | n_estimators=8
+
+
+########## CELL 7 [markdown] ##########
+## 4. Load raw data (90/10 split)
+
+########## CELL 8 [code] ##########
+def _find_repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for d in (here, *here.parents):
+        if (d / "data" / "raw" / "VLST.csv").is_file():
+            return d
+    raise FileNotFoundError(
+        "Could not locate data/raw/VLST.csv above the current working directory."
+    )
+
+
+def _discover_vlst_csv() -> Path:
+    env = os.environ.get("VLST_RAW_CSV")
+    if env and Path(env).is_file():
+        return Path(env)
+    candidates = [
+        Path(KAGGLE_RAW_CSV),
+        Path("/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"),
+        Path("/kaggle/input/vlst-data/VLST.csv"),
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    base = Path("/kaggle/input")
+    if base.is_dir():
+        for p in base.rglob("VLST.csv"):
+            if p.is_file():
+                return p
+    raise FileNotFoundError("VLST.csv not found. Set VLST_RAW_CSV or upload dataset.")
+
+
+def _resolve_paths():
+    if is_kaggle_env:
+        raw = _discover_vlst_csv()
+        result = Path(
+            os.environ.get(
+                "VLST_RESULT_DIR",
+                str(Path("/kaggle/working") / KAGGLE_RESULT_SUBDIR),
+            )
+        )
+        return raw, result, f"Kaggle | raw={raw}"
+    repo = _find_repo_root()
+    return (
+        repo / "data" / "raw" / "VLST.csv",
+        repo / "data" / "result" / "modeling_tabpfn_oversampling",
+        f"local | repo={repo}",
+    )
+
+
+RAW_PATH, RESULT_DIR, _path_label = _resolve_paths()
+RESULT_DIR = Path(RESULT_DIR)
+RAW_PATH = Path(RAW_PATH)
+RESULT_DIR.mkdir(parents=True, exist_ok=True)
+print(_path_label)
+print("RAW_PATH:", RAW_PATH)
+print("RESULT_DIR:", RESULT_DIR)
+
+
+def load_raw():
+    df = pd.read_csv(RAW_PATH)
+    df = df.drop(columns=[c for c in ID_COLS if c in df.columns])
+    y = df[TARGET_COL].astype(int).to_numpy()
+    drop = [TARGET_COL] + [c for c in DROP_FEATURES if c in df.columns]
+    X_df = df.drop(columns=drop)
+    for c in X_df.columns:
+        if not pd.api.types.is_numeric_dtype(X_df[c]):
+            coerced = pd.to_numeric(X_df[c].astype(str).str.strip(), errors="coerce")
+            if coerced.notna().mean() >= 0.5:
+                X_df[c] = coerced
+            else:
+                codes = X_df[c].astype("category").cat.codes.astype(float)
+                X_df[c] = codes.where(codes >= 0, np.nan)
+    return X_df.to_numpy(dtype=float), y, list(X_df.columns)
+
+
+X_all, y_all, feature_names = load_raw()
+X_train, X_test, y_train, y_test = train_test_split(
+    X_all, y_all, test_size=TEST_SIZE, stratify=y_all, random_state=RANDOM_STATE,
+)
+print(f"Train: {X_train.shape} | Test: {X_test.shape} | Features: {len(feature_names)}")
+print(
+    f"Train target: 0={(y_train == 0).sum()}, 1={(y_train == 1).sum()} | "
+    f"Test: 0={(y_test == 0).sum()}, 1={(y_test == 1).sum()}"
+)
+
+---OUT---
+Kaggle | raw=/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv
+RAW_PATH: /kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv
+RESULT_DIR: /kaggle/working/modeling_tabpfn_oversampling
+Train: (4666, 81) | Test: (519, 81) | Features: 81
+Train target: 0=4583, 1=83 | Test: 0=510, 1=9
+
+
+########## CELL 9 [markdown] ##########
+## 5. TabPFN helpers and resampling utilities
+
+########## CELL 10 [code] ##########
+def _load_tokens():
+    """Read HF_TOKEN and TabPFN token from env or Kaggle secrets."""
+    hf_token = os.environ.get("HF_TOKEN", "").strip()
+    tabpfn_token = os.environ.get("TABPFN_TOKEN", "").strip()
+    if tabpfn_token:
+        return hf_token, tabpfn_token
+
+    if is_kaggle_env:
+        from kaggle_secrets import UserSecretsClient
+
+        user_secrets = UserSecretsClient()
+        hf_token = user_secrets.get_secret("HF_TOKEN")
+        tabpfn_token = user_secrets.get_secret("NEW_TABPFN_TOKEN")
+        return hf_token, tabpfn_token
+
+    raise RuntimeError("TABPFN_TOKEN is not set.")
+
+
+hf_token, tabpfn_token = _load_tokens()
+os.environ["TABPFN_TOKEN"] = tabpfn_token
+os.environ["HF_TOKEN"] = hf_token
+
+if USE_TABPFN_CLIENT:
+    import tabpfn_client
+
+    tabpfn_client.set_access_token(tabpfn_token)
+else:
+    print("Using local TabPFN engine on", DEVICE, "(TABPFN_TOKEN set for weight download)")
+
+
+def make_tabpfn(seed=RANDOM_STATE):
+    if USE_TABPFN_CLIENT:
+        from tabpfn_client import TabPFNClassifier as ClientClf
+
+        return ClientClf(
+            n_estimators=N_ESTIMATORS,
+            balance_probabilities=BALANCE_PROBABILITIES,
+            ignore_pretraining_limits=IGNORE_PRETRAINING_LIMITS,
+            random_state=seed,
+        )
+    from tabpfn import TabPFNClassifier
+
+    return TabPFNClassifier(
+        device=DEVICE,
+        n_estimators=N_ESTIMATORS,
+        balance_probabilities=BALANCE_PROBABILITIES,
+        ignore_pretraining_limits=IGNORE_PRETRAINING_LIMITS,
+        random_state=seed,
+    )
+
+
+def pos_proba(clf, X):
+    classes = list(clf.classes_)
+    idx = classes.index(1) if 1 in classes else 1
+    return np.asarray(clf.predict_proba(X)[:, idx], dtype=float)
+
+
+def select_threshold(
+    y_true,
+    scores,
+    *,
+    strategy="f2",
+    beta=2.0,
+    min_precision=0.30,
+    target_recall=0.80,
+    grid_points=199,
+):
+    grid = np.linspace(0.01, 0.99, grid_points)
+    P, R, F1, FB = [], [], [], []
+    for t in grid:
+        pred = (scores >= t).astype(int)
+        P.append(precision_score(y_true, pred, zero_division=0))
+        R.append(recall_score(y_true, pred, zero_division=0))
+        F1.append(f1_score(y_true, pred, zero_division=0))
+        FB.append(fbeta_score(y_true, pred, beta=beta, zero_division=0))
+    P, R, F1, FB = map(np.asarray, (P, R, F1, FB))
+
+    if strategy == "f1":
+        i = int(np.argmax(F1))
+    elif strategy in ("f2", "fbeta"):
+        i = int(np.argmax(FB))
+    elif strategy == "recall_at_precision":
+        ok = np.where(P >= min_precision)[0]
+        i = int(ok[np.argmax(R[ok])]) if len(ok) else int(np.argmax(F1))
+    elif strategy == "target_recall":
+        ok = np.where(R >= target_recall)[0]
+        i = int(ok[np.argmax(P[ok])]) if len(ok) else int(np.argmax(R))
+    else:
+        raise ValueError(f"Unknown THRESHOLD_STRATEGY: {strategy}")
+
+    info = {
+        "precision": float(P[i]),
+        "recall": float(R[i]),
+        "f1": float(F1[i]),
+        f"f{beta:g}": float(FB[i]),
+    }
+    return float(grid[i]), info
+
+
+def stratified_bootstrap_indices(y, rng):
+    pos = np.where(y == 1)[0]
+    neg = np.where(y == 0)[0]
+    return np.concatenate([
+        rng.choice(pos, size=len(pos), replace=True),
+        rng.choice(neg, size=len(neg), replace=True),
+    ])
+
+
+_imputer = SimpleImputer(strategy="median")
+
+
+def apply_balanced_oversample(X, y):
+    X_imp = _imputer.fit_transform(X)
+    ros = RandomOverSampler(random_state=RANDOM_STATE)
+    X_res, y_res = ros.fit_resample(X_imp, y)
+    return np.asarray(X_res, dtype=float), np.asarray(y_res)
+
+
+def compute_test_metrics(y_true, y_prob, threshold):
+    y_pred = (y_prob >= threshold).astype(int)
+    return {
+        "test_pr_auc": float(average_precision_score(y_true, y_prob)),
+        "test_roc_auc": float(roc_auc_score(y_true, y_prob)),
+        "test_precision": float(precision_score(y_true, y_pred, zero_division=0)),
+        "test_recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "test_f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        "threshold": float(threshold),
+    }
+
+
+def bootstrap_ci(y_true, scores, threshold, *, n_boot=2000, ci=95, beta=2.0, seed=RANDOM_STATE):
+    rng = np.random.default_rng(seed)
+    pos_idx = np.flatnonzero(y_true == 1)
+    neg_idx = np.flatnonzero(y_true == 0)
+    lo_q, hi_q = (100 - ci) / 2, 100 - (100 - ci) / 2
+    fbeta_key = f"f{beta:g}"
+    draws = {"precision": [], "recall": [], "f1": [], fbeta_key: [], "roc_auc": [], "pr_auc": []}
+    for _ in range(n_boot):
+        idx = np.concatenate([
+            rng.choice(pos_idx, size=len(pos_idx), replace=True),
+            rng.choice(neg_idx, size=len(neg_idx), replace=True),
+        ])
+        yt, sc = y_true[idx], scores[idx]
+        pred = (sc >= threshold).astype(int)
+        draws["precision"].append(precision_score(yt, pred, zero_division=0))
+        draws["recall"].append(recall_score(yt, pred, zero_division=0))
+        draws["f1"].append(f1_score(yt, pred, zero_division=0))
+        draws[fbeta_key].append(fbeta_score(yt, pred, beta=beta, zero_division=0))
+        draws["roc_auc"].append(roc_auc_score(yt, sc))
+        draws["pr_auc"].append(average_precision_score(yt, sc))
+
+    pred_full = (scores >= threshold).astype(int)
+    point = {
+        "precision": precision_score(y_true, pred_full, zero_division=0),
+        "recall": recall_score(y_true, pred_full, zero_division=0),
+        "f1": f1_score(y_true, pred_full, zero_division=0),
+        fbeta_key: fbeta_score(y_true, pred_full, beta=beta, zero_division=0),
+        "roc_auc": roc_auc_score(y_true, scores),
+        "pr_auc": average_precision_score(y_true, scores),
+    }
+    rows = []
+    for k, vals in draws.items():
+        vals = np.asarray(vals)
+        rows.append({
+            "metric": k,
+            "point": round(float(point[k]), 4),
+            "ci_low": round(float(np.percentile(vals, lo_q)), 4),
+            "ci_high": round(float(np.percentile(vals, hi_q)), 4),
+            "std": round(float(vals.std()), 4),
+        })
+    return pd.DataFrame(rows)
+
+print("Helpers ready.")
+
+---OUT---
+Helpers ready.
+
+
+########## CELL 11 [markdown] ##########
+## 6. Method runners
+
+########## CELL 12 [code] ##########
+def oof_mc_kfold(X, y, n_seeds=N_MC_SEEDS, n_splits=MC_K_FOLDS, base_seed=RANDOM_STATE):
+    """Monte Carlo K-fold OOF scores for threshold tuning only."""
+    oof_sum = np.zeros(len(y), dtype=float)
+    oof_count = np.zeros(len(y), dtype=float)
+    for si in range(n_seeds):
+        seed = base_seed + si
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        for fold, (tr, va) in enumerate(skf.split(X, y), 1):
+            m = make_tabpfn()
+            m.fit(X[tr], y[tr])
+            oof_sum[va] += pos_proba(m, X[va])
+            oof_count[va] += 1
+        print(f"    OOF seed {si + 1}/{n_seeds} ({n_splits} folds)")
+    return oof_sum / np.maximum(oof_count, 1)
+
+
+def fit_predict_baseline(X_tr, y_tr, X_te):
+    m = make_tabpfn()
+    m.fit(X_tr, y_tr)
+    return pos_proba(m, X_tr), pos_proba(m, X_te)
+
+
+def fit_predict_bootstrap(X_tr, y_tr, X_te, n_boot=N_BOOTSTRAP, seed=RANDOM_STATE):
+    rng = np.random.default_rng(seed)
+    train_probs = np.zeros(len(X_tr), dtype=float)
+    test_probs = np.zeros(len(X_te), dtype=float)
+    for b in range(n_boot):
+        boot_idx = stratified_bootstrap_indices(y_tr, rng)
+        m = make_tabpfn()
+        m.fit(X_tr[boot_idx], y_tr[boot_idx])
+        train_probs += pos_proba(m, X_tr) / n_boot
+        test_probs += pos_proba(m, X_te) / n_boot
+    return train_probs, test_probs
+
+
+def fit_test_mc_kfold(X_tr, y_tr, X_te, n_seeds=N_MC_SEEDS, n_splits=MC_K_FOLDS, base_seed=RANDOM_STATE):
+    test_mean = np.zeros(len(X_te), dtype=float)
+    n_total = n_seeds * n_splits
+    for si in range(n_seeds):
+        seed = base_seed + si
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        for tr, va in skf.split(X_tr, y_tr):
+            m = make_tabpfn()
+            m.fit(X_tr[tr], y_tr[tr])
+            test_mean += pos_proba(m, X_te) / n_total
+    return test_mean
+
+
+def fit_predict_balanced_oversample(X_tr, y_tr, X_te):
+    X_fit, y_fit = apply_balanced_oversample(X_tr, y_tr)
+    m = make_tabpfn()
+    m.fit(X_fit, y_fit)
+    return pos_proba(m, X_tr), pos_proba(m, X_te), len(y_fit), int((y_fit == 1).sum()), int((y_fit == 0).sum())
+
+
+METHOD_RUNNERS = {
+    "baseline": {
+        "uses_oof": False,
+        "run": lambda: fit_predict_baseline(X_train, y_train, X_test),
+        "train_rows": len(y_train),
+    },
+    "bootstrap_ensemble": {
+        "uses_oof": False,
+        "run": lambda: fit_predict_bootstrap(X_train, y_train, X_test),
+        "train_rows": len(y_train),
+    },
+    "mc_kfold_ensemble": {
+        "uses_oof": True,
+        "oof": lambda: oof_mc_kfold(X_train, y_train),
+        "test": lambda: fit_test_mc_kfold(X_train, y_train, X_test),
+        "train_rows": len(y_train),
+    },
+    "balanced_minority_oversample": {
+        "uses_oof": False,
+        "run": lambda: fit_predict_balanced_oversample(X_train, y_train, X_test),
+        "train_rows": None,
+    },
+}
+print("Methods:", list(METHOD_RUNNERS))
+
+---OUT---
+Methods: ['baseline', 'bootstrap_ensemble', 'mc_kfold_ensemble', 'balanced_minority_oversample']
+
+
+########## CELL 13 [markdown] ##########
+## 7. Execute comparison
+
+########## CELL 14 [code] ##########
+results = []
+prob_store = {}
+
+for name, spec in METHOD_RUNNERS.items():
+    print(f"\n=== {name} ===")
+    t0 = time.time()
+
+    if spec.get("uses_oof"):
+        tune_scores = spec["oof"]()
+        tune_label = "OOF"
+        y_prob = spec["test"]()
+        train_rows = spec["train_rows"]
+        train_pos = int((y_train == 1).sum())
+        train_neg = int((y_train == 0).sum())
+    else:
+        out = spec["run"]()
+        if name == "balanced_minority_oversample":
+            tune_scores, y_prob, train_rows, train_pos, train_neg = out
+        else:
+            tune_scores, y_prob = out
+            train_rows = spec["train_rows"]
+            train_pos = int((y_train == 1).sum())
+            train_neg = int((y_train == 0).sum())
+        tune_label = "train"
+
+    threshold, thr_info = select_threshold(
+        y_train, tune_scores,
+        strategy=THRESHOLD_STRATEGY,
+        beta=THRESHOLD_BETA,
+        min_precision=MIN_PRECISION,
+        target_recall=TARGET_RECALL,
+    )
+    tune_pr = average_precision_score(y_train, tune_scores)
+    print(f"  {tune_label} PR-AUC={tune_pr:.4f} | threshold={threshold:.4f} | {thr_info}")
+
+    metrics = compute_test_metrics(y_test, y_prob, threshold)
+    elapsed = time.time() - t0
+    row = {
+        "method": name,
+        "train_rows": int(train_rows) if train_rows is not None else train_rows,
+        "train_pos": train_pos,
+        "train_neg": train_neg,
+        "threshold_source": tune_label,
+        "threshold_tune_pr_auc": float(tune_pr),
+        "elapsed_s": float(elapsed),
+        **metrics,
+    }
+    results.append(row)
+    prob_store[name] = y_prob
+    print(
+        f"  Test PR-AUC={metrics['test_pr_auc']:.4f} ROC={metrics['test_roc_auc']:.4f} "
+        f"P={metrics['test_precision']:.3f} R={metrics['test_recall']:.3f} "
+        f"F1={metrics['test_f1']:.3f} | {elapsed:.0f}s"
+    )
+
+comparison = pd.DataFrame(results).sort_values("test_pr_auc", ascending=False)
+comparison
+
+---OUT---
+
+=== baseline ===
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:09 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:09 Predicting... Done!
+  train PR-AUC=1.0000 | threshold=0.8762 | {'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'f1.5': 1.0}
+  Test PR-AUC=0.6881 ROC=0.9895 P=0.350 R=0.778 F1=0.483 | 28s
+
+=== bootstrap_ensemble ===
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:07 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:05 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:09 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:04 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:10 Fitting... Done!
+00:08 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:04 Predicting... Done!
+  train PR-AUC=0.9653 | threshold=0.6732 | {'precision': 0.898876404494382, 'recall': 0.963855421686747, 'f1': 0.9302325581395349, 'f1.5': 0.942883046237534}
+  Test PR-AUC=0.5333 ROC=0.9854 P=0.286 R=0.889 F1=0.432 | 64s
+
+=== mc_kfold_ensemble ===
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+    OOF seed 1/2 (3 folds)
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+    OOF seed 2/2 (3 folds)
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+  OOF PR-AUC=0.6297 | threshold=0.8762 | {'precision': 0.48760330578512395, 'recall': 0.7108433734939759, 'f1': 0.5784313725490197, 'f1.5': 0.6230706742485784}
+  Test PR-AUC=0.4022 ROC=0.9845 P=0.417 R=0.556 F1=0.476 | 114s
+
+=== balanced_minority_oversample ===
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:07 Predicting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:05 Predicting... Done!
+  train PR-AUC=1.0000 | threshold=0.0100 | {'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'f1.5': 1.0}
+  Test PR-AUC=0.6617 ROC=0.9843 P=1.000 R=0.222 F1=0.364 | 20s
+
+                         method  train_rows  train_pos  train_neg  \
+0                      baseline        4666         83       4583   
+3  balanced_minority_oversample        9166       4583       4583   
+1            bootstrap_ensemble        4666         83       4583   
+2             mc_kfold_ensemble        4666         83       4583   
+
+  threshold_source  threshold_tune_pr_auc   elapsed_s  test_pr_auc  \
+0            train               1.000000   27.608137     0.688131   
+3            train               1.000000   20.203852     0.661688   
+1            train               0.965328   64.187457     0.533299   
+2              OOF               0.629713  113.518563     0.402232   
+
+   test_roc_auc  test_precision  test_recall   test_f1  threshold  
+0      0.989542        0.350000     0.777778  0.482759   0.876162  
+3      0.984314        1.000000     0.222222  0.363636   0.010000  
+1      0.985403        0.285714     0.888889  0.432432   0.673232  
+2      0.984532        0.416667     0.555556  0.476190   0.876162  
+
+########## CELL 15 [markdown] ##########
+## 8. Variance diagnostic — baseline TabPFN across seeds
+
+########## CELL 16 [code] ##########
+# Same training rows, different TabPFN random_state values (internal shuffle variance).
+variance_rows = []
+variance_probs = []
+
+for si in range(N_VARIANCE_SEEDS):
+    seed = RANDOM_STATE + si
+    m = make_tabpfn(seed=seed)
+    m.fit(X_train, y_train)
+    p = pos_proba(m, X_test)
+    variance_probs.append(p)
+    pr = average_precision_score(y_test, p)
+    variance_rows.append({"seed": seed, "test_pr_auc": float(pr)})
+    print(f"  seed={seed} test PR-AUC={pr:.4f}")
+
+variance_df = pd.DataFrame(variance_rows)
+prob_std = np.std(variance_probs, axis=0)
+print(
+    f"\nBaseline seed sweep: PR-AUC mean={variance_df['test_pr_auc'].mean():.4f} "
+    f"std={variance_df['test_pr_auc'].std():.4f} "
+    f"| per-patient prob std mean={prob_std.mean():.4f}"
+)
+variance_df
+
+---OUT---
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+  seed=42 test PR-AUC=0.6881
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+  seed=43 test PR-AUC=0.5817
+00:00 Fitting... \
+The provided train set hashes match previously uploaded train sets.
+
+00:05 Fitting... Done!
+00:00 Predicting... \
+The provided test set hash matches a previously uploaded test set.
+
+00:03 Predicting... Done!
+  seed=44 test PR-AUC=0.6163
+
+Baseline seed sweep: PR-AUC mean=0.6287 std=0.0543 | per-patient prob std mean=0.0154
+
+   seed  test_pr_auc
+0    42     0.688131
+1    43     0.581689
+2    44     0.616328
+
+########## CELL 17 [markdown] ##########
+## 9. Results — tables, bootstrap CIs, and plots
+
+########## CELL 18 [code] ##########
+# Save comparison table
+csv_path = RESULT_DIR / "tabpfn_oversampling_comparison.csv"
+comparison.to_csv(csv_path, index=False)
+print("Saved:", csv_path)
+
+# Bootstrap CIs per method
+ci_frames = []
+for name, y_prob in prob_store.items():
+    thr = float(comparison.loc[comparison["method"] == name, "threshold"].iloc[0])
+    ci = bootstrap_ci(
+        y_test, y_prob, thr,
+        n_boot=N_BOOTSTRAP_CI, ci=BOOTSTRAP_CI, beta=THRESHOLD_BETA,
+    )
+    ci.insert(0, "method", name)
+    ci_frames.append(ci)
+
+boot_ci_all = pd.concat(ci_frames, ignore_index=True)
+boot_ci_path = RESULT_DIR / "tabpfn_oversampling_bootstrap_ci.csv"
+boot_ci_all.to_csv(boot_ci_path, index=False)
+print("Saved:", boot_ci_path)
+
+variance_path = RESULT_DIR / "tabpfn_oversampling_variance_diagnostic.csv"
+variance_df.to_csv(variance_path, index=False)
+print("Saved:", variance_path)
+
+# PR-AUC bar chart
+plot_df = comparison.sort_values("test_pr_auc", ascending=True)
+fig, ax = plt.subplots(figsize=(8, 4.5))
+ax.barh(plot_df["method"], plot_df["test_pr_auc"], color="steelblue")
+ax.set_xlabel("Test PR-AUC")
+ax.set_title("TabPFN resampling ensembles (90/10 holdout)")
+ax.set_xlim(0, 1)
+plt.tight_layout()
+bar_path = RESULT_DIR / "tabpfn_oversampling_pr_auc_bar.png"
+plt.savefig(bar_path, dpi=150)
+plt.show()
+print("Saved:", bar_path)
+
+# Overlaid PR curves
+fig, ax = plt.subplots(figsize=(7, 5))
+for name, y_prob in prob_store.items():
+    PrecisionRecallDisplay.from_predictions(
+        y_test, y_prob, ax=ax, name=name,
+    )
+ax.set_title("Test PR curves by method")
+plt.tight_layout()
+pr_path = RESULT_DIR / "tabpfn_oversampling_pr_curves.png"
+plt.savefig(pr_path, dpi=150)
+plt.show()
+print("Saved:", pr_path)
+
+# Manifest
+manifest = {
+    "protocol": "tabpfn_oversampling_ensemble",
+    "test_size": TEST_SIZE,
+    "random_state": RANDOM_STATE,
+    "run_mode": RUN_MODE,
+    "n_bootstrap": N_BOOTSTRAP,
+    "n_mc_seeds": N_MC_SEEDS,
+    "mc_k_folds": MC_K_FOLDS,
+    "threshold_strategy": THRESHOLD_STRATEGY,
+    "threshold_beta": THRESHOLD_BETA,
+    "n_train": int(len(y_train)),
+    "n_test": int(len(y_test)),
+    "best_method": comparison.iloc[0]["method"],
+    "best_test_pr_auc": float(comparison.iloc[0]["test_pr_auc"]),
+}
+manifest_path = RESULT_DIR / "tabpfn_oversampling_manifest.json"
+with open(manifest_path, "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
+print("Saved:", manifest_path)
+print("\nBest by test PR-AUC:", comparison.iloc[0]["method"], f"({comparison.iloc[0]['test_pr_auc']:.4f})")
+
+---OUT---
+Saved: /kaggle/working/modeling_tabpfn_oversampling/tabpfn_oversampling_comparison.csv
+Saved: /kaggle/working/modeling_tabpfn_oversampling/tabpfn_oversampling_bootstrap_ci.csv
+Saved: /kaggle/working/modeling_tabpfn_oversampling/tabpfn_oversampling_variance_diagnostic.csv
+
+<Figure size 800x450 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn_oversampling/tabpfn_oversampling_pr_auc_bar.png
+
+<Figure size 700x500 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn_oversampling/tabpfn_oversampling_pr_curves.png
+Saved: /kaggle/working/modeling_tabpfn_oversampling/tabpfn_oversampling_manifest.json
+
+Best by test PR-AUC: baseline (0.6881)
+
+
+########## CELL 19 [markdown] ##########
+## 10. Notes
+
+- **Threshold tuning:** only `mc_kfold_ensemble` uses Monte Carlo K-fold OOF scores. Baseline, bootstrap, and balanced oversample fit once on the full training set and tune the decision threshold on in-sample train predictions (no cross-validation).
+- **Bootstrap ensemble:** stratified with-replacement resampling; prevalence roughly preserved; duplicate rows can amplify minority signal organically.
+- **Monte Carlo K-fold:** R independent `StratifiedKFold` shuffles × K complementary train subsets; test predictions averaged over all R×K models; OOF scores used for threshold selection.
+- **Balanced minority oversample:** duplicates real minority rows to 1:1 (no synthetic interpolation); targets class imbalance explicitly. Orthogonal to bootstrap (random row mix) and MC K-fold (subset partitioning).
+- **Not included here:** SMOTE / ADASYN (see `tabpfn_synthesis.ipynb` on processed features); seed-only ensemble is in §8 as a diagnostic for internal TabPFN shuffle variance.
+- **Small test set caveat:** ~10% holdout yields few positives; quote bootstrap CIs alongside point estimates.
+- **Runtime:** full MC mode runs `R × K` OOF fits plus `R × K` test contributors — use `RUN_MODE='smoke'` first.

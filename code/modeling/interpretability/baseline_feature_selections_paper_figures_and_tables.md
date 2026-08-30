@@ -2,9 +2,11 @@
 
 This document gathers publication-oriented figures and tables from the multi-model feature selectors in [baseline_feature_selections.ipynb](baseline_feature_selections.ipynb).
 
-**Cohort / protocol.** Same VLST records and split as the TabPFN playground: n = 5,185 (train 3,629 / test 1,556; train events 64, test events 28). Target = `Stent thrombosis`. `Time since stent implantation` is dropped as a time-at-risk / follow-up column. Models use the **scaled** view (185 columns after encoding). The stored notebook run is `RUN_MODE="smoke"` with **top-12** features per model × selector × metric. TabPFN was not available in that run.
+**Cohort / protocol.** Same VLST records, n = 5,185, stratified 70/30 (`random_state=42`): train 3,629 (64 events) / test 1,556 (28 events). Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). Models use the **scaled** view: `ColumnTransformer` one-hots the **raw 106** `Stent type-SES` strings (EDA instead collapses to 9 levels) and then `StandardScaler` → **185 columns**. Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. The stored notebook run is `RUN_MODE="smoke"` with **top-12** features per model × selector × metric. TabPFN was configured but **unavailable** in that run. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`, 200/400 rounds) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
 
-**Selectors.** LOCO = drop-one and refit; coalition SHAP = metric Shapley values without refit; FFS = greedy forward add on hold-out. Objectives: `pr_auc`, `f1`, `f2`.
+**Methods note — stored figures vs current code.** Figures and tables below are the **stored smoke run**. In that run, LOCO’s 40-column cap was the first 40 columns in **ColumnTransformer output order** (23 continuous, then the first 17 binaries); SHAP’s coalition metric used **all 28 test events plus 4 random controls** (87.5% prevalence). The notebook **code** has since been changed (not re-run): selectors score on an inner hold-out of train (`INNER_VAL_SIZE=0.2`, `y_test` unused); the LOCO cap is cheap **train** importance, not column order; SHAP draws a stratified inner-val sample at train prevalence. Do not read these figures as if they already used the new protocol.
+
+**Selectors (intent of the current code; figures are the old run).** LOCO = drop-one and refit, scored on the inner hold-out. Coalition SHAP and FFS are nested in LOCO’s top pool as a **compute cap**, not because those models “read LOCO’s answer.” Objectives: `pr_auc`, `f1`, `f2` — **PR-AUC is the ranking metric aligned with Part 4**; F1/F2 are extra operating-point views, not inferential tests. Wald / GLM standard errors are not applicable to tree selectors. These catalogues do **not** feed Part 4 (nested-CV uses all 81 raw features, not this 185-column mask). SMOTE is not used.
 
 **Asset root:** [paper_figures/](paper_figures/) (also at `data/result/model_feature_selectors/`)
 
@@ -59,7 +61,7 @@ LOCO is run on a capped pool (`LOCO_MAX_FEATURES=40` in smoke mode), so every mo
 
 ![Figure 1](paper_figures/paper_fig1_unique_counts.png)
 
-**Figure 1.** Unique feature counts after pooling `pr_auc`, `f1`, and `f2`. Squares on the left mark family (navy = linear, teal = bagged trees, violet = boosting). LOCO saturates the 40-feature cap for every model. FFS is the sparsest (18–24 unique names). SHAP sits in between (30–36). Linear and subsampled RF keep slightly larger SHAP/FFS unions than boosting.
+**Figure 1.** Unique feature counts after pooling `pr_auc`, `f1`, and `f2`. Squares on the left mark family (navy = linear, teal = bagged trees, violet = boosting). LOCO saturates the 40-feature cap for every model **because the stored run evaluated a 40-column prefix**, not because 40 features were independently important. FFS is the sparsest (18–24 unique names). SHAP sits in between (30–36). Linear and subsampled RF keep slightly larger SHAP/FFS unions than boosting.
 
 | Model | Family | LOCO | SHAP | FFS |
 | --- | --- | ---: | ---: | ---: |

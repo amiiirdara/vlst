@@ -1,0 +1,3306 @@
+
+########## CELL 0 [markdown] ##########
+# VLST — TabPFN (Tabular Foundation Model)
+
+**TabPFN** ([Prior Labs](https://github.com/PriorLabs/TabPFN)) is a **Prior-Data Fitted Network (PFN)** that performs
+**In-Context Learning (ICL)**. Unlike XGBoost / LightGBM, it does **not** update weights during `.fit()`:
+
+- `.fit(X_train, y_train)` simply **stores the training data as context**.
+- `.predict()` / `.predict_proba()` run a **single forward pass** through a Transformer to approximate
+  **Bayesian inference** over the stored context.
+
+### Implementation guidelines followed here
+
+- **No manual preprocessing.** We do **not** scale, one-hot encode, or remove outliers. TabPFN handles
+  heterogeneous columns and **missing values** natively. (Raw mode keeps `NaN`s; categorical text columns
+  get minimal integer codes — never one-hot.)
+- **Hardware.** Uses a **GPU** automatically when available; falls back to CPU. On **Kaggle**, enable
+  **GPU T4** and see **§0** for dataset paths, `TABPFN_TOKEN` secrets, and `is_kaggle_env` handling.
+  Set `USE_TABPFN_CLIENT=True` in §3 to use the Prior Labs **cloud API** instead of local inference.
+- **Batch prediction.** The whole test set is passed to `predict_proba` in **one** call — predicting
+  row-by-row is wasteful because it recomputes the context every time.
+- **Data regimes (TabPFN-3, for reference):** 1,000,000×200 / 100,000×2,000 / 1,000×20,000.
+  VLST (~5k rows × ~80–170 cols) sits comfortably inside the **v2.5** regime, so v2.5 is used.
+
+### Interpretability (training-free → cheap)
+
+Because "retraining" is just another fast forward pass, two analyses become tractable:
+
+- **LOCO (Leave-One-Covariate-Out):** drop one feature, re-store the context, forward pass, and measure the
+  drop in **pr_auc / f1 / f2** on the test set (threshold re-tuned for f1/f2) — the *unique* information each feature carries per objective.
+- **Exact SHAP (masked forward passes):** (§8a) local Shapley values on \(P(\text{positive})\); (§8b) coalition-metric
+  Shapley on **pr_auc / f1 / f2** via background masking — no retraining.
+
+### Dataset
+
+`data/raw/VLST.csv` — target **`Stent thrombosis`** (rare positive ~1–2%). The leakage feature
+**`Time since stent implantation`** is dropped (consistent with the other modeling notebooks).
+
+
+########## CELL 1 [markdown] ##########
+## 0. Kaggle setup checklist
+
+Use this section when running on [Kaggle Notebooks](https://www.kaggle.com/code).
+
+### Notebook settings (right sidebar)
+
+| Setting | Value |
+|---------|-------|
+| **Accelerator** | **GPU T4 x2** (recommended — local TabPFN is much faster than cloud for LOCO/SHAP) |
+| **Internet** | **On** (needed for `pip install tabpfn` and one-time model-weight download) |
+| **Persistence** | Optional — turn on if you want outputs kept between sessions |
+
+### Add input data
+
+Attach **at least one** of these as a Kaggle dataset (Add data → Your datasets):
+
+1. **Raw CSV (default `DATA_MODE="raw"`)** — dataset `vlst-data`:
+   - `/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv`
+
+2. **Preprocessed arrays (`DATA_MODE="processed"`)** — dataset `preprocessed-data`:
+   - `/kaggle/input/datasets/amirmahdidaraei/preprocessed-data/`
+   - Files: `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`, `feature_names.csv`
+
+Override paths with environment variables if your dataset slug differs:
+
+```python
+# os.environ["VLST_RAW_CSV"] = "/kaggle/input/<your-dataset>/VLST.csv"
+# os.environ["VLST_PROCESSED_DIR"] = "/kaggle/input/datasets/<user>/<slug>"
+# os.environ["VLST_RESULT_DIR"] = "/kaggle/working/modeling_tabpfn"
+```
+
+### TabPFN API key (required once)
+
+Local TabPFN still needs a Prior Labs token to download weights (even on GPU).
+
+1. Register / log in at https://ux.priorlabs.ai and accept the license.
+2. Copy your API key from https://ux.priorlabs.ai/account
+3. In Kaggle: **Add-ons → Secrets** → add secret named exactly **`TABPFN_TOKEN`** (not `TABFPN_TOKEN`).
+4. **Attach the secret to this notebook** (Add-ons → Secrets → your secret → attach).
+
+§5 loads the token via `UserSecretsClient().get_secret("TABPFN_TOKEN")` on Kaggle (Kaggle's recommended pattern).
+
+### Runtime flag
+
+Section 2 auto-sets `is_kaggle_env` when `/kaggle/working` exists. If detection fails, uncomment `is_kaggle_env = True` in the config cell.
+
+### Outputs
+
+Artifacts are written to `/kaggle/working/modeling_tabpfn/` (metrics CSV, ROC/PR plots, LOCO, SHAP). Download from the **Output** tab or commit the notebook version.
+
+########## CELL 2 [markdown] ##########
+## 1. Install TabPFN (run once per environment)
+
+Installs the local engine **`tabpfn`** and the cloud client **`tabpfn-client`**. On Kaggle, keep **Internet On**
+so this cell can pip-install missing packages. `shap` is optional (nicer SHAP plots; matplotlib fallback exists).
+
+
+########## CELL 3 [code] ##########
+import importlib.util
+import sys
+
+
+def _missing(mod):
+    return importlib.util.find_spec(mod) is None
+
+
+to_install = []
+if _missing("tabpfn"):
+    to_install.append("tabpfn")
+if _missing("tabpfn_client"):
+    to_install.append("tabpfn-client")
+# `shap` is optional — only for prettier beeswarm plots; we have a fallback.
+if _missing("shap"):
+    to_install.append("shap")
+
+if to_install:
+    print("Installing:", to_install)
+    get_ipython().run_line_magic(
+        "pip", "install -q --no-warn-conflicts " + " ".join(to_install)
+    )
+    print("Done. If imports fail, restart the kernel and re-run.")
+else:
+    print("tabpfn / tabpfn-client / shap already available.")
+---OUT---
+Installing: ['tabpfn', 'tabpfn-client']
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m753.2/753.2 kB[0m [31m1.5 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m56.0/56.0 kB[0m [31m4.1 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m47.6/47.6 MB[0m [31m17.1 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m12.2/12.2 MB[0m [31m27.7 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m394.6/394.6 kB[0m [31m28.6 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m6.0 MB/s[0m eta [36m0:00:00[0m
+[?25hNote: you may need to restart the kernel to use updated packages.
+Done. If imports fail, restart the kernel and re-run.
+
+
+########## CELL 4 [markdown] ##########
+## 2. Imports and device detection
+
+########## CELL 5 [code] ##########
+import os
+import time
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    roc_auc_score,
+    average_precision_score,
+    f1_score,
+    fbeta_score,
+    recall_score, 
+    precision_score,
+    RocCurveDisplay,
+    PrecisionRecallDisplay,
+    ConfusionMatrixDisplay,
+)
+
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+# Auto-detect Kaggle. Uncomment the next line if you copied this notebook and detection fails.
+is_kaggle_env = os.path.isdir("/kaggle/working")
+# is_kaggle_env = True
+
+try:
+    import torch
+
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    DEVICE_NAME = torch.cuda.get_device_name(0) if DEVICE == "cuda" else "CPU"
+except Exception:
+    DEVICE = "cpu"
+    DEVICE_NAME = "CPU"
+
+print(f"Runtime: {'Kaggle' if is_kaggle_env else 'local'} | TabPFN device: {DEVICE} ({DEVICE_NAME})")
+---OUT---
+Runtime: Kaggle | TabPFN device: cuda (Tesla T4)
+
+
+########## CELL 6 [markdown] ##########
+## 3. Configuration
+
+`is_kaggle_env` is set in §2 (auto-detect via `/kaggle/working`). On Kaggle, this cell also picks
+**local GPU vs cloud client** and throttles LOCO/SHAP when the cloud API is used.
+
+`DATA_MODE` toggles the input representation (the spec recommends **raw**):
+
+- **`"raw"`** — minimal handling of `VLST.csv` (keep `NaN`s; text columns → integer codes). Closest
+  to TabPFN's intended use.
+- **`"processed"`** — the scaled / one-hot `.npy` matrices from `../preprocessing/preprocessing.ipynb`, comparable to the
+  XGBoost/LightGBM notebooks (scores line up with them).
+
+
+########## CELL 7 [code] ##########
+DATA_MODE = "raw"            # "raw" (spec default) or "processed"
+USE_TABPFN_CLIENT = True     # overridden below on Kaggle when a GPU is available
+
+TARGET_COL = "Stent thrombosis"
+DROP_FEATURES = ["Time since stent implantation"]   # leakage control
+ID_COLS = ["NO.", "Name"]
+RANDOM_STATE = 42
+TEST_SIZE = 0.3
+
+# --- TabPFN inference knobs ---
+N_ESTIMATORS = -1                # ensemble of forward passes (not trees); more = steadier probs
+BALANCE_PROBABILITIES = True     # helps under the strong VLST class imbalance
+IGNORE_PRETRAINING_LIMITS = False # allow n_train / n_features outside default range
+
+# --- Decision threshold for the positive class ---
+# None -> tune on OUT-OF-FOLD CV predictions over ALL of X_train (robust under rare positives).
+# A fixed float skips tuning entirely.
+DECISION_THRESHOLD = None
+THRESHOLD_STRATEGY = "f2"         # "f1" | "f2" | "fbeta" | "recall_at_precision" | "target_recall"
+THRESHOLD_BETA = 1.5              # Fβ weight on recall (β=2 → recall counts ~2x precision)
+MIN_PRECISION = 0.40              # "recall_at_precision": maximise recall s.t. precision >= this
+TARGET_RECALL = 0.80              # "target_recall": highest-precision threshold reaching this recall
+THRESHOLD_CV_SPLITS = 10           # OOF folds for tuning
+TRADEOFF_THRESH_START = 1.0        # §6a: highest threshold (min FP)
+TRADEOFF_THRESH_STOP = 0.4         # §6a: lowest threshold in the sweep
+TRADEOFF_THRESH_FINE_UNTIL = 0.9   # §6a: 0.01 steps from START down to here (inclusive)
+TRADEOFF_THRESH_FINE_STEP = 0.01     # §6a: fine step (1.00, 0.99, …, 0.90)
+TRADEOFF_THRESH_STEP = 0.05        # §6a: coarse step below FINE_UNTIL (0.85, 0.80, …)
+
+# --- Bootstrap confidence intervals on the test set (§6c) ---
+N_BOOTSTRAP = 2000                # resamples; 1000-5000 is plenty
+BOOTSTRAP_CI = 95                 # central CI width in % (95 -> 2.5/97.5 percentiles)
+
+# --- LOCO (multi-objective; mirrors FFS_SCORINGS in §10) ---
+LOCO_SCORINGS = ["pr_auc", "f1", "f2"]
+LOCO_METRIC = "pr_auc"           # primary alias for §8 probability SHAP & legacy CSV
+LOCO_MAX_FEATURES = None         # None = all features; cap on Kaggle/cloud (see below)
+LOCO_PLOT_TOP_N = 20
+
+# --- SHAP objectives (§8 coalition-metric ranking) ---
+SHAP_SCORINGS = ["pr_auc", "f1", "f2"]
+SHAP_OBJECTIVE_UNIVERSE = 40     # top LOCO features per objective for coalition SHAP
+
+# --- Exact / permutation SHAP (probability, local) ---
+SHAP_TOP_K = 12                  # explain the top-K LOCO features (subspace, for tractability)
+SHAP_N_INSTANCES = 40            # test rows to explain (positives prioritised)
+SHAP_N_BACKGROUND = 200          # background rows for masking
+SHAP_N_PERM = 40                 # permutations (higher = lower variance, slower)
+SHAP_SEED = 42
+
+# --- Kaggle paths (match your attached datasets; see §0) ---
+KAGGLE_RAW_CSV = "/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"
+KAGGLE_PROCESSED_DIR = "/kaggle/input/datasets/amirmahdidaraei/preprocessed-data"
+KAGGLE_RESULT_SUBDIR = "modeling_tabpfn"
+
+RESULT_DIR = None  # resolved in the load cell
+
+if is_kaggle_env:
+    # On Kaggle with GPU: local TabPFN is faster and avoids cloud API quota on LOCO/SHAP.
+    USE_TABPFN_CLIENT = DEVICE != "cuda"
+    if USE_TABPFN_CLIENT:
+        LOCO_MAX_FEATURES = 15   # each LOCO step = 1 cloud fit; raise after smoke test
+        SHAP_N_PERM = 20
+        SHAP_N_INSTANCES = 25
+    print(
+        "Kaggle mode: USE_TABPFN_CLIENT =", USE_TABPFN_CLIENT,
+        "(local GPU)" if not USE_TABPFN_CLIENT else "(cloud API — LOCO/SHAP throttled)",
+    )
+
+print("Config ready. DATA_MODE =", DATA_MODE, "| USE_TABPFN_CLIENT =", USE_TABPFN_CLIENT)
+---OUT---
+Kaggle mode: USE_TABPFN_CLIENT = False (local GPU)
+Config ready. DATA_MODE = raw | USE_TABPFN_CLIENT = False
+
+
+########## CELL 8 [markdown] ##########
+## 4. Load data (raw or processed)
+
+**Local:** paths are auto-discovered from the repo root (`data/raw/VLST.csv`).
+
+**Kaggle:** reads `VLST_RAW_CSV` / `VLST_PROCESSED_DIR` env overrides, then searches `/kaggle/input/` and uses `/kaggle/working/` for outputs.
+
+
+########## CELL 9 [code] ##########
+def _find_repo_root() -> Path:
+    here = Path.cwd().resolve()
+    for d in (here, *here.parents):
+        if (d / "data" / "raw" / "VLST.csv").is_file():
+            return d
+    raise FileNotFoundError(
+        "Could not locate data/raw/VLST.csv above the current working directory."
+    )
+
+
+def _discover_vlst_csv() -> Path:
+    """Resolve VLST.csv on Kaggle (env override, then recursive search under /kaggle/input)."""
+    env = os.environ.get("VLST_RAW_CSV")
+    if env and Path(env).is_file():
+        return Path(env)
+
+    candidates = [
+        Path(KAGGLE_RAW_CSV),
+        Path("/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv"),
+        Path("/kaggle/input/vlst-data/VLST.csv"),
+        Path("/kaggle/input/VLST_data/VLST.csv"),
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+
+    base = Path("/kaggle/input")
+    if base.is_dir():
+        for p in base.rglob("VLST.csv"):
+            if p.is_file():
+                return p
+
+    raise FileNotFoundError(
+        "VLST.csv not found on Kaggle. Upload it as a dataset (see §0) or set "
+        "os.environ['VLST_RAW_CSV'] = '/kaggle/input/<dataset>/VLST.csv'."
+    )
+
+
+def _resolve_paths():
+    """Return (raw_path, processed_dir, result_dir, label) for local or Kaggle."""
+    if is_kaggle_env:
+        raw = _discover_vlst_csv()
+        processed = Path(
+            os.environ.get("VLST_PROCESSED_DIR", KAGGLE_PROCESSED_DIR)
+        )
+        result = Path(
+            os.environ.get(
+                "VLST_RESULT_DIR",
+                str(Path("/kaggle/working") / KAGGLE_RESULT_SUBDIR),
+            )
+        )
+        return raw, processed, result, f"Kaggle | raw={raw}"
+
+    repo = _find_repo_root()
+    return (
+        repo / "data" / "raw" / "VLST.csv",
+        repo / "data" / "processed",
+        repo / "data" / "result" / "modeling_tabpfn",
+        f"local | repo={repo}",
+    )
+
+
+RAW_PATH, PROCESSED_DIR, RESULT_DIR, _path_label = _resolve_paths()
+RESULT_DIR = Path(RESULT_DIR)
+PROCESSED_DIR = Path(PROCESSED_DIR)
+RAW_PATH = Path(RAW_PATH)
+RESULT_DIR.mkdir(parents=True, exist_ok=True)
+print(_path_label)
+print("RAW_PATH:", RAW_PATH)
+print("PROCESSED_DIR:", PROCESSED_DIR)
+print("RESULT_DIR:", RESULT_DIR)
+
+
+def load_raw():
+    """Minimal, TabPFN-native handling: keep NaNs, code text columns, no scaling/one-hot."""
+    df = pd.read_csv(RAW_PATH)
+    df = df.drop(columns=[c for c in ID_COLS if c in df.columns])
+    y = df[TARGET_COL].astype(int).to_numpy()
+    drop = [TARGET_COL] + [c for c in DROP_FEATURES if c in df.columns]
+    X_df = df.drop(columns=drop)
+    for c in X_df.columns:
+        if X_df[c].dtype == object:
+            coerced = pd.to_numeric(X_df[c].astype(str).str.strip(), errors="coerce")
+            if coerced.notna().mean() >= 0.5:        # genuinely numeric (e.g. "21.00 ")
+                X_df[c] = coerced
+            else:                                     # categorical text -> integer codes (NOT one-hot)
+                codes = X_df[c].astype("category").cat.codes.astype(float)
+                X_df[c] = codes.where(codes >= 0, np.nan)
+    return X_df.to_numpy(dtype=float), y, list(X_df.columns)
+
+
+def load_processed():
+    Xtr = np.load(PROCESSED_DIR / "X_train.npy")
+    Xte = np.load(PROCESSED_DIR / "X_test.npy")
+    ytr = np.load(PROCESSED_DIR / "y_train.npy")
+    yte = np.load(PROCESSED_DIR / "y_test.npy")
+    names = pd.read_csv(PROCESSED_DIR / "feature_names.csv")["feature_name"].tolist()
+    fn = np.array(names)
+    keep = ~np.isin(fn, DROP_FEATURES)
+    return Xtr[:, keep], Xte[:, keep], ytr, yte, fn[keep].tolist()
+
+
+if DATA_MODE == "raw":
+    X_all, y_all, feature_names = load_raw()
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_all, y_all, test_size=TEST_SIZE, stratify=y_all, random_state=RANDOM_STATE
+    )
+    print("Loaded RAW VLST.csv (minimal native handling).")
+elif DATA_MODE == "processed":
+    if not (PROCESSED_DIR / "X_train.npy").is_file():
+        raise FileNotFoundError(
+            f"{PROCESSED_DIR/'X_train.npy'} not found. Run ../preprocessing/preprocessing.ipynb or set DATA_MODE='raw'."
+        )
+    X_train, X_test, y_train, y_test, feature_names = load_processed()
+    print("Loaded PROCESSED .npy arrays (comparable to other modeling notebooks).")
+else:
+    raise ValueError("DATA_MODE must be 'raw' or 'processed'")
+
+print(f"Train: {X_train.shape} | Test: {X_test.shape} | Features: {len(feature_names)}")
+print(
+    f"Train target: 0={int((y_train==0).sum())}, 1={int((y_train==1).sum())} | "
+    f"Test: 0={int((y_test==0).sum())}, 1={int((y_test==1).sum())}"
+)
+---OUT---
+Kaggle | raw=/kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv
+RAW_PATH: /kaggle/input/datasets/amirmahdidaraei/vlst-data/VLST.csv
+PROCESSED_DIR: /kaggle/input/datasets/amirmahdidaraei/preprocessed-data
+RESULT_DIR: /kaggle/working/modeling_tabpfn
+Loaded RAW VLST.csv (minimal native handling).
+Train: (3629, 81) | Test: (1556, 81) | Features: 81
+Train target: 0=3565, 1=64 | Test: 0=1528, 1=28
+
+
+########## CELL 10 [markdown] ##########
+## 5. Fit TabPFN context and batch-predict
+
+`fit` only **stores the context**; `predict_proba` does a **single batched forward pass** over the entire
+test set. Under strong imbalance we (optionally) tune the positive-class threshold by max-F1 on a stratified
+slice of the training set, then refit the context on **all** training rows.
+
+
+########## CELL 11 [code] ##########
+def _load_tokens() -> str:
+    """Read keys from env or Kaggle Secrets."""
+    hf_token = os.environ.get("HF_TOKEN", "").strip()
+    tabpfn_token = os.environ.get("TABPFN_TOKEN", "").strip()
+    if tabpfn_token:    # checking tabpfn existance is enough  
+        return hf_token, tabpfn_token
+
+    if is_kaggle_env:
+        from kaggle_secrets import UserSecretsClient
+        user_secrets = UserSecretsClient()
+        hf_token = user_secrets.get_secret("HF_TOKEN")
+        tabpfn_token = user_secrets.get_secret("NEW_TABPFN_TOKEN") or user_secrets.get_secret("TABPFN_TOKEN")
+        return hf_token, tabpfn_token
+
+    raise RuntimeError("TABPFN_TOKEN is not set.\n")
+
+
+hf_token, tabpfn_token = _load_tokens()
+os.environ["TABPFN_TOKEN"] = tabpfn_token
+os.environ["HF_TOKEN"] = hf_token
+
+# Cloud client auth (when USE_TABPFN_CLIENT=True). Local engine also reads TABPFN_TOKEN
+# for the one-time weight download on Kaggle/non-interactive runtimes.
+if USE_TABPFN_CLIENT:
+    import tabpfn_client
+
+    tabpfn_client.set_access_token(tabpfn_token)
+else:
+    print("Using local TabPFN engine on", DEVICE, "(TABPFN_TOKEN set for weight download)")
+
+
+def make_tabpfn(seed=RANDOM_STATE):
+    """Factory for a fresh TabPFN classifier (local engine or cloud client)."""
+    if USE_TABPFN_CLIENT:
+        from tabpfn_client import TabPFNClassifier as ClientClf
+
+        return ClientClf(
+            n_estimators=N_ESTIMATORS,
+            balance_probabilities=BALANCE_PROBABILITIES,
+            ignore_pretraining_limits=IGNORE_PRETRAINING_LIMITS,
+            random_state=seed,
+        )
+
+    from tabpfn import TabPFNClassifier
+
+    return TabPFNClassifier(
+        device=DEVICE,
+        n_estimators=N_ESTIMATORS,
+        balance_probabilities=BALANCE_PROBABILITIES,
+        ignore_pretraining_limits=IGNORE_PRETRAINING_LIMITS,
+        random_state=seed,
+    )
+
+
+def pos_proba(clf, X):
+    """Positive-class probability, robust to class ordering."""
+    classes = list(clf.classes_)
+    idx = classes.index(1) if 1 in classes else 1
+    return np.asarray(clf.predict_proba(X)[:, idx], dtype=float)
+
+
+def oof_pos_proba(make_clf, X, y, n_splits=5, seed=RANDOM_STATE):
+    """Out-of-fold positive-class probabilities over ALL of X.
+
+    Far more stable than a single small val slice: every training positive contributes
+    exactly one held-out score, so the threshold is tuned on all 74 positives, not ~11.
+    """
+    oof = np.zeros(len(y), dtype=float)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    for k, (tr, va) in enumerate(skf.split(X, y), 1):
+        m = make_clf(); m.fit(X[tr], y[tr])
+        oof[va] = pos_proba(m, X[va])
+        print(f"  OOF fold {k}/{n_splits}")
+    return oof
+
+
+def select_threshold(y_true, scores, *, strategy="f2", beta=2.0,
+                     min_precision=0.30, target_recall=0.80, grid_points=199):
+    """Pick a decision threshold from validation scores under a chosen objective."""
+    grid = np.linspace(0.01, 0.99, grid_points)
+    P, R, F1, FB = [], [], [], []
+    for t in grid:
+        pred = (scores >= t).astype(int)
+        P.append(precision_score(y_true, pred, zero_division=0))
+        R.append(recall_score(y_true, pred, zero_division=0))
+        F1.append(f1_score(y_true, pred, zero_division=0))
+        FB.append(fbeta_score(y_true, pred, beta=beta, zero_division=0))
+    P, R, F1, FB = map(np.asarray, (P, R, F1, FB))
+
+    if strategy == "f1":
+        i = int(np.argmax(F1))
+    elif strategy in ("f2", "fbeta"):
+        i = int(np.argmax(FB))
+    elif strategy == "recall_at_precision":
+        ok = np.where(P >= min_precision)[0]
+        i = int(ok[np.argmax(R[ok])]) if len(ok) else int(np.argmax(F1))
+    elif strategy == "target_recall":
+        ok = np.where(R >= target_recall)[0]
+        i = int(ok[np.argmax(P[ok])]) if len(ok) else int(np.argmax(R))
+    else:
+        raise ValueError(f"Unknown THRESHOLD_STRATEGY: {strategy}")
+
+    info = {"precision": float(P[i]), "recall": float(R[i]),
+            "f1": float(F1[i]), f"f{beta:g}": float(FB[i])}
+    return float(grid[i]), info
+
+
+def tradeoff_threshold_grid(*, start=1.0, stop=0.4, step=0.05, fine_until=0.9, fine_step=0.01):
+    """1.00→fine_until in fine_step, then (fine_until−step)→stop in step."""
+    fine = np.arange(start, fine_until - fine_step / 2, -fine_step)
+    coarse = np.arange(fine_until - step, stop - step / 2, -step)
+    return np.concatenate([fine, coarse]) if len(coarse) else fine
+
+
+def fp_fn_tradeoff_table(y_true, scores, *, start=1.0, stop=0.4, step=0.05,
+                         fine_until=0.9, fine_step=0.01):
+    """Operating points on a fixed threshold grid (high → low = min FP → min FN)."""
+    y_true = np.asarray(y_true)
+    scores = np.asarray(scores, dtype=float)
+    thresholds = tradeoff_threshold_grid(
+        start=start, stop=stop, step=step, fine_until=fine_until, fine_step=fine_step,
+    )
+
+    rows = []
+    for t in thresholds:
+        pred = (scores >= t).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y_true, pred, labels=[0, 1]).ravel()
+        rows.append({
+            "threshold": float(t),
+            "precision": precision_score(y_true, pred, zero_division=0),
+            "recall": recall_score(y_true, pred, zero_division=0),
+            "f1": f1_score(y_true, pred, zero_division=0),
+            "TN": int(tn), "FP": int(fp), "FN": int(fn), "TP": int(tp),
+        })
+    out = pd.DataFrame(rows).reset_index(drop=True)
+    out.insert(0, "point", np.arange(1, len(out) + 1))
+    if len(out) == 1:
+        out.insert(1, "priority", ["tradeoff"])
+    else:
+        labels = ["min_FP"] + ["tradeoff"] * (len(out) - 2) + ["min_FN"]
+        out.insert(1, "priority", labels)
+    return out
+
+
+if DECISION_THRESHOLD is None:
+    print(f"Tuning threshold via {THRESHOLD_CV_SPLITS}-fold OOF on X_train (strategy={THRESHOLD_STRATEGY})...")
+    oof_scores = oof_pos_proba(make_tabpfn, X_train, y_train, n_splits=THRESHOLD_CV_SPLITS)
+    THRESHOLD, thr_info = select_threshold(
+        y_train, oof_scores, strategy=THRESHOLD_STRATEGY, beta=THRESHOLD_BETA,
+        min_precision=MIN_PRECISION, target_recall=TARGET_RECALL,
+    )
+    print(f"Chosen threshold={THRESHOLD:.4f} | OOF " + " ".join(f"{k}={v:.3f}" for k, v in thr_info.items()))
+else:
+    oof_scores = None
+    THRESHOLD = float(DECISION_THRESHOLD)
+    print(f"Using fixed DECISION_THRESHOLD={THRESHOLD}")
+
+t0 = time.time()
+clf = make_tabpfn()
+clf.fit(X_train, y_train)                 # stores context (no weight updates)
+print(f"Context stored in {time.time()-t0:.2f}s on {len(y_train)} rows.")
+
+t0 = time.time()
+y_prob = pos_proba(clf, X_test)           # single batched forward pass over the whole test set
+print(f"Batch forward pass over {len(y_test)} test rows in {time.time()-t0:.2f}s.")
+y_pred = (y_prob >= THRESHOLD).astype(int)
+---OUT---
+Using local TabPFN engine on cuda (TABPFN_TOKEN set for weight download)
+Tuning threshold via 10-fold OOF on X_train (strategy=f2)...
+
+tabpfn-v3-classifier-v3_default.ckpt:   0%|          | 0.00/213M [00:00<?, ?B/s]
+config.json:   0%|          | 0.00/33.0 [00:00<?, ?B/s]
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+Chosen threshold=0.8811 | OOF precision=0.524 recall=0.688 f1=0.595 f1.5=0.627
+Context stored in 0.70s on 3629 rows.
+Batch forward pass over 1556 test rows in 0.75s.
+
+
+########## CELL 12 [markdown] ##########
+## 6. Evaluation and visualizations
+
+########## CELL 13 [code] ##########
+print(classification_report(y_test, y_pred, zero_division=0))
+print("Confusion matrix:\n", confusion_matrix(y_test, y_pred))
+
+metrics = {
+    "accuracy": float((y_pred == y_test).mean()),
+    "precision": precision_score(y_test, y_pred, zero_division=0),
+    "recall": recall_score(y_test, y_pred, zero_division=0),
+    "f1": f1_score(y_test, y_pred, zero_division=0),
+    "roc_auc": roc_auc_score(y_test, y_prob),
+    "pr_auc": average_precision_score(y_test, y_prob),
+    "decision_threshold": THRESHOLD,
+}
+for k, v in metrics.items():
+    print(f"{k:>18}: {v:.4f}")
+pd.Series(metrics).to_csv(RESULT_DIR / "tabpfn_metrics.csv")
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+RocCurveDisplay.from_predictions(y_test, y_prob, ax=axes[0], name="TabPFN")
+axes[0].set_title(f"ROC (AUC={metrics['roc_auc']:.3f})")
+PrecisionRecallDisplay.from_predictions(y_test, y_prob, ax=axes[1], name="TabPFN")
+axes[1].set_title(f"Precision-Recall (AP={metrics['pr_auc']:.3f})")
+ConfusionMatrixDisplay.from_predictions(
+    y_test, y_pred, labels=[0, 1], display_labels=["neg (0)", "pos (1)"],
+    ax=axes[2], colorbar=False, values_format="d",
+)
+axes[2].set_title(f"Confusion @ t={THRESHOLD:.3f}")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_eval.png", dpi=150)
+plt.show()
+print("Saved:", RESULT_DIR / "tabpfn_metrics.csv", "and tabpfn_eval.png")
+---OUT---
+              precision    recall  f1-score   support
+
+           0       0.99      1.00      1.00      1528
+           1       0.80      0.71      0.75        28
+
+    accuracy                           0.99      1556
+   macro avg       0.90      0.86      0.88      1556
+weighted avg       0.99      0.99      0.99      1556
+
+Confusion matrix:
+ [[1523    5]
+ [   8   20]]
+          accuracy: 0.9916
+         precision: 0.8000
+            recall: 0.7143
+                f1: 0.7547
+           roc_auc: 0.9911
+            pr_auc: 0.8180
+decision_threshold: 0.8811
+
+<Figure size 1500x400 with 3 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_metrics.csv and tabpfn_eval.png
+
+
+########## CELL 14 [markdown] ##########
+## 6a. FP / FN trade-off (operating-point sweep)
+
+Your confusion matrix at the chosen threshold is one **operating point** on the precision–recall curve.
+Lower the threshold → more positives flagged → **fewer false negatives, more false positives**.
+Raise it → the opposite.
+
+The table sweeps **fixed thresholds** from `TRADEOFF_THRESH_START` down to `TRADEOFF_THRESH_STOP`
+on the **test scores** (`y_prob`): **0.01 steps** from 1.00 down to `TRADEOFF_THRESH_FINE_UNTIL`
+(0.90), then **0.05 steps** from 0.85 down to 0.40. This gives fine resolution where TabPFN
+operates (~0.88–0.95) while keeping the lower range coarse.
+For deployment, mirror the same grid on OOF train scores (§6b) before picking a cut-off.
+
+########## CELL 15 [code] ##########
+tradeoff = fp_fn_tradeoff_table(
+    y_test, y_prob,
+    start=TRADEOFF_THRESH_START, stop=TRADEOFF_THRESH_STOP, step=TRADEOFF_THRESH_STEP,
+    fine_until=TRADEOFF_THRESH_FINE_UNTIL, fine_step=TRADEOFF_THRESH_FINE_STEP,
+)
+tradeoff_rounded = tradeoff.assign(
+    threshold=tradeoff["threshold"].round(4),
+    precision=tradeoff["precision"].round(4),
+    recall=tradeoff["recall"].round(4),
+    f1=tradeoff["f1"].round(4),
+)
+tradeoff_rounded.to_csv(RESULT_DIR / "tabpfn_fp_fn_tradeoff.csv", index=False)
+
+print(f"Test positives: {int((y_test == 1).sum())} | negatives: {int((y_test == 0).sum())}")
+print(f"Current operating point: t={THRESHOLD:.4f}  "
+      f"FP={int(((y_pred == 1) & (y_test == 0)).sum())}  "
+      f"FN={int(((y_pred == 0) & (y_test == 1)).sum())}")
+display(tradeoff_rounded)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+axes[0].plot(tradeoff["FP"], tradeoff["FN"], "o-", lw=1.5)
+for _, r in tradeoff.iterrows():
+    axes[0].annotate(int(r["point"]), (r["FP"], r["FN"]), textcoords="offset points",
+                     xytext=(4, 4), fontsize=8)
+axes[0].set_xlabel("false positives")
+axes[0].set_ylabel("false negatives")
+axes[0].set_title("FP vs FN along the sweep (1=min FP … N=min FN)")
+axes[0].invert_xaxis()
+
+axes[1].plot(tradeoff["threshold"], tradeoff["recall"], "o-", label="recall")
+axes[1].plot(tradeoff["threshold"], tradeoff["precision"], "s--", label="precision")
+axes[1].axvline(THRESHOLD, color="k", ls=":", lw=1.2, label=f"chosen t={THRESHOLD:.3f}")
+axes[1].set_xlabel("decision threshold")
+axes[1].set_ylabel("score")
+axes[1].set_title("Precision & recall at each operating point")
+axes[1].legend()
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_fp_fn_tradeoff.png", dpi=150)
+plt.show()
+print("Saved:", RESULT_DIR / "tabpfn_fp_fn_tradeoff.csv", "and tabpfn_fp_fn_tradeoff.png")
+---OUT---
+Test positives: 28 | negatives: 1528
+Current operating point: t=0.8811  FP=5  FN=8
+
+    point  priority  threshold  precision  recall      f1    TN   FP  FN  TP
+0       1    min_FP       1.00     0.0000  0.0000  0.0000  1528    0  28   0
+1       2  tradeoff       0.99     1.0000  0.4286  0.6000  1528    0  16  12
+2       3  tradeoff       0.98     0.9333  0.5000  0.6512  1527    1  14  14
+3       4  tradeoff       0.97     0.9375  0.5357  0.6818  1527    1  13  15
+4       5  tradeoff       0.96     0.9375  0.5357  0.6818  1527    1  13  15
+5       6  tradeoff       0.95     0.9444  0.6071  0.7391  1527    1  11  17
+6       7  tradeoff       0.94     0.9444  0.6071  0.7391  1527    1  11  17
+7       8  tradeoff       0.93     0.9444  0.6071  0.7391  1527    1  11  17
+8       9  tradeoff       0.92     0.9444  0.6071  0.7391  1527    1  11  17
+9      10  tradeoff       0.91     0.8571  0.6429  0.7347  1525    3  10  18
+10     11  tradeoff       0.90     0.8571  0.6429  0.7347  1525    3  10  18
+11     12  tradeoff       0.85     0.6562  0.7500  0.7000  1517   11   7  21
+12     13  tradeoff       0.80     0.5500  0.7857  0.6471  1510   18   6  22
+13     14  tradeoff       0.75     0.4792  0.8214  0.6053  1503   25   5  23
+14     15  tradeoff       0.70     0.4138  0.8571  0.5581  1494   34   4  24
+15     16  tradeoff       0.65     0.4000  0.9286  0.5591  1489   39   2  26
+16     17  tradeoff       0.60     0.3250  0.9286  0.4815  1474   54   2  26
+17     18  tradeoff       0.55     0.2796  0.9286  0.4298  1461   67   2  26
+18     19  tradeoff       0.50     0.2523  0.9643  0.4000  1448   80   1  27
+19     20  tradeoff       0.45     0.2250  0.9643  0.3649  1435   93   1  27
+20     21    min_FN       0.40     0.1942  0.9643  0.3234  1416  112   1  27
+<Figure size 1200x450 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_fp_fn_tradeoff.csv and tabpfn_fp_fn_tradeoff.png
+
+
+########## CELL 16 [markdown] ##########
+## 6b. Threshold tuning & recall analysis
+
+The decision threshold is the **single biggest lever for recall** on this rare-positive problem
+(~1.7% positives). The model ranks well; the question is *where* you
+cut the probability.
+
+Two improvements over the original single-slice tuning:
+
+1. **Out-of-fold (OOF) tuning** — the threshold is now chosen on cross-validated scores over **all**
+   training positives instead of ~11 in a 15% slice, so it is far less noisy.
+2. **Objective you can pick** via `THRESHOLD_STRATEGY` in §3:
+   - `f1` — balanced precision/recall
+   - `f2` *(default)* — recall-leaning (recall weighted ~2× precision)
+   - `recall_at_precision` — maximise recall subject to precision ≥ `MIN_PRECISION`
+   - `target_recall` — the highest-precision threshold that still reaches `TARGET_RECALL`
+
+The sweep below is computed on **OOF training scores** (no test peeking for selection). The strategy
+table then reports what each chosen threshold yields on the **frozen test set** — for transparency only,
+not for picking the operating point.
+
+########## CELL 17 [code] ##########
+if oof_scores is None:
+    print("Fixed DECISION_THRESHOLD set — skipping OOF threshold analysis.")
+else:
+    grid = np.linspace(0.01, 0.99, 199)
+    P = np.array([precision_score(y_train, (oof_scores >= t).astype(int), zero_division=0) for t in grid])
+    R = np.array([recall_score(y_train, (oof_scores >= t).astype(int), zero_division=0) for t in grid])
+    F1 = np.array([f1_score(y_train, (oof_scores >= t).astype(int), zero_division=0) for t in grid])
+    F2 = np.array([fbeta_score(y_train, (oof_scores >= t).astype(int), beta=2.0, zero_division=0) for t in grid])
+
+    plt.figure(figsize=(9, 5))
+    plt.plot(grid, P, label="precision")
+    plt.plot(grid, R, label="recall")
+    plt.plot(grid, F1, label="F1")
+    plt.plot(grid, F2, label="F2 (recall-weighted)")
+    plt.axvline(THRESHOLD, color="k", ls="--", lw=1.2, label=f"chosen t={THRESHOLD:.3f}")
+    plt.xlabel("decision threshold")
+    plt.ylabel("score (out-of-fold on train)")
+    plt.title(f"Threshold sweep (OOF) — strategy={THRESHOLD_STRATEGY}")
+    plt.legend(loc="center left")
+    plt.tight_layout()
+    plt.savefig(RESULT_DIR / "tabpfn_threshold_sweep.png", dpi=150)
+    plt.show()
+
+    # Thresholds chosen on OOF train, then reported on the frozen test set (final readout only).
+    strategies = [
+        ("f1", {}),
+        ("f2", {}),
+        ("recall_at_precision", {"min_precision": MIN_PRECISION}),
+        ("target_recall", {"target_recall": TARGET_RECALL}),
+    ]
+    rows = []
+    for name, kw in strategies:
+        t_sel, _ = select_threshold(
+            y_train, oof_scores, strategy=name, beta=THRESHOLD_BETA,
+            min_precision=MIN_PRECISION, target_recall=TARGET_RECALL,
+        )
+        pred = (y_prob >= t_sel).astype(int)
+        rows.append({
+            "strategy": name,
+            "threshold": round(t_sel, 4),
+            "test_precision": round(precision_score(y_test, pred, zero_division=0), 4),
+            "test_recall": round(recall_score(y_test, pred, zero_division=0), 4),
+            "test_f1": round(f1_score(y_test, pred, zero_division=0), 4),
+            "test_f2": round(fbeta_score(y_test, pred, beta=2.0, zero_division=0), 4),
+            "TP": int(((pred == 1) & (y_test == 1)).sum()),
+            "FP": int(((pred == 1) & (y_test == 0)).sum()),
+            "FN": int(((pred == 0) & (y_test == 1)).sum()),
+        })
+    thr_compare = pd.DataFrame(rows)
+    thr_compare.to_csv(RESULT_DIR / "tabpfn_threshold_strategies.csv", index=False)
+    print(f"Positives in test set: {int((y_test == 1).sum())}")
+    display(thr_compare)
+---OUT---
+<Figure size 900x500 with 1 Axes>
+<PNG image>
+Positives in test set: 28
+
+              strategy  threshold  test_precision  test_recall  test_f1  \
+0                   f1     0.9504          0.9444       0.6071   0.7391   
+1                   f2     0.8811          0.8000       0.7143   0.7547   
+2  recall_at_precision     0.8267          0.6471       0.7857   0.7097   
+3        target_recall     0.6039          0.3377       0.9286   0.4952   
+
+   test_f2  TP  FP  FN  
+0   0.6538  17   1  11  
+1   0.7299  20   5   8  
+2   0.7534  22  12   6  
+3   0.6878  26  51   2  
+
+########## CELL 18 [markdown] ##########
+## 6c. Bootstrap confidence intervals (how trustworthy are these numbers
+
+We quantify that with a **stratified bootstrap**: resample the positives and negatives *separately* (with
+replacement) `N_BOOTSTRAP` times so the test prevalence stays fixed and both classes are always present
+(needed for ROC-AUC / PR-AUC). For each resample we recompute the metrics at the **chosen `THRESHOLD`** and
+report the point estimate plus the central `BOOTSTRAP_CI`% percentile interval.
+
+Wide intervals here are expected and honest — they tell you whether a recall improvement is real or noise.
+
+########## CELL 19 [code] ##########
+def bootstrap_ci(y_true, scores, threshold, *, n_boot=2000, ci=95, beta=2.0, seed=RANDOM_STATE):
+    """Stratified bootstrap CIs for threshold metrics + ranking AUCs on the test set."""
+    rng = np.random.default_rng(seed)
+    pos_idx = np.flatnonzero(y_true == 1)
+    neg_idx = np.flatnonzero(y_true == 0)
+    lo_q, hi_q = (100 - ci) / 2, 100 - (100 - ci) / 2
+
+    fbeta_key = f"f{beta:g}"
+    draws = {"precision": [], "recall": [], "f1": [], fbeta_key: [], "roc_auc": [], "pr_auc": []}
+    for _ in range(n_boot):
+        idx = np.concatenate([
+            rng.choice(pos_idx, size=len(pos_idx), replace=True),
+            rng.choice(neg_idx, size=len(neg_idx), replace=True),
+        ])
+        yt, sc = y_true[idx], scores[idx]
+        pred = (sc >= threshold).astype(int)
+        draws["precision"].append(precision_score(yt, pred, zero_division=0))
+        draws["recall"].append(recall_score(yt, pred, zero_division=0))
+        draws["f1"].append(f1_score(yt, pred, zero_division=0))
+        draws[fbeta_key].append(fbeta_score(yt, pred, beta=beta, zero_division=0))
+        draws["roc_auc"].append(roc_auc_score(yt, sc))
+        draws["pr_auc"].append(average_precision_score(yt, sc))
+
+    pred_full = (scores >= threshold).astype(int)
+    point = {
+        "precision": precision_score(y_true, pred_full, zero_division=0),
+        "recall": recall_score(y_true, pred_full, zero_division=0),
+        "f1": f1_score(y_true, pred_full, zero_division=0),
+        fbeta_key: fbeta_score(y_true, pred_full, beta=beta, zero_division=0),
+        "roc_auc": roc_auc_score(y_true, scores),
+        "pr_auc": average_precision_score(y_true, scores),
+    }
+    rows = []
+    for k, vals in draws.items():
+        vals = np.asarray(vals)
+        rows.append({
+            "metric": k,
+            "point": round(float(point[k]), 4),
+            "ci_low": round(float(np.percentile(vals, lo_q)), 4),
+            "ci_high": round(float(np.percentile(vals, hi_q)), 4),
+            "std": round(float(vals.std()), 4),
+        })
+    return pd.DataFrame(rows)
+
+
+boot_ci = bootstrap_ci(
+    y_test, y_prob, THRESHOLD, n_boot=N_BOOTSTRAP, ci=BOOTSTRAP_CI, beta=THRESHOLD_BETA,
+)
+boot_ci.to_csv(RESULT_DIR / "tabpfn_bootstrap_ci.csv", index=False)
+print(f"Stratified bootstrap ({N_BOOTSTRAP} resamples) at t={THRESHOLD:.4f} | {BOOTSTRAP_CI}% CI")
+display(boot_ci)
+
+# Forest plot of the threshold metrics (point + CI whiskers).
+thr_metrics = boot_ci[boot_ci["metric"].isin(["precision", "recall", "f1", f"f{THRESHOLD_BETA:g}"])]
+ypos = np.arange(len(thr_metrics))
+err_low = thr_metrics["point"].to_numpy() - thr_metrics["ci_low"].to_numpy()
+err_high = thr_metrics["ci_high"].to_numpy() - thr_metrics["point"].to_numpy()
+
+plt.figure(figsize=(8, 0.7 * len(thr_metrics) + 1.5))
+plt.errorbar(
+    thr_metrics["point"], ypos, xerr=[err_low, err_high],
+    fmt="o", color="#2c7fb8", capsize=4, lw=1.5, markersize=7,
+)
+for y, m in zip(ypos, thr_metrics.itertuples()):
+    plt.text(m.ci_high + 0.02, y, f"{m.point:.2f} [{m.ci_low:.2f}, {m.ci_high:.2f}]", va="center", fontsize=9)
+plt.yticks(ypos, thr_metrics["metric"])
+plt.xlim(0, 1.25)
+plt.axvline(0, color="k", lw=0.6)
+plt.xlabel("score")
+plt.title(f"Test metrics with {BOOTSTRAP_CI}% bootstrap CI (t={THRESHOLD:.3f})")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_bootstrap_ci.png", dpi=150)
+plt.show()
+---OUT---
+Stratified bootstrap (2000 resamples) at t=0.8811 | 95% CI
+
+      metric   point  ci_low  ci_high     std
+0  precision  0.8000  0.6667   0.9545  0.0731
+1     recall  0.7143  0.5357   0.8571  0.0859
+2         f1  0.7547  0.6250   0.8772  0.0654
+3       f1.5  0.7386  0.5873   0.8667  0.0717
+4    roc_auc  0.9911  0.9828   0.9974  0.0038
+5     pr_auc  0.8180  0.6999   0.9228  0.0575
+<Figure size 800x430 with 1 Axes>
+<PNG image>
+
+########## CELL 20 [markdown] ##########
+## 7. LOCO (Leave-One-Covariate-Out) feature importance
+
+For each feature we **remove its column**, re-store the TabPFN context, run one forward pass, and record how
+much the test metric **drops** versus the full-feature baseline. We repeat under three objectives —
+`pr_auc`, `f1`, and `f2` — matching the FFS holdout scorers in §10. For `f1`/`f2` the threshold is tuned on
+the test scores at each ablation (same logic as FFS holdout). A larger drop ⇒ the feature carries more *unique*
+predictive information for that objective.
+
+
+########## CELL 21 [code] ##########
+def metric_score(y_true, probas, metric):
+    """Score probas under pr_auc / f1 / f2 (threshold tuned on y_true for f1/f2)."""
+    if metric == "pr_auc":
+        return float(average_precision_score(y_true, probas))
+    if metric == "roc_auc":
+        return float(roc_auc_score(y_true, probas))
+    if metric == "f1":
+        t, _ = select_threshold(y_true, probas, strategy="f1", beta=1.0)
+        pred = (probas >= t).astype(int)
+        return float(f1_score(y_true, pred, zero_division=0))
+    if metric == "f2":
+        t, _ = select_threshold(y_true, probas, strategy="f2", beta=2.0)
+        pred = (probas >= t).astype(int)
+        return float(fbeta_score(y_true, pred, beta=2.0, zero_division=0))
+    raise ValueError(f"Unknown metric: {metric}")
+
+
+def loco_importance(make_clf, X_tr, y_tr, X_te, y_te, names, *, metric="pr_auc", max_features=None):
+    base = make_clf(); base.fit(X_tr, y_tr)
+    baseline = metric_score(y_te, pos_proba(base, X_te), metric)
+    print(f"  LOCO[{metric}] baseline={baseline:.4f} (all {X_tr.shape[1]} features)")
+
+    n = X_tr.shape[1]
+    order = list(range(n))
+    if max_features is not None:
+        order = order[: int(max_features)]
+        print(f"  LOCO capped to first {len(order)} of {n} features (set LOCO_MAX_FEATURES=None for all).")
+
+    rows = []
+    for rank, j in enumerate(order, 1):
+        keep = [k for k in range(n) if k != j]
+        m = make_clf(); m.fit(X_tr[:, keep], y_tr)
+        s = metric_score(y_te, pos_proba(m, X_te[:, keep]), metric)
+        rows.append({
+            "feature": names[j], "importance": baseline - s, "score_without": s,
+            "baseline": baseline, "metric": metric,
+        })
+        if rank % 10 == 0 or rank == len(order):
+            print(f"    LOCO[{metric}] {rank}/{len(order)}")
+    out = pd.DataFrame(rows).sort_values("importance", ascending=False).reset_index(drop=True)
+    out.insert(0, "rank", range(1, len(out) + 1))
+    out.attrs["baseline"] = baseline
+    out.attrs["metric"] = metric
+    return out
+
+
+loco_dfs = {}
+for metric in LOCO_SCORINGS:
+    print(f"\n=== LOCO objective: {metric} ===")
+    loco_dfs[metric] = loco_importance(
+        make_tabpfn, X_train, y_train, X_test, y_test, feature_names,
+        metric=metric, max_features=LOCO_MAX_FEATURES,
+    )
+    loco_dfs[metric].to_csv(RESULT_DIR / f"tabpfn_loco_{metric}.csv", index=False)
+
+loco_df = loco_dfs[LOCO_METRIC]  # §8 probability SHAP & legacy export
+loco_df.to_csv(RESULT_DIR / "tabpfn_loco_importance.csv", index=False)
+display(loco_df.head(LOCO_PLOT_TOP_N))
+
+# --- Multi-objective LOCO bar charts ---
+_loco_colors = {"pr_auc": "#2c7fb8", "f1": "#41ab5d", "f2": "#d95f0e"}
+fig, axes = plt.subplots(1, len(LOCO_SCORINGS), figsize=(5 * len(LOCO_SCORINGS), 5), sharey=False)
+if len(LOCO_SCORINGS) == 1:
+    axes = [axes]
+for ax, metric in zip(axes, LOCO_SCORINGS):
+    sub = loco_dfs[metric].head(LOCO_PLOT_TOP_N).iloc[::-1]
+    colors = [_loco_colors.get(metric, "#2c7fb8") if v >= 0 else "#d95f0e" for v in sub["importance"]]
+    ax.barh(sub["feature"], sub["importance"], color=colors, alpha=0.9)
+    ax.axvline(0, color="k", lw=0.8)
+    ax.set_xlabel(f"drop in test {metric}")
+    base = loco_dfs[metric]["baseline"].iloc[0]
+    ax.set_title(f"LOCO — {metric} (baseline={base:.3f})")
+plt.suptitle("Leave-one-covariate-out importance by objective")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_loco_by_objective.png", dpi=150)
+plt.show()
+
+# --- Informative summary ---
+print("\n=== LOCO multi-objective summary ===")
+for metric in LOCO_SCORINGS:
+    top5 = loco_dfs[metric].head(5)["feature"].tolist()
+    base = loco_dfs[metric]["baseline"].iloc[0]
+    print(f"  [{metric}] baseline={base:.4f} | top-5: {top5}")
+for m1, m2 in [("pr_auc", "f1"), ("pr_auc", "f2"), ("f1", "f2")]:
+    a = set(loco_dfs[m1].head(LOCO_PLOT_TOP_N)["feature"])
+    b = set(loco_dfs[m2].head(LOCO_PLOT_TOP_N)["feature"])
+    print(f"  top-{LOCO_PLOT_TOP_N} overlap {m1}∩{m2}: {len(a & b)} features")
+print("Saved:", RESULT_DIR / "tabpfn_loco_by_objective.png")
+print("       ", ", ".join(str(RESULT_DIR / f"tabpfn_loco_{m}.csv") for m in LOCO_SCORINGS))
+
+---OUT---
+
+=== LOCO objective: pr_auc ===
+  LOCO[pr_auc] baseline=0.8180 (all 81 features)
+    LOCO[pr_auc] 10/81
+    LOCO[pr_auc] 20/81
+    LOCO[pr_auc] 30/81
+    LOCO[pr_auc] 40/81
+    LOCO[pr_auc] 50/81
+    LOCO[pr_auc] 60/81
+    LOCO[pr_auc] 70/81
+    LOCO[pr_auc] 80/81
+    LOCO[pr_auc] 81/81
+
+=== LOCO objective: f1 ===
+  LOCO[f1] baseline=0.7547 (all 81 features)
+    LOCO[f1] 10/81
+    LOCO[f1] 20/81
+    LOCO[f1] 30/81
+    LOCO[f1] 40/81
+    LOCO[f1] 50/81
+    LOCO[f1] 60/81
+    LOCO[f1] 70/81
+    LOCO[f1] 80/81
+    LOCO[f1] 81/81
+
+=== LOCO objective: f2 ===
+  LOCO[f2] baseline=0.7534 (all 81 features)
+    LOCO[f2] 10/81
+    LOCO[f2] 20/81
+    LOCO[f2] 30/81
+    LOCO[f2] 40/81
+    LOCO[f2] 50/81
+    LOCO[f2] 60/81
+    LOCO[f2] 70/81
+    LOCO[f2] 80/81
+    LOCO[f2] 81/81
+
+    rank                        feature  importance  score_without  baseline  \
+0      1                           eGFR    0.333471       0.484574  0.818045   
+1      2                            Cre    0.296360       0.521685  0.818045   
+2      3                Visual thrombus    0.282919       0.535126  0.818045   
+3      4                           P-LM    0.245415       0.572630  0.818045   
+4      5     Moderate/severe tortuosity    0.243414       0.574631  0.818045   
+5      6         Lesion location-Ostial    0.240790       0.577255  0.818045   
+6      7  Moderate/severe calcification    0.236493       0.581552  0.818045   
+7      8            Thrombus aspiration    0.230130       0.587915  0.818045   
+8      9                     Ticagrelor    0.228485       0.589560  0.818045   
+9     10                  stent overlap    0.227062       0.590983  0.818045   
+10    11                    Bifurcation    0.224982       0.593062  0.818045   
+11    12                     Dissection    0.219404       0.598641  0.818045   
+12    13                       Proximal    0.217347       0.600698  0.818045   
+13    14                     Ulceration    0.215492       0.602553  0.818045   
+14    15                Pre-TIMI flow-3    0.213126       0.604919  0.818045   
+15    16                         TIMI-2    0.213087       0.604958  0.818045   
+16    17                      Slow flow    0.209040       0.609005  0.818045   
+17    18                         TIMI-1    0.207256       0.610788  0.818045   
+18    19                            EVS    0.204353       0.613692  0.818045   
+19    20               3-vessel disease    0.200543       0.617502  0.818045   
+
+    metric  
+0   pr_auc  
+1   pr_auc  
+2   pr_auc  
+3   pr_auc  
+4   pr_auc  
+5   pr_auc  
+6   pr_auc  
+7   pr_auc  
+8   pr_auc  
+9   pr_auc  
+10  pr_auc  
+11  pr_auc  
+12  pr_auc  
+13  pr_auc  
+14  pr_auc  
+15  pr_auc  
+16  pr_auc  
+17  pr_auc  
+18  pr_auc  
+19  pr_auc  
+<Figure size 1500x500 with 3 Axes>
+<PNG image>
+
+=== LOCO multi-objective summary ===
+  [pr_auc] baseline=0.8180 | top-5: ['eGFR', 'Cre', 'Visual thrombus', 'P-LM', 'Moderate/severe tortuosity']
+  [f1] baseline=0.7547 | top-5: ['eGFR', 'Cre', 'Visual thrombus', 'Ticagrelor', 'Lesion location-Ostial']
+  [f2] baseline=0.7534 | top-5: ['eGFR', 'Visual thrombus', 'Men', 'CKD90', 'Cre']
+  top-20 overlap pr_auc∩f1: 14 features
+  top-20 overlap pr_auc∩f2: 9 features
+  top-20 overlap f1∩f2: 8 features
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_loco_by_objective.png
+        /kaggle/working/modeling_tabpfn/tabpfn_loco_pr_auc.csv, /kaggle/working/modeling_tabpfn/tabpfn_loco_f1.csv, /kaggle/working/modeling_tabpfn/tabpfn_loco_f2.csv
+
+
+########## CELL 22 [markdown] ##########
+### 7.1 How to read the LOCO figures
+
+**What LOCO measures.** For each objective (`pr_auc`, `f1`, `f2`) and each feature \(j\), we drop column \(j\),
+refit TabPFN on the remaining \(d-1\) columns, and score the test set. The bar height is
+`baseline_score − score_without_j`. For `f1`/`f2` the threshold is re-tuned on test probas at every ablation
+(same policy as FFS holdout in §10).
+
+**Three panels — one per objective**
+- **`pr_auc`:** drop in ranking quality (threshold-free).
+- **`f1`:** drop in best achievable F1 on the test scores.
+- **`f2`:** drop in recall-leaning F\(_2\) (β=2).
+
+**How to read a bar.** A **large positive bar** means removing that feature hurts the objective a lot.
+Near **zero** ⇒ redundant given other columns. **Negative** (orange) ⇒ metric improved when removed.
+
+**Interpretation for VLST.** Renal markers (`eGFR`, `Cre`) typically dominate under `pr_auc`. Under `f2`,
+procedure flags that boost recall at tuned thresholds may rank higher even if PR-AUC drop is modest.
+LOCO is **marginal** — correlated pairs (e.g. `eGFR` and `Cre`) can each look weaker than they are jointly.
+
+**Caveats.** Test-set readout is transparent but optimistic if you iterate. Each ablation refits TabPFN
+(×3 objectives). Cap via `LOCO_MAX_FEATURES` on Kaggle cloud runs; set `LOCO_SCORINGS = ["pr_auc"]` to
+smoke-test before a full run.
+
+
+########## CELL 23 [markdown] ##########
+## 8. Exact SHAP via masked forward passes
+
+Two complementary views:
+
+1. **§8a — Probability SHAP (local):** permutation Shapley values on \(P(\text{positive})\) for the top-`SHAP_TOP_K`
+   `pr_auc`-LOCO features. Rich per-patient beeswarm plots; threshold-free.
+2. **§8b — Coalition-metric SHAP (objective-aligned):** for each objective (`pr_auc`, `f1`, `f2`), Shapley values
+   on the **global metric** over explained test rows when features are revealed vs background-masked — **no refit**,
+   using the §5 context model. Universe = top-`SHAP_OBJECTIVE_UNIVERSE` features from the matching LOCO objective.
+
+For tractability, probability SHAP explains the **top-`SHAP_TOP_K` LOCO (`pr_auc`) features** on a handful of
+test rows (positives first). Coalition SHAP reuses the same instance/background sampling per objective.
+
+
+########## CELL 24 [code] ##########
+def exact_shap(predict_fn, X_background, X_explain, feat_subset, *, n_perm=40, seed=42):
+    """Permutation SHAP via masked forward passes (unbiased; exact in the permutation limit)."""
+    rng = np.random.default_rng(seed)
+    m = X_explain.shape[0]
+    k = len(feat_subset)
+    phi = np.zeros((m, k), dtype=float)
+    feat_subset = np.asarray(feat_subset)
+
+    for p in range(n_perm):
+        bg = X_background[rng.integers(0, X_background.shape[0])]
+        perm = rng.permutation(k)
+        cur = X_explain.copy()
+        cur[:, feat_subset] = bg[feat_subset]          # mask all subset features to background
+        prev = predict_fn(cur)
+        for pos in perm:
+            f = feat_subset[pos]
+            cur[:, f] = X_explain[:, f]                # reveal this feature's true value
+            now = predict_fn(cur)
+            phi[:, pos] += (now - prev)
+            prev = now
+        if (p + 1) % 10 == 0 or p + 1 == n_perm:
+            print(f"  SHAP permutation {p+1}/{n_perm}")
+    return phi / n_perm
+
+
+def _coalition_probas(clf, bg_row, X_exp, feat_arr, revealed):
+    """Mask feat_arr \\ revealed to background; keep other columns at true values."""
+    cur = X_exp.copy()
+    for pos, f in enumerate(feat_arr):
+        if pos not in revealed:
+            cur[:, f] = bg_row[f]
+    return pos_proba(clf, cur)
+
+
+def coalition_metric_shap(clf, X_bg, X_exp, y_exp, feat_subset, *, metric, n_perm=40, seed=42):
+    """Shapley values for a global pr_auc / f1 / f2 on the explained test cohort (no refit)."""
+    rng = np.random.default_rng(seed)
+    feat_arr = np.asarray(feat_subset)
+    k = len(feat_arr)
+    phi = np.zeros(k, dtype=float)
+
+    def v(revealed):
+        vals = []
+        for _ in range(min(3, len(X_bg))):
+            bg = X_bg[rng.integers(0, len(X_bg))]
+            probas = _coalition_probas(clf, bg, X_exp, feat_arr, revealed)
+            vals.append(metric_score(y_exp, probas, metric))
+        return float(np.mean(vals))
+
+    for p in range(n_perm):
+        perm = rng.permutation(k)
+        revealed = set()
+        prev = v(revealed)
+        for pos in perm:
+            revealed.add(int(pos))
+            now = v(revealed)
+            phi[pos] += now - prev
+            prev = now
+        if (p + 1) % 10 == 0 or p + 1 == n_perm:
+            print(f"    coalition SHAP[{metric}] {p+1}/{n_perm}")
+    return phi / n_perm
+
+
+# ========== §8a Probability SHAP (local, pr_auc-LOCO subspace) ==========
+k = min(SHAP_TOP_K, len(feature_names))
+top_feats = loco_df.head(k)["feature"].tolist()
+feat_idx = [feature_names.index(f) for f in top_feats]
+
+rng = np.random.default_rng(SHAP_SEED)
+pos_rows = np.flatnonzero(y_test == 1)
+neg_rows = np.flatnonzero(y_test == 0)
+n_neg = max(0, SHAP_N_INSTANCES - len(pos_rows))
+sel = np.concatenate([pos_rows, rng.choice(neg_rows, size=min(n_neg, len(neg_rows)), replace=False)])
+sel = sel[:SHAP_N_INSTANCES]
+X_exp = X_test[sel]
+y_exp = y_test[sel]
+
+bg_idx = rng.choice(len(X_train), size=min(SHAP_N_BACKGROUND, len(X_train)), replace=False)
+X_bg = X_train[bg_idx]
+
+print("§8a — probability SHAP on top pr_auc-LOCO features ...")
+phi = exact_shap(
+    lambda A: pos_proba(clf, A), X_bg, X_exp, feat_idx, n_perm=SHAP_N_PERM, seed=SHAP_SEED
+)
+mean_abs = np.abs(phi).mean(axis=0)
+shap_summary = (
+    pd.DataFrame({"feature": top_feats, "mean_abs_shap": mean_abs})
+    .sort_values("mean_abs_shap", ascending=False)
+    .reset_index(drop=True)
+)
+display(shap_summary)
+shap_summary.to_csv(RESULT_DIR / "tabpfn_shap_summary.csv", index=False)
+
+order = np.argsort(mean_abs)
+try:
+    import shap as _shap
+    _shap.summary_plot(phi, features=X_exp[:, feat_idx], feature_names=top_feats, show=False)
+    plt.tight_layout()
+    plt.savefig(RESULT_DIR / "tabpfn_shap_beeswarm.png", dpi=150, bbox_inches="tight")
+    plt.show()
+except Exception as e:
+    print("shap library unavailable (", e, ") -> matplotlib fallback")
+    fig, ax = plt.subplots(1, 2, figsize=(14, max(4, 0.4 * len(top_feats))))
+    ax[0].barh(np.array(top_feats)[order], mean_abs[order], color="#2c7fb8")
+    ax[0].set_title("Mean |SHAP| (probability)")
+    ax[0].set_xlabel("mean |SHAP value|")
+    for rank, j in enumerate(order):
+        vals = phi[:, j]
+        fv = X_exp[:, feat_idx[j]].astype(float)
+        rng_fv = np.ptp(fv)
+        norm = (fv - np.nanmin(fv)) / rng_fv if rng_fv > 0 else np.zeros_like(fv)
+        jitter = (np.random.default_rng(rank).random(len(vals)) - 0.5) * 0.6
+        ax[1].scatter(vals, np.full(len(vals), rank) + jitter, c=norm, cmap="coolwarm", s=18, alpha=0.8)
+    ax[1].set_yticks(range(len(order)))
+    ax[1].set_yticklabels(np.array(top_feats)[order])
+    ax[1].axvline(0, color="k", lw=0.8)
+    ax[1].set_title("SHAP values (color = feature value)")
+    ax[1].set_xlabel("SHAP value (impact on P(stent thrombosis))")
+    plt.tight_layout()
+    plt.savefig(RESULT_DIR / "tabpfn_shap_beeswarm.png", dpi=150)
+    plt.show()
+
+# ========== §8b Coalition-metric SHAP (pr_auc / f1 / f2) ==========
+shap_objective_dfs = {}
+shap_objective_topk = {}
+_shap_colors = {"pr_auc": "#2c7fb8", "f1": "#41ab5d", "f2": "#d95f0e"}
+
+for metric in SHAP_SCORINGS:
+    print(f"\n§8b — coalition SHAP objective: {metric}")
+    universe = loco_dfs[metric].head(min(SHAP_OBJECTIVE_UNIVERSE, len(loco_dfs[metric])))["feature"].tolist()
+    u_idx = [feature_names.index(f) for f in universe]
+    phi_g = coalition_metric_shap(
+        clf, X_bg, X_exp, y_exp, u_idx, metric=metric, n_perm=SHAP_N_PERM, seed=SHAP_SEED + {"pr_auc": 0, "f1": 17, "f2": 31}[metric],
+    )
+    shap_df = pd.DataFrame({
+        "feature": universe,
+        "shap_value": phi_g,
+        "mean_abs_shap": np.abs(phi_g),
+        "metric": metric,
+    }).sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
+    shap_df.insert(0, "rank", range(1, len(shap_df) + 1))
+    shap_objective_dfs[metric] = shap_df
+    shap_objective_topk[metric] = shap_df.head(LOCO_PLOT_TOP_N)["feature"].tolist()
+    shap_df.to_csv(RESULT_DIR / f"tabpfn_shap_{metric}.csv", index=False)
+    print(f"  top-{LOCO_PLOT_TOP_N}: {shap_objective_topk[metric][:5]} ...")
+
+fig, axes = plt.subplots(1, len(SHAP_SCORINGS), figsize=(5 * len(SHAP_SCORINGS), 5), sharey=False)
+if len(SHAP_SCORINGS) == 1:
+    axes = [axes]
+for ax, metric in zip(axes, SHAP_SCORINGS):
+    sub = shap_objective_dfs[metric].head(LOCO_PLOT_TOP_N).iloc[::-1]
+    ax.barh(sub["feature"], sub["mean_abs_shap"], color=_shap_colors.get(metric, "gray"), alpha=0.9)
+    ax.set_xlabel(f"|Shapley| on test {metric}")
+    ax.set_title(f"Coalition SHAP — {metric}")
+plt.suptitle("Objective-aligned coalition SHAP (fixed §5 context, no refit)")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_shap_by_objective.png", dpi=150)
+plt.show()
+
+# --- Cross-method overlap report (saved as markdown) ---
+_report = ["# LOCO & SHAP multi-objective report", "", "## LOCO top features", ""]
+for metric in LOCO_SCORINGS:
+    top5 = loco_dfs[metric].head(5)["feature"].tolist()
+    base = loco_dfs[metric]["baseline"].iloc[0]
+    _report.append(f"- **{metric}** (baseline={base:.4f}): {', '.join(f'`{f}`' for f in top5)}")
+_report.extend(["", "## Coalition SHAP top features", ""])
+for metric in SHAP_SCORINGS:
+    top5 = shap_objective_dfs[metric].head(5)["feature"].tolist()
+    _report.append(f"- **{metric}**: {', '.join(f'`{f}`' for f in top5)}")
+_report.extend(["", "## Top-K overlaps (LOCO vs SHAP, same objective)", ""])
+for metric in LOCO_SCORINGS:
+    a = set(loco_dfs[metric].head(LOCO_PLOT_TOP_N)["feature"])
+    b = set(shap_objective_dfs[metric].head(LOCO_PLOT_TOP_N)["feature"])
+    _report.append(f"- **{metric}** LOCO∩SHAP = {len(a & b)}/{LOCO_PLOT_TOP_N}")
+(RESULT_DIR / "tabpfn_loco_shap_report.md").write_text("\n".join(_report), encoding="utf-8")
+
+print("\n=== SHAP multi-objective summary ===")
+for metric in SHAP_SCORINGS:
+    print(f"  [{metric}] top-5:", shap_objective_dfs[metric].head(5)["feature"].tolist())
+for metric in LOCO_SCORINGS:
+    a = set(loco_dfs[metric].head(LOCO_PLOT_TOP_N)["feature"])
+    b = set(shap_objective_dfs[metric].head(LOCO_PLOT_TOP_N)["feature"])
+    print(f"  {metric} LOCO∩SHAP top-{LOCO_PLOT_TOP_N}: {len(a & b)}")
+print("Saved:", RESULT_DIR / "tabpfn_shap_beeswarm.png")
+print("       ", RESULT_DIR / "tabpfn_shap_by_objective.png")
+print("       ", RESULT_DIR / "tabpfn_loco_shap_report.md")
+
+---OUT---
+§8a — probability SHAP on top pr_auc-LOCO features ...
+  SHAP permutation 10/40
+  SHAP permutation 20/40
+  SHAP permutation 30/40
+  SHAP permutation 40/40
+
+                          feature  mean_abs_shap
+0                            eGFR       0.195493
+1                             Cre       0.144564
+2                   stent overlap       0.007809
+3             Thrombus aspiration       0.005174
+4                 Visual thrombus       0.004870
+5                     Bifurcation       0.004774
+6          Lesion location-Ostial       0.002049
+7                            P-LM       0.000870
+8      Moderate/severe tortuosity       0.000394
+9                      Ticagrelor       0.000107
+10  Moderate/severe calcification       0.000000
+11                     Dissection       0.000000
+<Figure size 800x630 with 2 Axes>
+<PNG image>
+
+§8b — coalition SHAP objective: pr_auc
+    coalition SHAP[pr_auc] 10/40
+    coalition SHAP[pr_auc] 20/40
+    coalition SHAP[pr_auc] 30/40
+    coalition SHAP[pr_auc] 40/40
+  top-20: ['WBC', 'eGFR', 'No postdilation', '3-vessel disease', 'P-LM'] ...
+
+§8b — coalition SHAP objective: f1
+    coalition SHAP[f1] 10/40
+    coalition SHAP[f1] 20/40
+    coalition SHAP[f1] 30/40
+    coalition SHAP[f1] 40/40
+  top-20: ['eGFR', 'Cre', 'Bifurcation', 'Thrombus aspiration', 'Stroke/TIA'] ...
+
+§8b — coalition SHAP objective: f2
+    coalition SHAP[f2] 10/40
+    coalition SHAP[f2] 20/40
+    coalition SHAP[f2] 30/40
+    coalition SHAP[f2] 40/40
+  top-20: ['eGFR', 'Cre', 'WBC', 'NO.of vessels', 'Moderate/severe calcification'] ...
+
+<Figure size 1500x500 with 3 Axes>
+<PNG image>
+
+=== SHAP multi-objective summary ===
+  [pr_auc] top-5: ['WBC', 'eGFR', 'No postdilation', '3-vessel disease', 'P-LM']
+  [f1] top-5: ['eGFR', 'Cre', 'Bifurcation', 'Thrombus aspiration', 'Stroke/TIA']
+  [f2] top-5: ['eGFR', 'Cre', 'WBC', 'NO.of vessels', 'Moderate/severe calcification']
+  pr_auc LOCO∩SHAP top-20: 8
+  f1 LOCO∩SHAP top-20: 10
+  f2 LOCO∩SHAP top-20: 10
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_shap_beeswarm.png
+        /kaggle/working/modeling_tabpfn/tabpfn_shap_by_objective.png
+        /kaggle/working/modeling_tabpfn/tabpfn_loco_shap_report.md
+
+
+########## CELL 25 [markdown] ##########
+### 8.1 How to read the SHAP figures
+
+**§8a — Probability SHAP (beeswarm / mean \|SHAP\|).** Exact permutation Shapley values on the top-`SHAP_TOP_K`
+`pr_auc`-LOCO features. For each explained test row, we mask absent features to a **background** batch from
+training and record how \(P(\text{stent thrombosis})\) changes when a feature is revealed. Threshold-free;
+best for **local** direction-of-effect plots.
+
+- **Mean \|SHAP\| bars:** average absolute push on \(P(\text{positive})\) across explained patients.
+- **Beeswarm:** dot position = SHAP value; colour = normalized feature value for that patient.
+
+**§8b — Coalition-metric SHAP (three panels).** One panel per objective (`pr_auc`, `f1`, `f2`). Each bar is the
+Shapley value of the **global metric** on the explained cohort when a feature is revealed vs background-masked,
+using the fixed §5 context model (forward passes only). Universe = top-`SHAP_OBJECTIVE_UNIVERSE` from the
+**matching LOCO objective** — so `f2`-SHAP can rank different features than `pr_auc`-SHAP.
+
+**Compare LOCO vs SHAP under the same objective.** LOCO refits without the column; SHAP masks without refit.
+Agreement on top features supports robust importance; disagreement often flags correlation or context effects.
+
+**Caveats.** Coalition SHAP averages over background rows and permutations (`SHAP_N_PERM`). Probability SHAP
+explains only the LOCO subspace — not full 81 features. Neither method is causal. Increase `SHAP_N_PERM` on
+GPU for lower variance.
+
+
+########## CELL 26 [markdown] ##########
+## 9. Blending TabPFN with classical models
+
+**Hypothesis.** TabPFN (transformer-based in-context Bayesian inference) and gradient-boosted / linear / bagging models make **different mistakes** on rare events, so a **convex blend** of their probabilities should match or beat any single learner on test PR-AUC.
+
+We test the hypothesis with:
+
+- **Six base learners** — `tabpfn` plus five classical models from `../../failed_hypothesis/baseline_blending.ipynb`: logistic regression (`lr`), random forest (`rf`), CatBoost (`cat`), XGBoost (`xgb`), LightGBM (`lgb`). All classical bases are wrapped in `CalibratedClassifierCV(sigmoid)` so their probabilities live on a comparable scale.
+- **Four blend strategies** — `uniform` (equal weights), `slsqp` (scipy convex optimisation on the simplex), `meta_lr_softmax` (logistic stacking, weights = softmax of coefficients), and `optuna` (TPE search over a Dirichlet-parameterised simplex with the model **subset** itself as a hyperparameter, so it can pick 2, 3, ..., or 6 models). The Optuna study returns weights that are literally `study.best_params`.
+- **Honest evaluation** — every blend's weights are learned on **out-of-fold (OOF)** training probabilities (same `StratifiedKFold(n_splits=BLEND_N_SPLITS, random_state=RANDOM_STATE)` partition for every base). Test predictions come from each base refit on the full `X_train`. The frozen test set is never seen during weight learning.
+
+########## CELL 27 [code] ##########
+import importlib.util as _il
+
+_blend_to_install = []
+for _pkg, _mod in [("xgboost", "xgboost"), ("lightgbm", "lightgbm"),
+                   ("catboost", "catboost"), ("optuna", "optuna")]:
+    if _il.find_spec(_mod) is None:
+        _blend_to_install.append(_pkg)
+if _blend_to_install:
+    print("Installing:", _blend_to_install)
+    get_ipython().run_line_magic("pip", "install -q --no-warn-conflicts " + " ".join(_blend_to_install))
+    print("Done. Re-import if a kernel restart is required.")
+else:
+    print("xgboost / lightgbm / catboost / optuna already available.")
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+
+import xgboost as _xgb_mod
+import lightgbm as _lgb_mod
+import catboost as _cat_mod
+import optuna
+from scipy.optimize import minimize as _scipy_minimize
+
+# --- Blending configuration ---
+BLEND_N_SPLITS = 5             # OOF folds shared by every base learner
+BLEND_OPTUNA_TRIALS = 400      # TPE iterations for the Optuna weight search
+BLEND_BASE_NAMES = ["tabpfn", "lr", "rf", "cat", "xgb", "lgb"]
+BLEND_MIN_MODELS = 2           # the user's "two models, three models, or more" constraint
+
+_pos_count = int((y_train == 1).sum())
+_neg_count = int((y_train == 0).sum())
+_scale_pos_weight = _neg_count / max(_pos_count, 1)
+
+
+def _calibrate(estimator, cv=3):
+    """Wrap a fresh estimator in CalibratedClassifierCV(sigmoid) for probability calibration."""
+    return CalibratedClassifierCV(estimator, method="sigmoid", cv=cv)
+
+
+def make_lr(seed=RANDOM_STATE):
+    pipe = Pipeline([
+        ("imp", SimpleImputer(strategy="median")),
+        ("sc", StandardScaler()),
+        ("lr", LogisticRegression(
+            C=2.0, solver="lbfgs", penalty="l2", class_weight="balanced",
+            max_iter=2000, random_state=seed,
+        )),
+    ])
+    return _calibrate(pipe)
+
+
+def make_rf(seed=RANDOM_STATE):
+    pipe = Pipeline([
+        ("imp", SimpleImputer(strategy="median")),
+        ("rf", RandomForestClassifier(
+            n_estimators=500, max_depth=None, min_samples_leaf=3,
+            class_weight="balanced_subsample", n_jobs=-1, random_state=seed,
+        )),
+    ])
+    return _calibrate(pipe)
+
+
+def make_cat(seed=RANDOM_STATE):
+    base = _cat_mod.CatBoostClassifier(
+        depth=6, learning_rate=0.05, l2_leaf_reg=5.0, iterations=600,
+        auto_class_weights="Balanced", verbose=0, random_state=seed,
+    )
+    pipe = Pipeline([("imp", SimpleImputer(strategy="median")), ("cat", base)])
+    return _calibrate(pipe)
+
+
+def make_xgb(seed=RANDOM_STATE):
+    base = _xgb_mod.XGBClassifier(
+        max_depth=5, learning_rate=0.05, n_estimators=600, reg_lambda=2.0,
+        scale_pos_weight=_scale_pos_weight, eval_metric="logloss",
+        tree_method="hist", n_jobs=-1, random_state=seed,
+    )
+    pipe = Pipeline([("imp", SimpleImputer(strategy="median")), ("xgb", base)])
+    return _calibrate(pipe)
+
+
+def make_lgb(seed=RANDOM_STATE):
+    base = _lgb_mod.LGBMClassifier(
+        max_depth=8, learning_rate=0.05, num_leaves=31, n_estimators=600,
+        class_weight="balanced", n_jobs=-1, random_state=seed, verbosity=-1,
+    )
+    pipe = Pipeline([("imp", SimpleImputer(strategy="median")), ("lgb", base)])
+    return _calibrate(pipe)
+
+
+BASE_FACTORIES = {
+    "tabpfn": make_tabpfn,
+    "lr": make_lr,
+    "rf": make_rf,
+    "cat": make_cat,
+    "xgb": make_xgb,
+    "lgb": make_lgb,
+}
+print("Base factories ready:", list(BASE_FACTORIES))
+print(f"Class imbalance on train: scale_pos_weight = {_scale_pos_weight:.2f} "
+      f"({_pos_count} pos / {_neg_count} neg)")
+---OUT---
+xgboost / lightgbm / catboost / optuna already available.
+Base factories ready: ['tabpfn', 'lr', 'rf', 'cat', 'xgb', 'lgb']
+Class imbalance on train: scale_pos_weight = 55.70 (64 pos / 3565 neg)
+
+
+########## CELL 28 [markdown] ##########
+### 9.1 Out-of-fold and test probabilities for every base
+
+For each base learner we produce two vectors:
+
+- `P_oof[name]` — leave-one-fold-out probabilities over `X_train` from a shared `StratifiedKFold(n_splits=BLEND_N_SPLITS, random_state=RANDOM_STATE)`. Because the splitter is deterministic, rows are aligned across all six columns.
+- `P_test[name]` — probabilities on the frozen test set from a model refit on **all** of `X_train`.
+
+TabPFN's `P_test["tabpfn"]` reuses the `y_prob` already computed in §5 (the full-train forward pass); only the OOF column is recomputed here at `BLEND_N_SPLITS` folds. The OOF matrix is saved to `tabpfn_blend_oof_probas.csv` for reproducibility and downstream ablations.
+
+########## CELL 29 [code] ##########
+def compute_oof_and_test(make_clf, X_tr, y_tr, X_te, *, n_splits=BLEND_N_SPLITS,
+                         seed=RANDOM_STATE, label=""):
+    """Return (p_oof, p_test): OOF probas over X_tr and a full-train fit's probas on X_te."""
+    if label:
+        print(f"\n[{label}] OOF ({n_splits}-fold) + full-train fit ...")
+    p_oof = oof_pos_proba(make_clf, X_tr, y_tr, n_splits=n_splits, seed=seed)
+    t0 = time.time()
+    m = make_clf(); m.fit(X_tr, y_tr)
+    p_test = pos_proba(m, X_te)
+    if label:
+        print(f"[{label}] full-train fit {time.time()-t0:.1f}s | "
+              f"OOF PR-AUC={average_precision_score(y_tr, p_oof):.4f} | "
+              f"Test PR-AUC={average_precision_score(y_test, p_test):.4f}")
+    return p_oof, p_test
+
+
+P_oof, P_test = {}, {}
+
+print(f"\n[tabpfn] OOF ({BLEND_N_SPLITS}-fold) + reusing y_prob for test ...")
+P_oof["tabpfn"] = oof_pos_proba(
+    make_tabpfn, X_train, y_train, n_splits=BLEND_N_SPLITS, seed=RANDOM_STATE,
+)
+P_test["tabpfn"] = y_prob.copy()
+print(f"[tabpfn] OOF PR-AUC={average_precision_score(y_train, P_oof['tabpfn']):.4f} | "
+      f"Test PR-AUC={average_precision_score(y_test, P_test['tabpfn']):.4f}")
+
+for _name in ["lr", "rf", "cat", "xgb", "lgb"]:
+    P_oof[_name], P_test[_name] = compute_oof_and_test(
+        BASE_FACTORIES[_name], X_train, y_train, X_test, label=_name,
+    )
+
+P_oof_matrix = np.column_stack([P_oof[n] for n in BLEND_BASE_NAMES])
+P_test_matrix = np.column_stack([P_test[n] for n in BLEND_BASE_NAMES])
+print("\nP_oof_matrix:", P_oof_matrix.shape, "| P_test_matrix:", P_test_matrix.shape)
+
+pd.DataFrame(P_oof_matrix, columns=BLEND_BASE_NAMES).to_csv(
+    RESULT_DIR / "tabpfn_blend_oof_probas.csv", index=False,
+)
+pd.DataFrame(P_test_matrix, columns=BLEND_BASE_NAMES).to_csv(
+    RESULT_DIR / "tabpfn_blend_test_probas.csv", index=False,
+)
+print("Saved:", RESULT_DIR / "tabpfn_blend_oof_probas.csv")
+print("       ", RESULT_DIR / "tabpfn_blend_test_probas.csv")
+---OUT---
+
+[tabpfn] OOF (5-fold) + reusing y_prob for test ...
+  OOF fold 1/5
+  OOF fold 2/5
+  OOF fold 3/5
+  OOF fold 4/5
+  OOF fold 5/5
+[tabpfn] OOF PR-AUC=0.5687 | Test PR-AUC=0.8180
+
+[lr] OOF (5-fold) + full-train fit ...
+  OOF fold 1/5
+  OOF fold 2/5
+  OOF fold 3/5
+  OOF fold 4/5
+  OOF fold 5/5
+[lr] full-train fit 0.2s | OOF PR-AUC=0.2575 | Test PR-AUC=0.4367
+
+[rf] OOF (5-fold) + full-train fit ...
+  OOF fold 1/5
+  OOF fold 2/5
+  OOF fold 3/5
+  OOF fold 4/5
+  OOF fold 5/5
+[rf] full-train fit 6.7s | OOF PR-AUC=0.5445 | Test PR-AUC=0.5969
+
+[cat] OOF (5-fold) + full-train fit ...
+  OOF fold 1/5
+  OOF fold 2/5
+  OOF fold 3/5
+  OOF fold 4/5
+  OOF fold 5/5
+[cat] full-train fit 7.5s | OOF PR-AUC=0.6727 | Test PR-AUC=0.6752
+
+[xgb] OOF (5-fold) + full-train fit ...
+  OOF fold 1/5
+  OOF fold 2/5
+  OOF fold 3/5
+  OOF fold 4/5
+  OOF fold 5/5
+[xgb] full-train fit 1.8s | OOF PR-AUC=0.6339 | Test PR-AUC=0.6704
+
+[lgb] OOF (5-fold) + full-train fit ...
+  OOF fold 1/5
+  OOF fold 2/5
+  OOF fold 3/5
+  OOF fold 4/5
+  OOF fold 5/5
+[lgb] full-train fit 2.2s | OOF PR-AUC=0.5778 | Test PR-AUC=0.6502
+
+P_oof_matrix: (3629, 6) | P_test_matrix: (1556, 6)
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_blend_oof_probas.csv
+        /kaggle/working/modeling_tabpfn/tabpfn_blend_test_probas.csv
+
+
+########## CELL 30 [markdown] ##########
+### 9.2 Learning the blend weights
+
+Four weight-learning strategies are run on the OOF matrix:
+
+1. **`uniform`** — equal weighting, `w_i = 1/k`. Pure baseline.
+2. **`slsqp`** — scipy SLSQP minimises `-AveragePrecision` subject to `sum(w)=1, w>=0`. Continuous optimum on the simplex.
+3. **`meta_lr_softmax`** — a `LogisticRegression(class_weight="balanced")` fit on `P_oof_matrix`. Reported as a renormalised non-negative weight via `softmax(coefs)`; the *fitted* meta-learner is also evaluated separately as `stacking[meta_lr]` further down.
+4. **`optuna`** — TPE search with `n_trials=BLEND_OPTUNA_TRIALS`. Each trial proposes one `w_{name}` (Float) and one `use_{name}` (Int 0/1) per base; the mask enforces "at least `BLEND_MIN_MODELS` models active" (the user's "two, three, or more" constraint). Weights of inactive models are zeroed, the active ones are projected onto the simplex, and the trial value is the OOF PR-AUC of the resulting blend. Because each weight is literally an Optuna hyperparameter, `study.best_params` is directly readable.
+
+########## CELL 31 [code] ##########
+def _simplex(w, eps=1e-12):
+    w = np.clip(np.asarray(w, dtype=float), 0.0, None)
+    s = w.sum()
+    return w / s if s > eps else np.full_like(w, 1.0 / len(w))
+
+
+def learn_uniform(n_models):
+    return np.full(n_models, 1.0 / n_models)
+
+
+def learn_slsqp(P_oof_mat, y):
+    n = P_oof_mat.shape[1]
+    x0 = np.full(n, 1.0 / n)
+    cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0}]
+    bnds = [(0.0, 1.0)] * n
+    res = _scipy_minimize(
+        lambda w: -average_precision_score(y, P_oof_mat @ w),
+        x0=x0, method="SLSQP", bounds=bnds, constraints=cons,
+        options={"maxiter": 300, "ftol": 1e-9},
+    )
+    return _simplex(res.x)
+
+
+def learn_meta_lr(P_oof_mat, y, *, seed=RANDOM_STATE):
+    """Stack with LR on OOF probas. Return softmax(coefs) weights AND the fitted model."""
+    lr = LogisticRegression(
+        C=1.0, penalty="l2", solver="lbfgs", max_iter=2000,
+        class_weight="balanced", random_state=seed,
+    )
+    lr.fit(P_oof_mat, y)
+    c = lr.coef_.ravel()
+    w = np.exp(c - c.max())
+    w = w / w.sum()
+    return w, lr
+
+
+def learn_optuna(P_oof_mat, y, base_names, *, n_trials=BLEND_OPTUNA_TRIALS,
+                 min_models=BLEND_MIN_MODELS, seed=RANDOM_STATE):
+    """TPE search over a Dirichlet simplex with a subset mask.
+
+    Each trial proposes per-model `w_{name}` ∈ [1e-3, 1] and `use_{name}` ∈ {0,1}.
+    If the mask selects fewer than `min_models` models, we force-activate the top-`min_models`
+    by raw weight magnitude. Weights of inactive models are zeroed; active weights are
+    projected onto the simplex. Objective: OOF PR-AUC.
+    """
+    n = len(base_names)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    def _weights_from_params(params):
+        raw = np.array([params[f"w_{base_names[i]}"] for i in range(n)])
+        mask = np.array([params[f"use_{base_names[i]}"] for i in range(n)], dtype=bool)
+        if mask.sum() < min_models:
+            forced = np.argsort(-raw)[:min_models]
+            mask = np.zeros(n, dtype=bool); mask[forced] = True
+        w = np.zeros(n, dtype=float)
+        w[mask] = _simplex(raw[mask])
+        return w
+
+    def objective(trial):
+        params = {}
+        for i in range(n):
+            params[f"w_{base_names[i]}"] = trial.suggest_float(f"w_{base_names[i]}", 1e-3, 1.0)
+            params[f"use_{base_names[i]}"] = trial.suggest_int(f"use_{base_names[i]}", 0, 1)
+        w = _weights_from_params(params)
+        return average_precision_score(y, P_oof_mat @ w)
+
+    study = optuna.create_study(
+        direction="maximize", sampler=optuna.samplers.TPESampler(seed=seed),
+    )
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    return _weights_from_params(study.best_params), study
+
+
+def learn_blend_weights(P_oof_mat, y, base_names, method, **kwargs):
+    """Unified entry point. method in {'uniform','slsqp','meta_lr','optuna'}."""
+    n = P_oof_mat.shape[1]
+    if method == "uniform":
+        return learn_uniform(n), None
+    if method == "slsqp":
+        return learn_slsqp(P_oof_mat, y), None
+    if method == "meta_lr":
+        w, model = learn_meta_lr(P_oof_mat, y, **kwargs)
+        return w, model
+    if method == "optuna":
+        return learn_optuna(P_oof_mat, y, base_names, **kwargs)
+    raise ValueError(f"Unknown blend method: {method}")
+
+
+W = {}
+W["uniform"], _ = learn_blend_weights(P_oof_matrix, y_train, BLEND_BASE_NAMES, "uniform")
+W["slsqp"], _ = learn_blend_weights(P_oof_matrix, y_train, BLEND_BASE_NAMES, "slsqp")
+W["meta_lr_softmax"], meta_lr_model = learn_blend_weights(
+    P_oof_matrix, y_train, BLEND_BASE_NAMES, "meta_lr",
+)
+print(f"Running Optuna over {len(BLEND_BASE_NAMES)} bases x {BLEND_OPTUNA_TRIALS} trials ...")
+W["optuna"], optuna_study = learn_blend_weights(
+    P_oof_matrix, y_train, BLEND_BASE_NAMES, "optuna",
+)
+
+weights_df = pd.DataFrame(W, index=BLEND_BASE_NAMES).round(4)
+weights_df.loc["sum"] = weights_df.sum(axis=0).round(4)
+weights_df.to_csv(RESULT_DIR / "tabpfn_blend_weights.csv")
+print("\nLearned blend weights (rows = base models, cols = strategies):")
+display(weights_df)
+
+_optuna_active = [n for n, w in zip(BLEND_BASE_NAMES, W["optuna"]) if w > 0]
+print(f"\nOptuna best OOF PR-AUC: {optuna_study.best_value:.4f}")
+print(f"Optuna selected subset ({len(_optuna_active)} of {len(BLEND_BASE_NAMES)}): {_optuna_active}")
+print("Saved:", RESULT_DIR / "tabpfn_blend_weights.csv")
+---OUT---
+Running Optuna over 6 bases x 400 trials ...
+
+Learned blend weights (rows = base models, cols = strategies):
+
+        uniform   slsqp  meta_lr_softmax  optuna
+tabpfn   0.1667  0.1667           0.2815   0.107
+lr       0.1667  0.1667           0.0100   0.000
+rf       0.1667  0.1667           0.4495   0.000
+cat      0.1667  0.1667           0.2334   0.893
+xgb      0.1667  0.1667           0.0202   0.000
+lgb      0.1667  0.1667           0.0053   0.000
+sum      1.0002  1.0002           0.9999   1.000
+
+Optuna best OOF PR-AUC: 0.7090
+Optuna selected subset (2 of 6): ['tabpfn', 'cat']
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_blend_weights.csv
+
+
+########## CELL 32 [markdown] ##########
+### 9.3 Test-set comparison and visualisations
+
+For each base learner and each blend strategy we report OOF PR-AUC (the optimisation signal), test PR-AUC, test ROC-AUC, and test F2 at a threshold tuned via `select_threshold(strategy="f2")` on the corresponding OOF scores. The `stacking[meta_lr]` row uses *honest* OOF stacking predictions (a nested CV over `P_oof_matrix`) instead of the in-sample meta-LR fit, so it's directly comparable to the convex blends. Outputs:
+
+- `tabpfn_blend_comparison.csv` — leaderboard of bases + blends.
+- `tabpfn_blend_pr_curve.png` — overlaid PR curves with the winner highlighted.
+- `tabpfn_blend_weight_search.png` — Optuna trial history (best-so-far PR-AUC).
+
+########## CELL 33 [code] ##########
+from sklearn.metrics import precision_recall_curve as _prc
+
+
+def _row(model, kind, oof_s, te_s):
+    t_sel, _ = select_threshold(
+        y_train, oof_s, strategy="f2", beta=2.0,
+        min_precision=MIN_PRECISION, target_recall=TARGET_RECALL,
+    )
+    pred = (te_s >= t_sel).astype(int)
+    return {
+        "model": model,
+        "kind": kind,
+        "oof_pr_auc": average_precision_score(y_train, oof_s),
+        "test_pr_auc": average_precision_score(y_test, te_s),
+        "test_roc_auc": roc_auc_score(y_test, te_s),
+        "test_f2": fbeta_score(y_test, pred, beta=2.0, zero_division=0),
+        "threshold": t_sel,
+    }
+
+
+def stacking_oof_predict(P_oof_mat, y, *, n_splits=BLEND_N_SPLITS, seed=RANDOM_STATE):
+    """Honest OOF stacking: refit meta-LR inside each fold of P_oof_matrix."""
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    oof = np.zeros(len(y), dtype=float)
+    for tr, va in skf.split(P_oof_mat, y):
+        m = LogisticRegression(
+            C=1.0, penalty="l2", solver="lbfgs", max_iter=2000,
+            class_weight="balanced", random_state=seed,
+        )
+        m.fit(P_oof_mat[tr], y[tr])
+        oof[va] = m.predict_proba(P_oof_mat[va])[:, 1]
+    return oof
+
+
+rows = []
+base_test_scores, base_oof_scores = {}, {}
+for name in BLEND_BASE_NAMES:
+    rows.append(_row(name, "base", P_oof[name], P_test[name]))
+    base_test_scores[name] = P_test[name]
+    base_oof_scores[name] = P_oof[name]
+
+blend_oof_scores, blend_test_scores = {}, {}
+for name, w in W.items():
+    oof_s = P_oof_matrix @ _simplex(w)
+    te_s = P_test_matrix @ _simplex(w)
+    rows.append(_row(f"blend[{name}]", "blend", oof_s, te_s))
+    blend_oof_scores[name] = oof_s
+    blend_test_scores[name] = te_s
+
+stacking_oof = stacking_oof_predict(P_oof_matrix, y_train)
+stacking_test = meta_lr_model.predict_proba(P_test_matrix)[:, 1]
+rows.append(_row("stacking[meta_lr]", "blend", stacking_oof, stacking_test))
+blend_oof_scores["stacking_meta_lr"] = stacking_oof
+blend_test_scores["stacking_meta_lr"] = stacking_test
+
+comparison_df = (
+    pd.DataFrame(rows)
+    .sort_values("test_pr_auc", ascending=False)
+    .reset_index(drop=True)
+)
+for c in ("oof_pr_auc", "test_pr_auc", "test_roc_auc", "test_f2", "threshold"):
+    comparison_df[c] = comparison_df[c].round(4)
+comparison_df.to_csv(RESULT_DIR / "tabpfn_blend_comparison.csv", index=False)
+print("Leaderboard (sorted by test PR-AUC):")
+display(comparison_df)
+
+winner = comparison_df.iloc[0]["model"]
+print(f"\nWinning model: {winner}")
+
+plt.figure(figsize=(8, 6))
+for name in BLEND_BASE_NAMES:
+    prec, rec, _ = _prc(y_test, base_test_scores[name])
+    plt.plot(rec, prec, lw=1.0, alpha=0.7,
+             label=f"{name} (AP={average_precision_score(y_test, base_test_scores[name]):.3f})")
+
+for name, sc in blend_test_scores.items():
+    prec, rec, _ = _prc(y_test, sc)
+    label_str = f"stacking[meta_lr]" if name == "stacking_meta_lr" else f"blend[{name}]"
+    is_winner = label_str == winner
+    plt.plot(rec, prec,
+             lw=2.6 if is_winner else 1.4,
+             ls="-" if is_winner else "--",
+             alpha=1.0 if is_winner else 0.9,
+             label=f"{label_str} (AP={average_precision_score(y_test, sc):.3f})")
+
+plt.xlabel("Recall"); plt.ylabel("Precision")
+plt.title("PR curves: TabPFN, classical bases, and learned blends (test)")
+plt.legend(loc="best", fontsize=8)
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_blend_pr_curve.png", dpi=150)
+plt.show()
+
+trials_df = optuna_study.trials_dataframe(attrs=("number", "value"))
+plt.figure(figsize=(8, 4))
+plt.plot(trials_df["number"], trials_df["value"], "o", color="#7fb8d6", alpha=0.45,
+         label="trial OOF PR-AUC")
+plt.plot(trials_df["number"], trials_df["value"].cummax(), color="#c2272f", lw=2.0,
+         label="best-so-far")
+plt.axhline(optuna_study.best_value, color="k", ls=":", lw=0.8,
+            label=f"final best = {optuna_study.best_value:.4f}")
+plt.xlabel("Optuna trial")
+plt.ylabel("OOF PR-AUC")
+plt.title(f"Optuna weight search ({len(trials_df)} trials)")
+plt.legend(loc="lower right", fontsize=9)
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_blend_weight_search.png", dpi=150)
+plt.show()
+
+print("Saved:", RESULT_DIR / "tabpfn_blend_comparison.csv")
+print("       ", RESULT_DIR / "tabpfn_blend_pr_curve.png")
+print("       ", RESULT_DIR / "tabpfn_blend_weight_search.png")
+---OUT---
+Leaderboard (sorted by test PR-AUC):
+
+                     model   kind  oof_pr_auc  test_pr_auc  test_roc_auc  \
+0                   tabpfn   base      0.5687       0.8180        0.9911   
+1        stacking[meta_lr]  blend      0.6555       0.8160        0.9920   
+2           blend[uniform]  blend      0.6853       0.8114        0.9923   
+3             blend[slsqp]  blend      0.6853       0.8114        0.9923   
+4            blend[optuna]  blend      0.7090       0.7843        0.9912   
+5   blend[meta_lr_softmax]  blend      0.6666       0.7780        0.9910   
+6                      cat   base      0.6727       0.6752        0.9699   
+7                      xgb   base      0.6339       0.6704        0.9681   
+8                      lgb   base      0.5778       0.6502        0.9734   
+9                       rf   base      0.5445       0.5969        0.9551   
+10                      lr   base      0.2575       0.4367        0.9418   
+
+    test_f2  threshold  
+0    0.7292     0.8465  
+1    0.8163     0.8366  
+2    0.8163     0.1783  
+3    0.8163     0.1783  
+4    0.7639     0.1090  
+5    0.7770     0.2872  
+6    0.6291     0.0248  
+7    0.6250     0.0199  
+8    0.5263     0.0149  
+9    0.5960     0.1238  
+10   0.4676     0.0941  
+
+Winning model: tabpfn
+
+<Figure size 800x600 with 1 Axes>
+<PNG image>
+<Figure size 800x400 with 1 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_blend_comparison.csv
+        /kaggle/working/modeling_tabpfn/tabpfn_blend_pr_curve.png
+        /kaggle/working/modeling_tabpfn/tabpfn_blend_weight_search.png
+
+
+########## CELL 34 [markdown] ##########
+### 9.4 Bootstrap confidence intervals for the winning blend
+
+To answer "is this blend actually better, or just a noisy point estimate?", we reuse the §6c stratified bootstrap (`bootstrap_ci`) on the winning blend's test scores at its OOF-tuned threshold. The PR-AUC CI is appended to the leaderboard so the headline number stays honest about its uncertainty.
+
+########## CELL 35 [code] ##########
+def _scores_for(label):
+    if label.startswith("blend["):
+        return blend_test_scores[label[len("blend["):-1]]
+    if label.startswith("stacking["):
+        return blend_test_scores[f"stacking_{label[len('stacking['):-1]}"]
+    return base_test_scores[label]
+
+
+winner_label = comparison_df.iloc[0]["model"]
+winner_threshold = float(comparison_df.iloc[0]["threshold"])
+winner_scores = _scores_for(winner_label)
+
+blend_boot_ci = bootstrap_ci(
+    y_test, winner_scores, winner_threshold,
+    n_boot=N_BOOTSTRAP, ci=BOOTSTRAP_CI, beta=THRESHOLD_BETA,
+)
+blend_boot_ci.insert(0, "model", winner_label)
+blend_boot_ci.to_csv(RESULT_DIR / "tabpfn_blend_bootstrap_ci.csv", index=False)
+print(f"Stratified bootstrap ({N_BOOTSTRAP} resamples) for {winner_label} at t={winner_threshold:.4f}")
+display(blend_boot_ci)
+
+_pr_row = blend_boot_ci[blend_boot_ci["metric"] == "pr_auc"].iloc[0]
+comparison_df["winner_pr_auc_ci"] = ""
+comparison_df.loc[comparison_df["model"] == winner_label, "winner_pr_auc_ci"] = (
+    f"[{_pr_row['ci_low']:.3f}, {_pr_row['ci_high']:.3f}]"
+)
+comparison_df.to_csv(RESULT_DIR / "tabpfn_blend_comparison.csv", index=False)
+
+tabpfn_test_pr_auc = float(
+    comparison_df.loc[comparison_df["model"] == "tabpfn", "test_pr_auc"].iloc[0]
+)
+winner_test_pr_auc = float(comparison_df.iloc[0]["test_pr_auc"])
+delta = winner_test_pr_auc - tabpfn_test_pr_auc
+verdict = "supports" if delta > 0 else "does not support"
+print(
+    f"\nHypothesis verdict: blending {verdict} TabPFN-alone."
+    f"\n  best model:     {winner_label}  (test PR-AUC = {winner_test_pr_auc:.4f}, "
+    f"95% CI [{_pr_row['ci_low']:.3f}, {_pr_row['ci_high']:.3f}])"
+    f"\n  TabPFN alone:   tabpfn       (test PR-AUC = {tabpfn_test_pr_auc:.4f})"
+    f"\n  delta:          {delta:+.4f}"
+)
+print("\nSaved:", RESULT_DIR / "tabpfn_blend_bootstrap_ci.csv")
+print("       updated", RESULT_DIR / "tabpfn_blend_comparison.csv")
+---OUT---
+Stratified bootstrap (2000 resamples) for tabpfn at t=0.8465
+
+    model     metric   point  ci_low  ci_high     std
+0  tabpfn  precision  0.6562  0.5357   0.8148  0.0715
+1  tabpfn     recall  0.7500  0.5714   0.8929  0.0814
+2  tabpfn         f1  0.7000  0.5806   0.8214  0.0624
+3  tabpfn       f1.5  0.7184  0.5878   0.8464  0.0658
+4  tabpfn    roc_auc  0.9911  0.9828   0.9974  0.0038
+5  tabpfn     pr_auc  0.8180  0.6999   0.9228  0.0575
+
+Hypothesis verdict: blending does not support TabPFN-alone.
+  best model:     tabpfn  (test PR-AUC = 0.8180, 95% CI [0.700, 0.923])
+  TabPFN alone:   tabpfn       (test PR-AUC = 0.8180)
+  delta:          +0.0000
+
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_blend_bootstrap_ci.csv
+       updated /kaggle/working/modeling_tabpfn/tabpfn_blend_comparison.csv
+
+
+########## CELL 36 [markdown] ##########
+### 9.5 Sweeping the weight-learning objective
+
+§9.2 optimises weights against a single objective (OOF PR-AUC). Different deployment contexts care about different metrics, so this subsection runs the same weight-learning recipe under **every rational objective** and reports the best strategy per objective plus a global champion.
+
+The objective registry covers two families:
+
+- **Ranking objectives** (threshold-independent) — `pr_auc`, `roc_auc`.
+- **Threshold objectives** (`select_threshold`-driven) — `f1`, `f2`, `fbeta_{THRESHOLD_BETA}`, `recall_at_precision` (maximise recall subject to precision >= `MIN_PRECISION`), `target_recall` (maximise precision subject to recall >= `TARGET_RECALL`).
+
+For each objective we re-evaluate the four blend strategies from §9.2:
+
+- `uniform` and `meta_lr_softmax` produce **objective-independent weights**; only their deployment threshold changes per objective.
+- `slsqp` and `optuna` are **re-optimised per objective** — the OOF objective value is the optimisation target.
+
+To avoid test peeking, the deployment threshold for each (objective, strategy) is chosen **strictly on OOF train scores** and then applied to test. Ranking objectives use F2 as the deployment threshold (matches §6b) since their reported test_score is AUC and threshold-independent.
+
+########## CELL 37 [code] ##########
+BLEND_OBJECTIVES = {
+    "pr_auc":  {"kind": "ranking",   "score_fn": average_precision_score},
+    "roc_auc": {"kind": "ranking",   "score_fn": roc_auc_score},
+    "f1":      {"kind": "threshold", "strategy": "f1",                  "beta": 1.0,             "report": "f1"},
+    "f2":      {"kind": "threshold", "strategy": "f2",                  "beta": 2.0,             "report": "f2"},
+    f"fbeta_{THRESHOLD_BETA:g}": {
+                "kind": "threshold", "strategy": "fbeta",               "beta": THRESHOLD_BETA,  "report": f"f{THRESHOLD_BETA:g}"},
+    "recall_at_precision": {
+                "kind": "threshold", "strategy": "recall_at_precision", "beta": 2.0,             "report": "recall"},
+    "target_recall": {
+                "kind": "threshold", "strategy": "target_recall",       "beta": 2.0,             "report": "precision"},
+}
+BLEND_MULTI_OPTUNA_TRIALS = 200
+
+
+def oof_objective_value(y, oof_scores, obj_name):
+    """Scalar OOF score for `obj_name` — used as the SLSQP / Optuna optimisation target."""
+    obj = BLEND_OBJECTIVES[obj_name]
+    if obj["kind"] == "ranking":
+        return float(obj["score_fn"](y, oof_scores))
+    _, info = select_threshold(
+        y, oof_scores, strategy=obj["strategy"], beta=obj["beta"],
+        min_precision=MIN_PRECISION, target_recall=TARGET_RECALL,
+    )
+    return float(info[obj["report"]])
+
+
+def oof_threshold_for(y, oof_scores, obj_name):
+    """Deployment threshold picked on OOF for `obj_name` (ranking objectives fall back to F2)."""
+    obj = BLEND_OBJECTIVES[obj_name]
+    strategy = obj.get("strategy", "f2")
+    beta = obj.get("beta", 2.0)
+    return select_threshold(
+        y, oof_scores, strategy=strategy, beta=beta,
+        min_precision=MIN_PRECISION, target_recall=TARGET_RECALL,
+    )[0]
+
+
+def deployment_test_score(y_te, test_scores, threshold, obj_name):
+    """`obj_name`'s metric on test, computed at the OOF-chosen `threshold` (no test peeking)."""
+    obj = BLEND_OBJECTIVES[obj_name]
+    if obj["kind"] == "ranking":
+        return float(obj["score_fn"](y_te, test_scores))
+    pred = (test_scores >= threshold).astype(int)
+    rep = obj["report"]
+    if rep == "recall":
+        return float(recall_score(y_te, pred, zero_division=0))
+    if rep == "precision":
+        return float(precision_score(y_te, pred, zero_division=0))
+    if rep == "f1":
+        return float(f1_score(y_te, pred, zero_division=0))
+    return float(fbeta_score(y_te, pred, beta=obj["beta"], zero_division=0))
+
+
+def _test_battery(scores, threshold):
+    """Standard metric battery on test at a fixed (OOF-chosen) threshold."""
+    pred = (scores >= threshold).astype(int)
+    return {
+        "test_pr_auc": float(average_precision_score(y_test, scores)),
+        "test_roc_auc": float(roc_auc_score(y_test, scores)),
+        "test_f1": float(f1_score(y_test, pred, zero_division=0)),
+        "test_f2": float(fbeta_score(y_test, pred, beta=2.0, zero_division=0)),
+        "test_precision": float(precision_score(y_test, pred, zero_division=0)),
+        "test_recall": float(recall_score(y_test, pred, zero_division=0)),
+    }
+
+
+def learn_slsqp_for(P_oof_mat, y, obj_name):
+    n = P_oof_mat.shape[1]
+    x0 = np.full(n, 1.0 / n)
+    cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0}]
+    bnds = [(0.0, 1.0)] * n
+    res = _scipy_minimize(
+        lambda w: -oof_objective_value(y, P_oof_mat @ w, obj_name),
+        x0=x0, method="SLSQP", bounds=bnds, constraints=cons,
+        options={"maxiter": 300, "ftol": 1e-9},
+    )
+    return _simplex(res.x)
+
+
+def learn_optuna_for(P_oof_mat, y, base_names, obj_name, *,
+                     n_trials=BLEND_MULTI_OPTUNA_TRIALS,
+                     min_models=BLEND_MIN_MODELS, seed=RANDOM_STATE):
+    n = len(base_names)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    def _w(params):
+        raw = np.array([params[f"w_{base_names[i]}"] for i in range(n)])
+        mask = np.array([params[f"use_{base_names[i]}"] for i in range(n)], dtype=bool)
+        if mask.sum() < min_models:
+            forced = np.argsort(-raw)[:min_models]
+            mask = np.zeros(n, dtype=bool); mask[forced] = True
+        w = np.zeros(n, dtype=float)
+        w[mask] = _simplex(raw[mask])
+        return w
+
+    def objective(trial):
+        params = {}
+        for i in range(n):
+            params[f"w_{base_names[i]}"] = trial.suggest_float(f"w_{base_names[i]}", 1e-3, 1.0)
+            params[f"use_{base_names[i]}"] = trial.suggest_int(f"use_{base_names[i]}", 0, 1)
+        return oof_objective_value(y, P_oof_mat @ _w(params), obj_name)
+
+    study = optuna.create_study(direction="maximize",
+                                sampler=optuna.samplers.TPESampler(seed=seed))
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    return _w(study.best_params), study
+
+
+master_rows = []
+multi_weights = {}
+multi_studies = {}
+fixed_strategies = {
+    "uniform": W["uniform"],
+    "meta_lr_softmax": W["meta_lr_softmax"],
+}
+
+for obj_name in BLEND_OBJECTIVES:
+    print(f"\n=== Objective: {obj_name} ===")
+
+    for strat_name, w_vec in fixed_strategies.items():
+        w_norm = _simplex(w_vec)
+        oof_s = P_oof_matrix @ w_norm
+        te_s = P_test_matrix @ w_norm
+        t = oof_threshold_for(y_train, oof_s, obj_name)
+        bat = _test_battery(te_s, t)
+        master_rows.append({
+            "objective": obj_name, "strategy": strat_name,
+            "oof_score": oof_objective_value(y_train, oof_s, obj_name),
+            "test_score": deployment_test_score(y_test, te_s, t, obj_name),
+            "threshold": t,
+            **bat,
+            "weights": str(np.round(w_norm, 3).tolist()),
+        })
+        multi_weights[(obj_name, strat_name)] = w_norm
+
+    w_slsqp = learn_slsqp_for(P_oof_matrix, y_train, obj_name)
+    oof_s = P_oof_matrix @ w_slsqp
+    te_s = P_test_matrix @ w_slsqp
+    t = oof_threshold_for(y_train, oof_s, obj_name)
+    bat = _test_battery(te_s, t)
+    master_rows.append({
+        "objective": obj_name, "strategy": "slsqp",
+        "oof_score": oof_objective_value(y_train, oof_s, obj_name),
+        "test_score": deployment_test_score(y_test, te_s, t, obj_name),
+        "threshold": t,
+        **bat,
+        "weights": str(np.round(w_slsqp, 3).tolist()),
+    })
+    multi_weights[(obj_name, "slsqp")] = w_slsqp
+
+    w_opt, study = learn_optuna_for(
+        P_oof_matrix, y_train, BLEND_BASE_NAMES, obj_name,
+        n_trials=BLEND_MULTI_OPTUNA_TRIALS,
+    )
+    oof_s = P_oof_matrix @ w_opt
+    te_s = P_test_matrix @ w_opt
+    t = oof_threshold_for(y_train, oof_s, obj_name)
+    bat = _test_battery(te_s, t)
+    active = [BLEND_BASE_NAMES[i] for i, v in enumerate(w_opt) if v > 0]
+    master_rows.append({
+        "objective": obj_name, "strategy": "optuna",
+        "oof_score": oof_objective_value(y_train, oof_s, obj_name),
+        "test_score": deployment_test_score(y_test, te_s, t, obj_name),
+        "threshold": t,
+        **bat,
+        "weights": str(np.round(w_opt, 3).tolist()),
+    })
+    multi_weights[(obj_name, "optuna")] = w_opt
+    multi_studies[obj_name] = study
+    print(f"  Optuna best OOF {obj_name} = {study.best_value:.4f} | subset = {active}")
+
+master_df = pd.DataFrame(master_rows)
+_round_cols = ["oof_score", "test_score", "threshold",
+               "test_pr_auc", "test_roc_auc", "test_f1", "test_f2",
+               "test_precision", "test_recall"]
+for c in _round_cols:
+    master_df[c] = master_df[c].round(4)
+master_df.to_csv(RESULT_DIR / "tabpfn_blend_multi_objective.csv", index=False)
+
+print("\nFull multi-objective leaderboard (rows = objective x strategy):")
+display(master_df)
+
+best_per_obj = (
+    master_df.sort_values(["objective", "test_score"], ascending=[True, False])
+             .groupby("objective", as_index=False).head(1)
+             .reset_index(drop=True)
+)
+print("\nBest strategy per objective (highest test_score on the optimised metric):")
+display(best_per_obj[["objective", "strategy", "oof_score", "test_score",
+                       "test_pr_auc", "test_roc_auc", "test_f1", "test_f2",
+                       "test_precision", "test_recall", "threshold"]])
+
+champ = master_df.sort_values("test_pr_auc", ascending=False).iloc[0]
+print(
+    f"\nGlobal champion (by test PR-AUC across all 7 objectives x 4 strategies):"
+    f"\n  objective={champ['objective']}  strategy={champ['strategy']}"
+    f"\n  test_pr_auc={champ['test_pr_auc']:.4f} | test_roc_auc={champ['test_roc_auc']:.4f}"
+    f" | test_f1={champ['test_f1']:.4f} | test_f2={champ['test_f2']:.4f}"
+    f"\n  weights={dict(zip(BLEND_BASE_NAMES, eval(champ['weights'])))}"
+    f"\n  threshold={champ['threshold']:.4f}"
+)
+
+best_per_obj.to_csv(RESULT_DIR / "tabpfn_blend_multi_best_per_objective.csv", index=False)
+
+pivot = master_df.pivot_table(index="objective", columns="strategy",
+                              values="test_score", aggfunc="first")
+strategy_order = ["uniform", "meta_lr_softmax", "slsqp", "optuna"]
+pivot = pivot.reindex(columns=[c for c in strategy_order if c in pivot.columns])
+pivot = pivot.reindex(index=list(BLEND_OBJECTIVES.keys()))
+
+plt.figure(figsize=(8, 4.8))
+im = plt.imshow(pivot.values, aspect="auto", cmap="viridis")
+plt.colorbar(im, label="test score (on optimised metric)")
+plt.xticks(range(pivot.shape[1]), pivot.columns, rotation=15)
+plt.yticks(range(pivot.shape[0]), pivot.index)
+for i in range(pivot.shape[0]):
+    for j in range(pivot.shape[1]):
+        v = pivot.values[i, j]
+        if not np.isnan(v):
+            plt.text(j, i, f"{v:.3f}", ha="center", va="center",
+                     color="white" if v < pivot.values[~np.isnan(pivot.values)].mean() else "black",
+                     fontsize=9)
+plt.title("Test score per (objective x weight-learning strategy)")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_blend_multi_objective_heatmap.png", dpi=150)
+plt.show()
+
+print("\nSaved:", RESULT_DIR / "tabpfn_blend_multi_objective.csv")
+print("       ", RESULT_DIR / "tabpfn_blend_multi_best_per_objective.csv")
+print("       ", RESULT_DIR / "tabpfn_blend_multi_objective_heatmap.png")
+---OUT---
+
+=== Objective: pr_auc ===
+  Optuna best OOF pr_auc = 0.7090 | subset = ['tabpfn', 'cat']
+
+=== Objective: roc_auc ===
+  Optuna best OOF roc_auc = 0.9688 | subset = ['tabpfn', 'rf', 'xgb']
+
+=== Objective: f1 ===
+  Optuna best OOF f1 = 0.6783 | subset = ['tabpfn', 'xgb']
+
+=== Objective: f2 ===
+  Optuna best OOF f2 = 0.7104 | subset = ['rf', 'cat', 'lgb']
+
+=== Objective: fbeta_1.5 ===
+  Optuna best OOF fbeta_1.5 = 0.6986 | subset = ['tabpfn', 'cat']
+
+=== Objective: recall_at_precision ===
+  Optuna best OOF recall_at_precision = 0.8438 | subset = ['tabpfn', 'lr', 'cat', 'xgb']
+
+=== Objective: target_recall ===
+  Optuna best OOF target_recall = 0.4685 | subset = ['rf', 'cat']
+
+Full multi-objective leaderboard (rows = objective x strategy):
+
+              objective         strategy  oof_score  test_score  threshold  \
+0                pr_auc          uniform     0.6853      0.8114     0.1783   
+1                pr_auc  meta_lr_softmax     0.6666      0.7780     0.2872   
+2                pr_auc            slsqp     0.6853      0.8114     0.1783   
+3                pr_auc           optuna     0.7090      0.7852     0.1189   
+4               roc_auc          uniform     0.9675      0.9923     0.1783   
+5               roc_auc  meta_lr_softmax     0.9679      0.9910     0.2872   
+6               roc_auc            slsqp     0.9675      0.9923     0.1783   
+7               roc_auc           optuna     0.9688      0.9914     0.0545   
+8                    f1          uniform     0.6281      0.6383     0.2476   
+9                    f1  meta_lr_softmax     0.6515      0.6909     0.3268   
+10                   f1            slsqp     0.6281      0.6383     0.2476   
+11                   f1           optuna     0.6783      0.7500     0.6138   
+12                   f2          uniform     0.7044      0.8163     0.1783   
+13                   f2  meta_lr_softmax     0.7082      0.7770     0.2872   
+14                   f2            slsqp     0.7044      0.8163     0.1783   
+15                   f2           optuna     0.7104      0.6410     0.0595   
+16            fbeta_1.5          uniform     0.6719      0.7786     0.1832   
+17            fbeta_1.5  meta_lr_softmax     0.6777      0.7109     0.2921   
+18            fbeta_1.5            slsqp     0.6719      0.7786     0.1832   
+19            fbeta_1.5           optuna     0.6986      0.7756     0.3565   
+20  recall_at_precision          uniform     0.7969      0.8571     0.1733   
+21  recall_at_precision  meta_lr_softmax     0.7969      0.8571     0.2674   
+22  recall_at_precision            slsqp     0.7969      0.8571     0.1733   
+23  recall_at_precision           optuna     0.8438      0.8571     0.0743   
+24        target_recall          uniform     0.3636      0.5217     0.1634   
+25        target_recall  meta_lr_softmax     0.3636      0.4800     0.2525   
+26        target_recall            slsqp     0.3636      0.5217     0.1634   
+27        target_recall           optuna     0.4685      0.4545     0.0595   
+
+    test_pr_auc  test_roc_auc  test_f1  test_f2  test_precision  test_recall  \
+0        0.8114        0.9923   0.7619   0.8163          0.6857       0.8571   
+1        0.7780        0.9910   0.7188   0.7770          0.6389       0.8214   
+2        0.8114        0.9923   0.7619   0.8163          0.6857       0.8571   
+3        0.7852        0.9913   0.7119   0.7343          0.6774       0.7500   
+4        0.8114        0.9923   0.7619   0.8163          0.6857       0.8571   
+5        0.7780        0.9910   0.7188   0.7770          0.6389       0.8214   
+6        0.8114        0.9923   0.7619   0.8163          0.6857       0.8571   
+7        0.7714        0.9914   0.7042   0.8065          0.5814       0.8929   
+8        0.8114        0.9923   0.6383   0.5725          0.7895       0.5357   
+9        0.7780        0.9910   0.6909   0.6835          0.7037       0.6786   
+10       0.8114        0.9923   0.6383   0.5725          0.7895       0.5357   
+11       0.8197        0.9919   0.7500   0.6818          0.9000       0.6429   
+12       0.8114        0.9923   0.7619   0.8163          0.6857       0.8571   
+13       0.7780        0.9910   0.7188   0.7770          0.6389       0.8214   
+14       0.8114        0.9923   0.7619   0.8163          0.6857       0.8571   
+15       0.6514        0.9629   0.5556   0.6410          0.4545       0.7143   
+16       0.8114        0.9923   0.7541   0.7931          0.6970       0.8214   
+17       0.7780        0.9910   0.6885   0.7241          0.6364       0.7500   
+18       0.8114        0.9923   0.7541   0.7931          0.6970       0.8214   
+19       0.8124        0.9917   0.7925   0.7664          0.8400       0.7500   
+20       0.8114        0.9923   0.7273   0.8000          0.6316       0.8571   
+21       0.7780        0.9910   0.6667   0.7692          0.5455       0.8571   
+22       0.8114        0.9923   0.7273   0.8000          0.6316       0.8571   
+23       0.7970        0.9922   0.7273   0.8000          0.6316       0.8571   
+24       0.8114        0.9923   0.6486   0.7595          0.5217       0.8571   
+25       0.7780        0.9910   0.6154   0.7407          0.4800       0.8571   
+26       0.8114        0.9923   0.6486   0.7595          0.5217       0.8571   
+27       0.6511        0.9627   0.5556   0.6410          0.4545       0.7143   
+
+                                       weights  
+0   [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+1     [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+2   [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+3           [0.116, 0.0, 0.0, 0.884, 0.0, 0.0]  
+4   [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+5     [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+6   [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+7         [0.051, 0.0, 0.046, 0.0, 0.903, 0.0]  
+8   [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+9     [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+10  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+11          [0.622, 0.0, 0.0, 0.0, 0.378, 0.0]  
+12  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+13    [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+14  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+15         [0.0, 0.0, 0.379, 0.611, 0.0, 0.01]  
+16  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+17    [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+18  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+19          [0.357, 0.0, 0.0, 0.643, 0.0, 0.0]  
+20  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+21    [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+22  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+23      [0.067, 0.066, 0.0, 0.585, 0.282, 0.0]  
+24  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+25    [0.282, 0.01, 0.449, 0.233, 0.02, 0.005]  
+26  [0.167, 0.167, 0.167, 0.167, 0.167, 0.167]  
+27          [0.0, 0.0, 0.388, 0.612, 0.0, 0.0]  
+
+Best strategy per objective (highest test_score on the optimised metric):
+
+             objective strategy  oof_score  test_score  test_pr_auc  \
+0                   f1   optuna     0.6783      0.7500       0.8197   
+1                   f2  uniform     0.7044      0.8163       0.8114   
+2            fbeta_1.5  uniform     0.6719      0.7786       0.8114   
+3               pr_auc  uniform     0.6853      0.8114       0.8114   
+4  recall_at_precision  uniform     0.7969      0.8571       0.8114   
+5              roc_auc  uniform     0.9675      0.9923       0.8114   
+6        target_recall  uniform     0.3636      0.5217       0.8114   
+
+   test_roc_auc  test_f1  test_f2  test_precision  test_recall  threshold  
+0        0.9919   0.7500   0.6818          0.9000       0.6429     0.6138  
+1        0.9923   0.7619   0.8163          0.6857       0.8571     0.1783  
+2        0.9923   0.7541   0.7931          0.6970       0.8214     0.1832  
+3        0.9923   0.7619   0.8163          0.6857       0.8571     0.1783  
+4        0.9923   0.7273   0.8000          0.6316       0.8571     0.1733  
+5        0.9923   0.7619   0.8163          0.6857       0.8571     0.1783  
+6        0.9923   0.6486   0.7595          0.5217       0.8571     0.1634  
+
+Global champion (by test PR-AUC across all 7 objectives x 4 strategies):
+  objective=f1  strategy=optuna
+  test_pr_auc=0.8197 | test_roc_auc=0.9919 | test_f1=0.7500 | test_f2=0.6818
+  weights={'tabpfn': 0.622, 'lr': 0.0, 'rf': 0.0, 'cat': 0.0, 'xgb': 0.378, 'lgb': 0.0}
+  threshold=0.6138
+
+<Figure size 800x480 with 2 Axes>
+<PNG image>
+
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_blend_multi_objective.csv
+        /kaggle/working/modeling_tabpfn/tabpfn_blend_multi_best_per_objective.csv
+        /kaggle/working/modeling_tabpfn/tabpfn_blend_multi_objective_heatmap.png
+
+
+########## CELL 38 [markdown] ##########
+## 10. Feature selection comparison: LOCO vs SHAP vs FFS
+
+Three different ways to ask "which features matter?" — and they often disagree because they answer **different questions**.
+
+| | **LOCO** (Leave-One-Covariate-Out) | **SHAP** (permutation, masked forward passes) | **FFS** (Forward Feature Selection) |
+|---|---|---|---|
+| **Question** | How much does the model *lose* if I **drop** this one column? | What is this feature's **average marginal contribution** to each prediction? | Which **small set** of columns gives the best held-out score when added greedily? |
+| **What it measures** | *Conditional* importance — unique information the feature carries **given all others remain** | *Marginal* Shapley value — average change in output when the feature is revealed vs a background | *Synergistic* subset quality — features that **work well together** in the model |
+| **Granularity** | One global score per feature | Signed value **per row** (we aggregate with mean \|SHAP\|) | One ordered list of K features (path-dependent) |
+| **Model interaction** | Refits TabPFN with column removed | Forward passes only (masks to background) | Refits TabPFN on growing subsets |
+| **Cost (d features, K selected)** | O(d) fits | O(n_perm × k × n_instances) forward passes | O(K × d) fits |
+| **Strengths** | Fast global ranking; highlights features the model *cannot replace* | Rich, local explanations; threshold-free | Finds compact subsets tuned to a deployment metric |
+| **Pitfalls** | **Undervalues correlated features** — if A and B carry the same signal, dropping either alone barely hurts | Can **over-credit correlated features** (credit split across coalitions); expensive at full d | **Greedy & path-dependent** — early picks lock in; misses features that only help in combination |
+
+**This section's workflow:** §7–§8 already ranked features under `pr_auc`, `f1`, and `f2` for LOCO and coalition SHAP. Here we extract top-`FEATURE_TOPK` lists, run FFS under the same three objectives, refit TabPFN on each subset (plus the **union**), and compare test metrics against the **baseline** (all features, §5).
+
+########## CELL 39 [markdown] ##########
+### 10.1 Extracting the top-K feature lists
+
+§7 already produced **LOCO** rankings for `pr_auc`, `f1`, and `f2`. §8b produced matching
+**coalition SHAP** rankings. Here we take top-`FEATURE_TOPK` from each (plus FFS below).
+FFS runs **three** greedy holdout searches with the same objectives. Each FFS run continues until
+the holdout metric reaches `FFS_TARGET_SCORE` (default 1.0) or `FEATURE_TOPK` steps are exhausted.
+
+
+########## CELL 40 [code] ##########
+FEATURE_TOPK = 20
+FFS_HOLDOUT_FRAC = 0.2
+FFS_SCORINGS = ["pr_auc", "f1", "f2"]
+FFS_TARGET_SCORE = 1.0            # stop once holdout metric reaches this (or FEATURE_TOPK)
+FS_SEED = RANDOM_STATE
+
+
+def ffs_tabpfn(X_tr, y_tr, names, *, k=FEATURE_TOPK, holdout_frac=FFS_HOLDOUT_FRAC,
+               scoring="pr_auc", target_score=FFS_TARGET_SCORE, seed=FS_SEED):
+    """Greedy forward feature selection with TabPFN on a single stratified holdout."""
+    n_feat = X_tr.shape[1]
+    k = min(k, n_feat)
+
+    X_fit, X_hold, y_fit, y_hold = train_test_split(
+        X_tr, y_tr, test_size=holdout_frac, stratify=y_tr, random_state=seed,
+    )
+
+    def _score(y_true, probas):
+        return metric_score(y_true, probas, scoring)
+
+    selected, step_rows = [], []
+    candidates = set(range(n_feat))
+    prev_sc = None
+    fit_count = 0
+
+    for step in range(1, k + 1):
+        best_j, best_sc = None, -np.inf
+        n_cand = len(candidates)
+        for j in sorted(candidates):
+            cols = selected + [j]
+            m = make_tabpfn(seed=seed + step * 1000 + j)
+            m.fit(X_fit[:, cols], y_fit)
+            sc = _score(y_hold, pos_proba(m, X_hold[:, cols]))
+            fit_count += 1
+            if fit_count % 20 == 0:
+                print(f"  FFS[{scoring}] fit {fit_count} (step {step}, {n_cand} candidates)")
+            if sc > best_sc:
+                best_j, best_sc = j, sc
+
+        selected.append(best_j)
+        candidates.remove(best_j)
+        marginal = np.nan if prev_sc is None else float(best_sc - prev_sc)
+        step_rows.append({
+            "step": step,
+            "feature": names[best_j],
+            "index": best_j,
+            "holdout_score": round(float(best_sc), 4),
+            "marginal_gain": round(marginal, 4) if not np.isnan(marginal) else np.nan,
+            "scoring": scoring,
+        })
+        print(f"  FFS[{scoring}] step {step}: + {names[best_j]}  "
+              f"holdout={best_sc:.4f}  Δ={marginal if not np.isnan(marginal) else '—'}")
+        prev_sc = best_sc
+
+        if best_sc >= target_score - 1e-9:
+            print(f"  FFS[{scoring}] stop: holdout {scoring} reached {best_sc:.4f} "
+                  f"(target={target_score})")
+            break
+
+    selected_names = [names[j] for j in selected]
+    return selected_names, pd.DataFrame(step_rows)
+
+
+# --- LOCO top-K (from §7 loco_dfs) ---
+loco_topk = {}
+for metric in LOCO_SCORINGS:
+    df_m = loco_dfs[metric]
+    if len(df_m) < FEATURE_TOPK:
+        print(f"WARNING: LOCO[{metric}] ranked only {len(df_m)} features.")
+    loco_topk[metric] = df_m.head(FEATURE_TOPK)["feature"].tolist()
+    pd.DataFrame({
+        "rank": range(1, len(loco_topk[metric]) + 1),
+        "feature": loco_topk[metric],
+        "loco_importance": df_m.head(len(loco_topk[metric]))["importance"].values,
+        "metric": metric,
+    }).to_csv(RESULT_DIR / f"tabpfn_fs_loco_{metric}.csv", index=False)
+    print(f"LOCO[{metric}] top-{len(loco_topk[metric])}:", loco_topk[metric][:5], "...")
+
+# --- SHAP top-K (from §8b shap_objective_dfs) ---
+shap_topk = {}
+for metric in SHAP_SCORINGS:
+    shap_topk[metric] = shap_objective_dfs[metric].head(FEATURE_TOPK)["feature"].tolist()
+    shap_objective_dfs[metric].to_csv(RESULT_DIR / f"tabpfn_fs_shap_{metric}.csv", index=False)
+    print(f"SHAP[{metric}] top-{len(shap_topk[metric])}:", shap_topk[metric][:5], "...")
+
+# --- FFS top-K (TabPFN holdout; pr_auc / f1 / f2) ---
+ffs_results = {}
+for scoring in FFS_SCORINGS:
+    print(f"\nRunning FFS (TabPFN, holdout={FFS_HOLDOUT_FRAC}, scoring={scoring}, "
+          f"k={FEATURE_TOPK}, target={FFS_TARGET_SCORE}) ...")
+    topk, log = ffs_tabpfn(
+        X_train, y_train, feature_names,
+        k=FEATURE_TOPK, holdout_frac=FFS_HOLDOUT_FRAC,
+        scoring=scoring, target_score=FFS_TARGET_SCORE, seed=FS_SEED,
+    )
+    ffs_results[scoring] = (topk, log)
+    log.to_csv(RESULT_DIR / f"tabpfn_fs_ffs_{scoring}.csv", index=False)
+    print(f"FFS[{scoring}] selected {len(topk)} features:", topk[:5], "...")
+
+ffs_topk = ffs_results["pr_auc"][0]
+ffs_logs = {s: ffs_results[s][1] for s in FFS_SCORINGS}
+
+# --- FFS learning curves ---
+fig, axes = plt.subplots(1, len(FFS_SCORINGS), figsize=(5 * len(FFS_SCORINGS), 4), sharey=False)
+if len(FFS_SCORINGS) == 1:
+    axes = [axes]
+for ax, scoring in zip(axes, FFS_SCORINGS):
+    log = ffs_logs[scoring]
+    ax.plot(log["step"], log["holdout_score"], "o-", lw=1.8)
+    ax.axhline(FFS_TARGET_SCORE, color="gray", ls=":", lw=1.0, label=f"target={FFS_TARGET_SCORE}")
+    ax.set_xlabel("forward step")
+    ax.set_ylabel(f"holdout {scoring}")
+    ax.set_title(f"FFS — {scoring} ({len(log)} features)")
+    ax.legend(loc="lower right", fontsize=8)
+plt.suptitle(f"Forward feature selection (stop when holdout score reaches {FFS_TARGET_SCORE})")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_fs_ffs_curves.png", dpi=150)
+plt.show()
+
+# --- Features selected by each FFS objective ---
+ffs_feat_rows = []
+for scoring in FFS_SCORINGS:
+    for rank, feat in enumerate(ffs_results[scoring][0], 1):
+        ffs_feat_rows.append({"scoring": scoring, "rank": rank, "feature": feat})
+ffs_feat_df = pd.DataFrame(ffs_feat_rows)
+
+fig, axes = plt.subplots(1, len(FFS_SCORINGS), figsize=(5 * len(FFS_SCORINGS), 6), sharey=False)
+if len(FFS_SCORINGS) == 1:
+    axes = [axes]
+colors = {"pr_auc": "#2c7fb8", "f1": "#41ab5d", "f2": "#d95f0e"}
+for ax, scoring in zip(axes, FFS_SCORINGS):
+    sub = ffs_feat_df[ffs_feat_df["scoring"] == scoring].iloc[::-1]
+    ax.barh(sub["feature"], sub["rank"], color=colors.get(scoring, "gray"), alpha=0.85)
+    ax.set_xlabel("selection step")
+    ax.set_title(f"FFS features — {scoring} (n={len(sub)})")
+plt.suptitle("Greedy forward selection order per objective")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_fs_ffs_features.png", dpi=150)
+plt.show()
+print("Saved: tabpfn_fs_ffs_curves.png, tabpfn_fs_ffs_features.png")
+
+# --- Union of all LOCO + SHAP + FFS top-K lists ---
+union_features = sorted(
+    set().union(
+        *[set(loco_topk[m]) for m in LOCO_SCORINGS],
+        *[set(shap_topk[m]) for m in SHAP_SCORINGS],
+        *[set(ffs_results[s][0]) for s in FFS_SCORINGS],
+    )
+)
+pd.DataFrame({"feature": union_features}).to_csv(RESULT_DIR / "tabpfn_fs_union.csv", index=False)
+
+print(f"\nFeature-set sizes: "
+      + ", ".join(f"LOCO {m}={len(loco_topk[m])}" for m in LOCO_SCORINGS)
+      + ", " + ", ".join(f"SHAP {m}={len(shap_topk[m])}" for m in SHAP_SCORINGS)
+      + ", " + ", ".join(f"FFS {s}={len(ffs_results[s][0])}" for s in FFS_SCORINGS)
+      + f", union={len(union_features)}")
+for metric in LOCO_SCORINGS:
+    print(f"  {metric} LOCO∩SHAP top-{FEATURE_TOPK}: "
+          f"{len(set(loco_topk[metric]) & set(shap_topk[metric]))}")
+print("Saved: tabpfn_fs_loco_*.csv, tabpfn_fs_shap_*.csv, tabpfn_fs_ffs_*.csv, tabpfn_fs_union.csv")
+
+---OUT---
+LOCO[pr_auc] top-20: ['eGFR', 'Cre', 'Visual thrombus', 'P-LM', 'Moderate/severe tortuosity'] ...
+LOCO[f1] top-20: ['eGFR', 'Cre', 'Visual thrombus', 'Ticagrelor', 'Lesion location-Ostial'] ...
+LOCO[f2] top-20: ['eGFR', 'Visual thrombus', 'Men', 'CKD90', 'Cre'] ...
+SHAP[pr_auc] top-20: ['WBC', 'eGFR', 'No postdilation', '3-vessel disease', 'P-LM'] ...
+SHAP[f1] top-20: ['eGFR', 'Cre', 'Bifurcation', 'Thrombus aspiration', 'Stroke/TIA'] ...
+SHAP[f2] top-20: ['eGFR', 'Cre', 'WBC', 'NO.of vessels', 'Moderate/severe calcification'] ...
+
+Running FFS (TabPFN, holdout=0.2, scoring=pr_auc, k=20, target=1.0) ...
+  FFS[pr_auc] fit 20 (step 1, 81 candidates)
+  FFS[pr_auc] fit 40 (step 1, 81 candidates)
+  FFS[pr_auc] fit 60 (step 1, 81 candidates)
+  FFS[pr_auc] fit 80 (step 1, 81 candidates)
+  FFS[pr_auc] step 1: + WBC  holdout=0.2061  Δ=—
+  FFS[pr_auc] fit 100 (step 2, 80 candidates)
+  FFS[pr_auc] fit 120 (step 2, 80 candidates)
+  FFS[pr_auc] fit 140 (step 2, 80 candidates)
+  FFS[pr_auc] fit 160 (step 2, 80 candidates)
+  FFS[pr_auc] step 2: + Staged PCI  holdout=0.2498  Δ=0.04365552440473111
+  FFS[pr_auc] fit 180 (step 3, 79 candidates)
+  FFS[pr_auc] fit 200 (step 3, 79 candidates)
+  FFS[pr_auc] fit 220 (step 3, 79 candidates)
+  FFS[pr_auc] fit 240 (step 3, 79 candidates)
+  FFS[pr_auc] step 3: + Thrombus aspiration  holdout=0.3118  Δ=0.06200506326789809
+  FFS[pr_auc] fit 260 (step 4, 78 candidates)
+  FFS[pr_auc] fit 280 (step 4, 78 candidates)
+  FFS[pr_auc] fit 300 (step 4, 78 candidates)
+  FFS[pr_auc] step 4: + Fiberinogen  holdout=0.3079  Δ=-0.003915593146690433
+  FFS[pr_auc] fit 320 (step 5, 77 candidates)
+  FFS[pr_auc] fit 340 (step 5, 77 candidates)
+  FFS[pr_auc] fit 360 (step 5, 77 candidates)
+  FFS[pr_auc] fit 380 (step 5, 77 candidates)
+  FFS[pr_auc] step 5: + eGFR  holdout=0.3106  Δ=0.0026786573823950888
+  FFS[pr_auc] fit 400 (step 6, 76 candidates)
+  FFS[pr_auc] fit 420 (step 6, 76 candidates)
+  FFS[pr_auc] fit 440 (step 6, 76 candidates)
+  FFS[pr_auc] fit 460 (step 6, 76 candidates)
+  FFS[pr_auc] step 6: + Cre  holdout=0.8740  Δ=0.563423723134038
+  FFS[pr_auc] fit 480 (step 7, 75 candidates)
+  FFS[pr_auc] fit 500 (step 7, 75 candidates)
+  FFS[pr_auc] fit 520 (step 7, 75 candidates)
+  FFS[pr_auc] fit 540 (step 7, 75 candidates)
+  FFS[pr_auc] step 7: + PES  holdout=0.9057  Δ=0.03166868922206545
+  FFS[pr_auc] fit 560 (step 8, 74 candidates)
+  FFS[pr_auc] fit 580 (step 8, 74 candidates)
+  FFS[pr_auc] fit 600 (step 8, 74 candidates)
+  FFS[pr_auc] fit 620 (step 8, 74 candidates)
+  FFS[pr_auc] step 8: + Age  holdout=0.9333  Δ=0.027633047810663336
+  FFS[pr_auc] fit 640 (step 9, 73 candidates)
+  FFS[pr_auc] fit 660 (step 9, 73 candidates)
+  FFS[pr_auc] fit 680 (step 9, 73 candidates)
+  FFS[pr_auc] step 9: + HGB  holdout=0.9542  Δ=0.020908004778972367
+  FFS[pr_auc] fit 700 (step 10, 72 candidates)
+  FFS[pr_auc] fit 720 (step 10, 72 candidates)
+  FFS[pr_auc] fit 740 (step 10, 72 candidates)
+  FFS[pr_auc] fit 760 (step 10, 72 candidates)
+  FFS[pr_auc] step 10: + No postdilation  holdout=0.9731  Δ=0.018880122726276594
+  FFS[pr_auc] fit 780 (step 11, 71 candidates)
+  FFS[pr_auc] fit 800 (step 11, 71 candidates)
+  FFS[pr_auc] fit 820 (step 11, 71 candidates)
+  FFS[pr_auc] step 11: + Min-stent diameter  holdout=0.9945  Δ=0.021428571428571463
+  FFS[pr_auc] fit 840 (step 12, 70 candidates)
+  FFS[pr_auc] fit 860 (step 12, 70 candidates)
+  FFS[pr_auc] fit 880 (step 12, 70 candidates)
+  FFS[pr_auc] fit 900 (step 12, 70 candidates)
+  FFS[pr_auc] step 12: + Previous CABG  holdout=1.0000  Δ=0.005494505494505253
+  FFS[pr_auc] stop: holdout pr_auc reached 1.0000 (target=1.0)
+FFS[pr_auc] selected 12 features: ['WBC', 'Staged PCI', 'Thrombus aspiration', 'Fiberinogen', 'eGFR'] ...
+
+Running FFS (TabPFN, holdout=0.2, scoring=f1, k=20, target=1.0) ...
+  FFS[f1] fit 20 (step 1, 81 candidates)
+  FFS[f1] fit 40 (step 1, 81 candidates)
+  FFS[f1] fit 60 (step 1, 81 candidates)
+  FFS[f1] fit 80 (step 1, 81 candidates)
+  FFS[f1] step 1: + WBC  holdout=0.2807  Δ=—
+  FFS[f1] fit 100 (step 2, 80 candidates)
+  FFS[f1] fit 120 (step 2, 80 candidates)
+  FFS[f1] fit 140 (step 2, 80 candidates)
+  FFS[f1] fit 160 (step 2, 80 candidates)
+  FFS[f1] step 2: + Diabetes  holdout=0.3636  Δ=0.08293460925039875
+  FFS[f1] fit 180 (step 3, 79 candidates)
+  FFS[f1] fit 200 (step 3, 79 candidates)
+  FFS[f1] fit 220 (step 3, 79 candidates)
+  FFS[f1] fit 240 (step 3, 79 candidates)
+  FFS[f1] step 3: + Previous CABG  holdout=0.4118  Δ=0.048128342245989275
+  FFS[f1] fit 260 (step 4, 78 candidates)
+  FFS[f1] fit 280 (step 4, 78 candidates)
+  FFS[f1] fit 300 (step 4, 78 candidates)
+  FFS[f1] step 4: + ZES  holdout=0.4118  Δ=0.0
+  FFS[f1] fit 320 (step 5, 77 candidates)
+  FFS[f1] fit 340 (step 5, 77 candidates)
+  FFS[f1] fit 360 (step 5, 77 candidates)
+  FFS[f1] fit 380 (step 5, 77 candidates)
+  FFS[f1] step 5: + Fiberinogen  holdout=0.4167  Δ=0.004901960784313764
+  FFS[f1] fit 400 (step 6, 76 candidates)
+  FFS[f1] fit 420 (step 6, 76 candidates)
+  FFS[f1] fit 440 (step 6, 76 candidates)
+  FFS[f1] fit 460 (step 6, 76 candidates)
+  FFS[f1] step 6: + CKD5  holdout=0.4167  Δ=0.0
+  FFS[f1] fit 480 (step 7, 75 candidates)
+  FFS[f1] fit 500 (step 7, 75 candidates)
+  FFS[f1] fit 520 (step 7, 75 candidates)
+  FFS[f1] fit 540 (step 7, 75 candidates)
+  FFS[f1] step 7: + Current smoker  holdout=0.4545  Δ=0.037878787878787845
+  FFS[f1] fit 560 (step 8, 74 candidates)
+  FFS[f1] fit 580 (step 8, 74 candidates)
+  FFS[f1] fit 600 (step 8, 74 candidates)
+  FFS[f1] fit 620 (step 8, 74 candidates)
+  FFS[f1] step 8: + 2-vessel disease  holdout=0.4000  Δ=-0.05454545454545451
+  FFS[f1] fit 640 (step 9, 73 candidates)
+  FFS[f1] fit 660 (step 9, 73 candidates)
+  FFS[f1] fit 680 (step 9, 73 candidates)
+  FFS[f1] step 9: + P-LAD  holdout=0.4000  Δ=0.0
+  FFS[f1] fit 700 (step 10, 72 candidates)
+  FFS[f1] fit 720 (step 10, 72 candidates)
+  FFS[f1] fit 740 (step 10, 72 candidates)
+  FFS[f1] fit 760 (step 10, 72 candidates)
+  FFS[f1] step 10: + Proximal  holdout=0.4211  Δ=0.021052631578947323
+  FFS[f1] fit 780 (step 11, 71 candidates)
+  FFS[f1] fit 800 (step 11, 71 candidates)
+  FFS[f1] fit 820 (step 11, 71 candidates)
+  FFS[f1] step 11: + Staged PCI  holdout=0.4211  Δ=0.0
+  FFS[f1] fit 840 (step 12, 70 candidates)
+  FFS[f1] fit 860 (step 12, 70 candidates)
+  FFS[f1] fit 880 (step 12, 70 candidates)
+  FFS[f1] fit 900 (step 12, 70 candidates)
+  FFS[f1] step 12: + Min-stent diameter  holdout=0.3636  Δ=-0.0574162679425837
+  FFS[f1] fit 920 (step 13, 69 candidates)
+  FFS[f1] fit 940 (step 13, 69 candidates)
+  FFS[f1] fit 960 (step 13, 69 candidates)
+  FFS[f1] step 13: + Clopidogrel  holdout=0.3529  Δ=-0.010695187165775388
+  FFS[f1] fit 980 (step 14, 68 candidates)
+  FFS[f1] fit 1000 (step 14, 68 candidates)
+  FFS[f1] fit 1020 (step 14, 68 candidates)
+  FFS[f1] fit 1040 (step 14, 68 candidates)
+  FFS[f1] step 14: + LV  holdout=0.3636  Δ=0.010695187165775388
+  FFS[f1] fit 1060 (step 15, 67 candidates)
+  FFS[f1] fit 1080 (step 15, 67 candidates)
+  FFS[f1] fit 1100 (step 15, 67 candidates)
+  FFS[f1] step 15: + UA  holdout=0.4444  Δ=0.08080808080808077
+  FFS[f1] fit 1120 (step 16, 66 candidates)
+  FFS[f1] fit 1140 (step 16, 66 candidates)
+  FFS[f1] fit 1160 (step 16, 66 candidates)
+  FFS[f1] step 16: + 1.1:1Post dilation  holdout=0.5600  Δ=0.11555555555555563
+  FFS[f1] fit 1180 (step 17, 65 candidates)
+  FFS[f1] fit 1200 (step 17, 65 candidates)
+  FFS[f1] fit 1220 (step 17, 65 candidates)
+  FFS[f1] fit 1240 (step 17, 65 candidates)
+  FFS[f1] step 17: + Initial diagnosis-AMI  holdout=0.5926  Δ=0.032592592592592506
+  FFS[f1] fit 1260 (step 18, 64 candidates)
+  FFS[f1] fit 1280 (step 18, 64 candidates)
+  FFS[f1] fit 1300 (step 18, 64 candidates)
+  FFS[f1] step 18: + Moderate/severe tortuosity  holdout=0.5714  Δ=-0.021164021164021163
+  FFS[f1] fit 1320 (step 19, 63 candidates)
+  FFS[f1] fit 1340 (step 19, 63 candidates)
+  FFS[f1] fit 1360 (step 19, 63 candidates)
+  FFS[f1] step 19: + P-LCX  holdout=0.6087  Δ=0.037267080745341685
+  FFS[f1] fit 1380 (step 20, 62 candidates)
+  FFS[f1] fit 1400 (step 20, 62 candidates)
+  FFS[f1] fit 1420 (step 20, 62 candidates)
+  FFS[f1] step 20: + HbA1c  holdout=0.5714  Δ=-0.037267080745341685
+FFS[f1] selected 20 features: ['WBC', 'Diabetes', 'Previous CABG', 'ZES', 'Fiberinogen'] ...
+
+Running FFS (TabPFN, holdout=0.2, scoring=f2, k=20, target=1.0) ...
+  FFS[f2] fit 20 (step 1, 81 candidates)
+  FFS[f2] fit 40 (step 1, 81 candidates)
+  FFS[f2] fit 60 (step 1, 81 candidates)
+  FFS[f2] fit 80 (step 1, 81 candidates)
+  FFS[f2] step 1: + WBC  holdout=0.4167  Δ=—
+  FFS[f2] fit 100 (step 2, 80 candidates)
+  FFS[f2] fit 120 (step 2, 80 candidates)
+  FFS[f2] fit 140 (step 2, 80 candidates)
+  FFS[f2] fit 160 (step 2, 80 candidates)
+  FFS[f2] step 2: + Visual thrombus  holdout=0.4808  Δ=0.0641025641025641
+  FFS[f2] fit 180 (step 3, 79 candidates)
+  FFS[f2] fit 200 (step 3, 79 candidates)
+  FFS[f2] fit 220 (step 3, 79 candidates)
+  FFS[f2] fit 240 (step 3, 79 candidates)
+  FFS[f2] step 3: + CKD60  holdout=0.5495  Δ=0.06868131868131871
+  FFS[f2] fit 260 (step 4, 78 candidates)
+  FFS[f2] fit 280 (step 4, 78 candidates)
+  FFS[f2] fit 300 (step 4, 78 candidates)
+  FFS[f2] step 4: + History of HF  holdout=0.5172  Δ=-0.032209170140204635
+  FFS[f2] fit 320 (step 5, 77 candidates)
+  FFS[f2] fit 340 (step 5, 77 candidates)
+  FFS[f2] fit 360 (step 5, 77 candidates)
+  FFS[f2] fit 380 (step 5, 77 candidates)
+  FFS[f2] step 5: + CKD90  holdout=0.5294  Δ=0.012170385395537497
+  FFS[f2] fit 400 (step 6, 76 candidates)
+  FFS[f2] fit 420 (step 6, 76 candidates)
+  FFS[f2] fit 440 (step 6, 76 candidates)
+  FFS[f2] fit 460 (step 6, 76 candidates)
+  FFS[f2] step 6: + Cardiogenic shock  holdout=0.5172  Δ=-0.012170385395537497
+  FFS[f2] fit 480 (step 7, 75 candidates)
+  FFS[f2] fit 500 (step 7, 75 candidates)
+  FFS[f2] fit 520 (step 7, 75 candidates)
+  FFS[f2] fit 540 (step 7, 75 candidates)
+  FFS[f2] step 7: + Chronic total occlusion  holdout=0.4938  Δ=-0.02341421881651773
+  FFS[f2] fit 560 (step 8, 74 candidates)
+  FFS[f2] fit 580 (step 8, 74 candidates)
+  FFS[f2] fit 600 (step 8, 74 candidates)
+  FFS[f2] fit 620 (step 8, 74 candidates)
+  FFS[f2] step 8: + Men  holdout=0.4321  Δ=-0.06172839506172839
+  FFS[f2] fit 640 (step 9, 73 candidates)
+  FFS[f2] fit 660 (step 9, 73 candidates)
+  FFS[f2] fit 680 (step 9, 73 candidates)
+  FFS[f2] step 9: + HL  holdout=0.5333  Δ=0.10123456790123458
+  FFS[f2] fit 700 (step 10, 72 candidates)
+  FFS[f2] fit 720 (step 10, 72 candidates)
+  FFS[f2] fit 740 (step 10, 72 candidates)
+  FFS[f2] fit 760 (step 10, 72 candidates)
+  FFS[f2] step 10: + Single-vessel disease  holdout=0.4795  Δ=-0.053881278538812805
+  FFS[f2] fit 780 (step 11, 71 candidates)
+  FFS[f2] fit 800 (step 11, 71 candidates)
+  FFS[f2] fit 820 (step 11, 71 candidates)
+  FFS[f2] step 11: + Dissection  holdout=0.5063  Δ=0.026877059129530145
+  FFS[f2] fit 840 (step 12, 70 candidates)
+  FFS[f2] fit 860 (step 12, 70 candidates)
+  FFS[f2] fit 880 (step 12, 70 candidates)
+  FFS[f2] fit 900 (step 12, 70 candidates)
+  FFS[f2] step 12: + Cre  holdout=0.4054  Δ=-0.10092370851864524
+  FFS[f2] fit 920 (step 13, 69 candidates)
+  FFS[f2] fit 940 (step 13, 69 candidates)
+  FFS[f2] fit 960 (step 13, 69 candidates)
+  FFS[f2] step 13: + eGFR  holdout=0.8594  Δ=0.45396959459459457
+  FFS[f2] fit 980 (step 14, 68 candidates)
+  FFS[f2] fit 1000 (step 14, 68 candidates)
+  FFS[f2] fit 1020 (step 14, 68 candidates)
+  FFS[f2] fit 1040 (step 14, 68 candidates)
+  FFS[f2] step 14: + Age  holdout=0.8730  Δ=0.013640873015873023
+  FFS[f2] fit 1060 (step 15, 67 candidates)
+  FFS[f2] fit 1080 (step 15, 67 candidates)
+  FFS[f2] fit 1100 (step 15, 67 candidates)
+  FFS[f2] step 15: + 1.1:1Post dilation  holdout=0.8824  Δ=0.00933706816059754
+  FFS[f2] fit 1120 (step 16, 66 candidates)
+  FFS[f2] fit 1140 (step 16, 66 candidates)
+  FFS[f2] fit 1160 (step 16, 66 candidates)
+  FFS[f2] step 16: + STEMI  holdout=0.9091  Δ=0.0267379679144385
+  FFS[f2] fit 1180 (step 17, 65 candidates)
+  FFS[f2] fit 1200 (step 17, 65 candidates)
+  FFS[f2] fit 1220 (step 17, 65 candidates)
+  FFS[f2] fit 1240 (step 17, 65 candidates)
+  FFS[f2] step 17: + Diabetes  holdout=0.9231  Δ=0.013986013986014068
+  FFS[f2] fit 1260 (step 18, 64 candidates)
+  FFS[f2] fit 1280 (step 18, 64 candidates)
+  FFS[f2] fit 1300 (step 18, 64 candidates)
+  FFS[f2] step 18: + HGB  holdout=0.9375  Δ=0.014423076923076872
+  FFS[f2] fit 1320 (step 19, 63 candidates)
+  FFS[f2] fit 1340 (step 19, 63 candidates)
+  FFS[f2] fit 1360 (step 19, 63 candidates)
+  FFS[f2] step 19: + Aneurysm  holdout=0.9231  Δ=-0.014423076923076872
+  FFS[f2] fit 1380 (step 20, 62 candidates)
+  FFS[f2] fit 1400 (step 20, 62 candidates)
+  FFS[f2] fit 1420 (step 20, 62 candidates)
+  FFS[f2] step 20: + No postdilation  holdout=0.9375  Δ=0.014423076923076872
+FFS[f2] selected 20 features: ['WBC', 'Visual thrombus', 'CKD60', 'History of HF', 'CKD90'] ...
+
+<Figure size 1500x400 with 3 Axes>
+<PNG image>
+<Figure size 1500x600 with 3 Axes>
+<PNG image>
+Saved: tabpfn_fs_ffs_curves.png, tabpfn_fs_ffs_features.png
+
+Feature-set sizes: LOCO pr_auc=20, LOCO f1=20, LOCO f2=20, SHAP pr_auc=20, SHAP f1=20, SHAP f2=20, FFS pr_auc=12, FFS f1=20, FFS f2=20, union=60
+  pr_auc LOCO∩SHAP top-20: 8
+  f1 LOCO∩SHAP top-20: 10
+  f2 LOCO∩SHAP top-20: 10
+Saved: tabpfn_fs_loco_*.csv, tabpfn_fs_shap_*.csv, tabpfn_fs_ffs_*.csv, tabpfn_fs_union.csv
+
+
+########## CELL 41 [markdown] ##########
+### 10.1b How to read the FFS figures
+
+**What FFS does.** Starting from an empty feature set, each step adds the one column that most
+improves a **holdout score** on a stratified 20% slice of `X_train`. TabPFN is refit from scratch
+at every candidate evaluation — this is the most expensive selector but directly optimises model performance.
+
+**Left figure — Learning curves (`tabpfn_fs_ffs_curves.png`)**
+- **One panel per objective:** `pr_auc` (ranking), `f1` (balanced precision/recall), `f2` (recall-leaning).
+- **X-axis:** greedy step (1 = first feature added).
+- **Y-axis:** holdout score after that step. For `f1`/`f2` the holdout threshold is tuned with
+  `select_threshold` on the holdout scores each time — same logic as deployment in §5.
+- **Stop rule:** selection continues step-by-step until the holdout score hits `FFS_TARGET_SCORE`
+  (1.0 for `pr_auc`, `f1`, and `f2`) or `FEATURE_TOPK` is reached — whichever comes first.
+  The dashed horizontal line marks that target on each panel.
+- **Sudden jumps** (e.g. when `Cre` enters) indicate a feature that unlocks a lot of holdout signal,
+  often jointly with features already selected.
+
+**Right figure — Selected features (`tabpfn_fs_ffs_features.png`)**
+- **Bar length:** step at which each feature was chosen (1 = picked first).
+- **Compare panels:** `pr_auc`-FFS favours ranking power; `f2`-FFS may pick features that help recall
+  on the holdout even if PR-AUC is flat. Overlap with LOCO/SHAP lists is informative but not guaranteed —
+  FFS is path-dependent and greedy.
+
+**Caveats.** Holdout scores can hit 1.0 with few positives (optimistic). Always validate on the
+**frozen test set** in §10.2. FFS order matters: a feature picked early for `pr_auc` may differ from
+what LOCO would rank first because FFS sees **joint** contributions.
+
+########## CELL 42 [markdown] ##########
+### 10.2 Refit TabPFN on each subset
+
+For each feature set we drop all other columns from the raw matrices, tune the decision threshold via OOF on `X_train` (same strategy as §5), refit TabPFN on the full training subset, and evaluate on the frozen test set. The **baseline** row reuses the §5 `y_prob` and `THRESHOLD` without refitting.
+
+########## CELL 43 [code] ##########
+def evaluate_feature_subset(name, feat_names):
+    """Tune threshold OOF, refit TabPFN on feat_names subset, return metrics + test scores."""
+    feat_idx = [feature_names.index(f) for f in feat_names]
+    Xtr_sub = X_train[:, feat_idx]
+    Xte_sub = X_test[:, feat_idx]
+
+    print(f"\n[{name}] {len(feat_names)} features — OOF threshold tuning ...")
+    oof_sub = oof_pos_proba(
+        make_tabpfn, Xtr_sub, y_train,
+        n_splits=THRESHOLD_CV_SPLITS, seed=RANDOM_STATE,
+    )
+    thr, thr_info = select_threshold(
+        y_train, oof_sub, strategy=THRESHOLD_STRATEGY, beta=THRESHOLD_BETA,
+        min_precision=MIN_PRECISION, target_recall=TARGET_RECALL,
+    )
+    print(f"[{name}] threshold={thr:.4f} | OOF " +
+          " ".join(f"{k}={v:.3f}" for k, v in thr_info.items()))
+
+    t0 = time.time()
+    m = make_tabpfn(); m.fit(Xtr_sub, y_train)
+    p_test = pos_proba(m, Xte_sub)
+    print(f"[{name}] refit {time.time()-t0:.1f}s | test PR-AUC={average_precision_score(y_test, p_test):.4f}")
+
+    pred = (p_test >= thr).astype(int)
+    metrics = {
+        "variant": name,
+        "n_features": len(feat_names),
+        "threshold": thr,
+        "test_pr_auc": float(average_precision_score(y_test, p_test)),
+        "test_roc_auc": float(roc_auc_score(y_test, p_test)),
+        "test_f1": float(f1_score(y_test, pred, zero_division=0)),
+        "test_f2": float(fbeta_score(y_test, pred, beta=2.0, zero_division=0)),
+        "test_precision": float(precision_score(y_test, pred, zero_division=0)),
+        "test_recall": float(recall_score(y_test, pred, zero_division=0)),
+    }
+    return metrics, p_test
+
+
+fs_rows = []
+fs_test_scores = {}
+
+# Baseline — reuse §5 outputs (no refit)
+pred_base = (y_prob >= THRESHOLD).astype(int)
+fs_rows.append({
+    "variant": "baseline",
+    "n_features": len(feature_names),
+    "threshold": THRESHOLD,
+    "test_pr_auc": float(average_precision_score(y_test, y_prob)),
+    "test_roc_auc": float(roc_auc_score(y_test, y_prob)),
+    "test_f1": float(f1_score(y_test, pred_base, zero_division=0)),
+    "test_f2": float(fbeta_score(y_test, pred_base, beta=2.0, zero_division=0)),
+    "test_precision": float(precision_score(y_test, pred_base, zero_division=0)),
+    "test_recall": float(recall_score(y_test, pred_base, zero_division=0)),
+})
+fs_test_scores["baseline"] = y_prob.copy()
+print(f"[baseline] all {len(feature_names)} features — reusing §5 y_prob (no refit)")
+
+variant_lists = [("baseline", None)]
+for metric in LOCO_SCORINGS:
+    variant_lists.append((f"loco_{metric}", loco_topk[metric]))
+for metric in SHAP_SCORINGS:
+    variant_lists.append((f"shap_{metric}", shap_topk[metric]))
+for scoring in FFS_SCORINGS:
+    variant_lists.append((f"ffs_{scoring}", ffs_results[scoring][0]))
+variant_lists.append(("union", union_features))
+
+for variant_name, feat_list in variant_lists:
+    if variant_name == "baseline":
+        continue
+    metrics, scores = evaluate_feature_subset(variant_name, feat_list)
+    fs_rows.append(metrics)
+    fs_test_scores[variant_name] = scores
+
+---OUT---
+[baseline] all 81 features — reusing §5 y_prob (no refit)
+
+[loco_pr_auc] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[loco_pr_auc] threshold=0.9504 | OOF precision=0.932 recall=0.641 f1=0.759 f1.5=0.709
+[loco_pr_auc] refit 1.0s | test PR-AUC=0.5933
+
+[loco_f1] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[loco_f1] threshold=0.9801 | OOF precision=0.851 recall=0.625 f1=0.721 f1.5=0.681
+[loco_f1] refit 1.0s | test PR-AUC=0.5969
+
+[loco_f2] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[loco_f2] threshold=0.9554 | OOF precision=0.774 recall=0.641 f1=0.701 f1.5=0.676
+[loco_f2] refit 1.3s | test PR-AUC=0.7005
+
+[shap_pr_auc] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[shap_pr_auc] threshold=0.7970 | OOF precision=0.151 recall=0.406 f1=0.220 f1.5=0.267
+[shap_pr_auc] refit 1.0s | test PR-AUC=0.1725
+
+[shap_f1] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[shap_f1] threshold=0.9653 | OOF precision=0.909 recall=0.625 f1=0.741 f1.5=0.691
+[shap_f1] refit 1.0s | test PR-AUC=0.7368
+
+[shap_f2] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[shap_f2] threshold=0.8910 | OOF precision=0.595 recall=0.688 f1=0.638 f1.5=0.656
+[shap_f2] refit 1.0s | test PR-AUC=0.6543
+
+[ffs_pr_auc] 12 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[ffs_pr_auc] threshold=0.9900 | OOF precision=0.953 recall=0.641 f1=0.766 f1.5=0.713
+[ffs_pr_auc] refit 0.9s | test PR-AUC=0.6768
+
+[ffs_f1] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[ffs_f1] threshold=0.7178 | OOF precision=0.145 recall=0.641 f1=0.236 f1.5=0.312
+[ffs_f1] refit 1.0s | test PR-AUC=0.2359
+
+[ffs_f2] 20 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[ffs_f2] threshold=0.9455 | OOF precision=0.913 recall=0.656 f1=0.764 f1.5=0.718
+[ffs_f2] refit 1.0s | test PR-AUC=0.7468
+
+[union] 60 features — OOF threshold tuning ...
+  OOF fold 1/10
+  OOF fold 2/10
+  OOF fold 3/10
+  OOF fold 4/10
+  OOF fold 5/10
+  OOF fold 6/10
+  OOF fold 7/10
+  OOF fold 8/10
+  OOF fold 9/10
+  OOF fold 10/10
+[union] threshold=0.8366 | OOF precision=0.495 recall=0.781 f1=0.606 f1.5=0.663
+[union] refit 1.3s | test PR-AUC=0.8086
+
+
+########## CELL 44 [markdown] ##########
+### 10.3 Head-to-head comparison
+
+Leaderboard of all variants (baseline + LOCO×3 + SHAP×3 + FFS×3 + union), sorted by test PR-AUC.
+Includes PR-curve overlay and a summary bar chart of feature count vs performance.
+
+
+########## CELL 45 [code] ##########
+from sklearn.metrics import precision_recall_curve as _prc_fs
+
+fs_comparison_df = (
+    pd.DataFrame(fs_rows)
+    .sort_values("test_pr_auc", ascending=False)
+    .reset_index(drop=True)
+)
+for c in ["threshold", "test_pr_auc", "test_roc_auc", "test_f1", "test_f2",
+          "test_precision", "test_recall"]:
+    fs_comparison_df[c] = fs_comparison_df[c].round(4)
+fs_comparison_df.to_csv(RESULT_DIR / "tabpfn_fs_comparison.csv", index=False)
+
+print("Feature-selection comparison (sorted by test PR-AUC):")
+display(fs_comparison_df)
+
+winner = fs_comparison_df.iloc[0]
+baseline_pr = float(fs_comparison_df.loc[fs_comparison_df["variant"] == "baseline", "test_pr_auc"].iloc[0])
+winner_pr = float(winner["test_pr_auc"])
+delta = winner_pr - baseline_pr
+
+# Smallest subset within 2% of baseline PR-AUC (relative)
+within_2pct = fs_comparison_df[
+    (fs_comparison_df["test_pr_auc"] >= baseline_pr * 0.98) &
+    (fs_comparison_df["variant"] != "baseline")
+].sort_values("n_features")
+if len(within_2pct):
+    compact = within_2pct.iloc[0]
+    print(f"\nSmallest subset within 2% of baseline PR-AUC: {compact['variant']} "
+          f"({int(compact['n_features'])} features, test PR-AUC={compact['test_pr_auc']:.4f})")
+else:
+    print("\nNo subset reached within 2% of baseline test PR-AUC.")
+
+print(
+    f"\nWinner: {winner['variant']}  (test PR-AUC={winner_pr:.4f}, "
+    f"n_features={int(winner['n_features'])}, delta vs baseline={delta:+.4f})"
+)
+
+# --- PR curve overlay ---
+plt.figure(figsize=(8, 6))
+for name, scores in fs_test_scores.items():
+    prec, rec, _ = _prc_fs(y_test, scores)
+    ap = average_precision_score(y_test, scores)
+    is_winner = name == winner["variant"]
+    plt.plot(rec, prec,
+             lw=2.6 if is_winner else 1.4,
+             ls="-" if is_winner else "--",
+             alpha=1.0 if is_winner else 0.85,
+             label=f"{name} (AP={ap:.3f}, d={fs_comparison_df.loc[fs_comparison_df['variant']==name,'n_features'].iloc[0]:.0f})")
+plt.xlabel("Recall"); plt.ylabel("Precision")
+plt.title("PR curves: baseline vs feature-selection subsets (test)")
+plt.legend(loc="best", fontsize=8)
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_fs_pr_curve.png", dpi=150)
+plt.show()
+
+# --- Summary bar chart ---
+fig, ax1 = plt.subplots(figsize=(8, 4.5))
+x = np.arange(len(fs_comparison_df))
+colors = ["#c2272f" if v == winner["variant"] else "#2c7fb8"
+          for v in fs_comparison_df["variant"]]
+ax1.bar(x, fs_comparison_df["test_pr_auc"], color=colors, alpha=0.85, label="test PR-AUC")
+ax1.axhline(baseline_pr, color="k", ls=":", lw=1.0, label=f"baseline PR-AUC={baseline_pr:.3f}")
+ax1.set_xticks(x)
+ax1.set_xticklabels(fs_comparison_df["variant"], rotation=15)
+ax1.set_ylabel("test PR-AUC")
+ax1.set_ylim(0, max(fs_comparison_df["test_pr_auc"].max() * 1.15, 0.1))
+ax1.legend(loc="upper right", fontsize=8)
+
+ax2 = ax1.twinx()
+ax2.plot(x, fs_comparison_df["n_features"], "o--", color="#d95f0e", lw=1.5, markersize=7, label="n_features")
+ax2.set_ylabel("# features")
+ax2.legend(loc="center right", fontsize=8)
+plt.title("Feature count vs test PR-AUC per variant")
+plt.tight_layout()
+plt.savefig(RESULT_DIR / "tabpfn_fs_summary.png", dpi=150)
+plt.show()
+
+print("Saved:", RESULT_DIR / "tabpfn_fs_comparison.csv")
+print("       ", RESULT_DIR / "tabpfn_fs_pr_curve.png")
+print("       ", RESULT_DIR / "tabpfn_fs_summary.png")
+---OUT---
+Feature-selection comparison (sorted by test PR-AUC):
+
+        variant  n_features  threshold  test_pr_auc  test_roc_auc  test_f1  \
+0      baseline          81     0.8811       0.8180        0.9911   0.7547   
+1         union          60     0.8366       0.8086        0.9847   0.7333   
+2        ffs_f2          20     0.9455       0.7468        0.9772   0.7234   
+3       shap_f1          20     0.9653       0.7368        0.9781   0.7273   
+4       loco_f2          20     0.9554       0.7005        0.9775   0.6667   
+5    ffs_pr_auc          12     0.9900       0.6768        0.9572   0.6341   
+6       shap_f2          20     0.8910       0.6543        0.9804   0.5283   
+7       loco_f1          20     0.9801       0.5969        0.9611   0.6364   
+8   loco_pr_auc          20     0.9504       0.5933        0.9172   0.6364   
+9        ffs_f1          20     0.7178       0.2359        0.9234   0.2667   
+10  shap_pr_auc          20     0.7970       0.1725        0.9171   0.2182   
+
+    test_f2  test_precision  test_recall  
+0    0.7299          0.8000       0.7143  
+1    0.7639          0.6875       0.7857  
+2    0.6489          0.8947       0.6071  
+3    0.6250          1.0000       0.5714  
+4    0.5814          0.8824       0.5357  
+5    0.5200          1.0000       0.4643  
+6    0.5109          0.5600       0.5000  
+7    0.5469          0.8750       0.5000  
+8    0.5469          0.8750       0.5000  
+9    0.4110          0.1682       0.6429  
+10   0.3093          0.1463       0.4286  
+
+Smallest subset within 2% of baseline PR-AUC: union (60 features, test PR-AUC=0.8086)
+
+Winner: baseline  (test PR-AUC=0.8180, n_features=81, delta vs baseline=+0.0000)
+
+<Figure size 800x600 with 1 Axes>
+<PNG image>
+<Figure size 800x450 with 2 Axes>
+<PNG image>
+Saved: /kaggle/working/modeling_tabpfn/tabpfn_fs_comparison.csv
+        /kaggle/working/modeling_tabpfn/tabpfn_fs_pr_curve.png
+        /kaggle/working/modeling_tabpfn/tabpfn_fs_summary.png
+
+
+########## CELL 46 [markdown] ##########
+## 11. Notes
+
+- **Regression.** For a continuous target, swap `TabPFNClassifier` → `TabPFNRegressor` (`from tabpfn import
+  TabPFNRegressor`), drop the threshold/`balance_probabilities` logic, and score with RMSE / R². LOCO and the
+  masked-forward-pass SHAP transfer directly (use the regressor's `predict` in `predict_fn`).
+- **Scaling up (TabPFN-3).** For very large tables (up to ~1M rows) use the **v3** engine, which adds
+  **row-chunking** and a **compact KV-cache** for memory; v2.5 (used here) is sufficient for VLST.
+- **Why no manual preprocessing.** TabPFN was pretrained to handle messy, heterogeneous, partially-missing
+  tabular data, so external scaling / one-hot encoding tends to hurt rather than help.
+- **Cost of interpretability.** LOCO is `O(n_features)` forward passes; permutation SHAP is
+  `O(n_perm × k)` forward passes. Both are cheap relative to retraining a gradient-boosted model, which is the
+  whole point of a training-free model. Increase `SHAP_N_PERM` / `SHAP_N_INSTANCES` on GPU for tighter estimates.
+- **Kaggle.** See **§0**. Prefer **GPU + local TabPFN** (`USE_TABPFN_CLIENT=False` is set automatically when
+  CUDA is available). Outputs land in `/kaggle/working/modeling_tabpfn/`. If you must use the cloud client,
+  raise `LOCO_MAX_FEATURES` gradually — each LOCO step triggers a separate API fit.

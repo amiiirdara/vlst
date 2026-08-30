@@ -1,5 +1,5 @@
 Feature,Stats FDR,Stats multivariable,ML consensus,ML frequent,Set
-Fiberinogen,Yes,No,Yes,No,Both (FDR ∩ ML consensus)
+Fiberinogen,Yes,No,Yes,Yes,Both (FDR ∩ ML consensus)
 LV,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
 Previous PCI,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
 WBC,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
@@ -7,18 +7,18 @@ eGFR,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
 CaI,No,No,Yes,Yes,ML consensus only
 Cre,No,No,Yes,Yes,ML consensus only
 Current drinking,No,No,Yes,Yes,ML consensus only
-Fast-Glu,No,No,Yes,No,ML consensus only
+Fast-Glu,No,No,Yes,Yes,ML consensus only
 HGB,No,No,Yes,Yes,ML consensus only
 HL,No,No,Yes,Yes,ML consensus only
 History of HF,No,No,Yes,Yes,ML consensus only
 Hypertension,No,No,Yes,Yes,ML consensus only
 LVEF,No,No,Yes,Yes,ML consensus only
 Men,No,No,Yes,Yes,ML consensus only
-Min-stent diameter,No,No,Yes,No,ML consensus only
+Min-stent diameter,No,No,Yes,Yes,ML consensus only
 Platelet,No,No,Yes,Yes,ML consensus only
 STEMI,No,No,Yes,Yes,ML consensus only
-TCL,No,No,Yes,No,ML consensus only
-TG,No,No,Yes,No,ML consensus only
+TCL,No,No,Yes,Yes,ML consensus only
+TG,No,No,Yes,Yes,ML consensus only
 Chronic renal insufficiency,No,No,No,Yes,ML frequent only
 HDL,No,No,No,Yes,ML frequent only
 History of peripheral vascular disease,No,No,No,Yes,ML frequent only
