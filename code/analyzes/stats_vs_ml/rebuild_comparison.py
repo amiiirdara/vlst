@@ -195,7 +195,7 @@ STATS_ONLY_WHY = {
     "Clopidogrel": "Full-cohort medication association; weak on a 28-event hold-out ranking task",
     "Diabetes": "Univariate FDR; multivariable CI includes 1; trees may split on labs instead",
     "PES": "Stent-polymer binary; collinear with Stent type-SES",
-    "Stent type-SES": "Multi-level factor; one-hot encoding splits the signal across rare dummy columns",
+    "Stent type-SES": "9-level brand (shared encoder). Older ML runs one-hot the raw 106 strings and fragment the χ² signal",
 }
 
 ML_ONLY_WHY = {
@@ -232,7 +232,7 @@ BUCKET = {
     "Single-vessel disease": "Collinear family (stats-only)",
     "NO.of vessels": "Collinear family (stats-only)",
     "PES": "Collinear family (stats-only)",
-    "Stent type-SES": "One-hot fragmentation",
+    "Stent type-SES": "Brand encoding (9-level vs raw 106 one-hot on older ML runs)",
     "No.of stents per lesion": "Not in LOCO pool / weak for top-12",
     "Total stent length": "Not in LOCO pool / weak for top-12",
     "HbA1c": "Not in LOCO pool / weak for top-12",

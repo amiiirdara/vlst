@@ -16,7 +16,7 @@ explicitly.
 **Revision 4.** Paper-style Markdown reports (both trees + `paper_results/paper_results.md`) were aligned to the
 *code* on methodology. Imputers are described as inert (no missing values). Part 4 now states the unequal
 feature view (classics ~186 scaled one-hot columns vs TabPFN raw 81) and that GridSearch winners are not
-imported. Part 5 now states MI/SFS = full cohort, SHAP = 15 VLST cases by construction, shapiq `imputer` ≠
+imported. Part 5 now states MI/SFS/SHAP = full cohort (the 15-row all-case SHAP slice is removed), shapiq `imputer` ≠
 NaN fill, and `balance_probabilities=True` (not absolute risk). Part 2/3 now distinguish the **prior reduced export**
 (column-order LOCO pool; 87.5% SHAP sample) from the **paper-protocol selector code** (full-cohort fit/val;
 independent cheap-importance pools; PR-AUC only; no unused outer test; no smoke switch). Part 3 no longer says the LVEF adjusted OR “persists.” Exported Part 4 PNGs remain **[STALE]** for
@@ -583,18 +583,14 @@ input (imputers in that transformer are inert). See §6.4. **[REV4]** disclosed 
 | Mutual information  | `mutual_info_classif` on the median-imputed 81-column matrix, **full cohort**        | sklearn, 0 TabPFN calls           | Part 5 Table 0                                  |
 | Stability selection | Forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, **full cohort**   | local TabPFN, ~8.6 h              | `.nbdump/…tabpfn_interpretability.txt` L604–626 |
 | PDP                 | 4 continuous (grid 30) + 6 binary (0 vs 1); fit on 70% train, evaluated on the frame | local TabPFN                      | L755–797                                        |
-| SHAP (shapiq SV)    | **15 explained rows**, budget 256, baseline imputer                                  | local TabPFN after client failure | L1042–1130                                      |
-| k-SII / SHAP-IQ     | **one** row (`X_explain[0]`), budget 256                                             | local TabPFN after client failure | L1213                                           |
+| SHAP (shapiq SV)    | **Full cohort** (`X_all`, `y_all`), budget 256, baseline imputer — same pool as FFS  | local / client; **not yet re-run** | `tabpfn_interpretability.ipynb` [3/5]           |
+| k-SII / SHAP-IQ     | **one** illustrative row (`X_all[0]`), budget 256 — not a VLST=1 pick                | local / client; **not yet re-run** | `tabpfn_interpretability.ipynb` [3/5] and [4/5] |
 | Consensus           | Borda mean of normalised ranks over MI + stability + mean                            | SHAP                              |                                                 |
 
 
-**[CRITICAL — the 15 SHAP rows are all VLST cases]** The explained set is built as
-`_order = np.concatenate([_pos_idx, _neg_idx])[:15]` on a stratified 30% test split (L1056–1060). With
-`TEST_SIZE = 0.3` and 92 events, the test split holds **28 positives**, so the first 15 entries of `_order` are
-**15 positive-class rows and zero controls**, by construction. This is **explanation**, not feature selection:
-MI and stability SFS use `X_all`, `y_all` (both classes).
-
-**[REV4]** Part 5 captions now state “15 VLST cases; no controls.” Keep that wording in any paper figure list.
+**[FIXED in code]** `SHAP_N_EXPLAIN` and the positive-first `[:15]` slice are removed. SHAP now fits and
+explains the same full cohort as MI / stability SFS. Stored Part 5 SHAP PNGs / Table 4 remain the **old 15-case
+run** until [3/5] is re-executed. k-SII is still one row (row 0 of `X_all`), not a case-enriched pick.
 
 **[CRITICAL — PDP values are on a balanced-prior scale, not absolute risk]** Every TabPFN instantiation in Part 5
 uses `balance_probabilities=True` (L610, L774, L1067, L1087, L1107, L1415…). That rescales outputs to a uniform
@@ -1472,34 +1468,37 @@ All three are labelled "Univariate OR". Three different estimators are in use (2
 class-weighted logistic, unweighted logistic) without any of the tables saying so. Pick one estimator, or label
 each column with its estimator.
 
-### 12.5 [DISCREPANCY] `Stent type-SES` is encoded two incompatible ways
+### 12.5 [DISCREPANCY] `Stent type-SES` encoding — **code unified; stored runs still old**
+
+**[REV4+]** All in-scope notebooks now call `code/modeling/tools/stent_encoding.py`: canonicalize
+aliases, collapse n < 30 → `other` (**9 levels**), keep the column name `Stent type-SES`.
+`PES` / `ZES` / `EVS` stay as the drug-class partition (Wang's published SES rates match `PES`).
+Part 5 continuous PDP **excludes** the brand column (nominal, not a dose axis).
+
+Stored Part 2/4/5 figures and the 185-column smoke matrices are still the **pre-unification**
+exports until those notebooks are re-run. After re-run, classics one-hot 9 brands (~8 dummies
+with `drop="first"`), not 106 raw strings.
 
 
-| Notebook                                   | Handling                                                        | Resulting width        |
-| ------------------------------------------ | --------------------------------------------------------------- | ---------------------- |
-| `eda.ipynb`                                | Collapse levels with n < 30 to `other` → **9 levels**; one χ²   | 9                      |
-| `preprocessing.ipynb`                      | Canonicalise brands, collapse rare → **9 categories** → one-hot | 88 total features      |
-| `baseline_feature_selections.ipynb`        | One-hot the **raw 106 strings** directly, no canonicalisation   | **185 total features** |
-| `baseline_plus_tabpfn.ipynb` (classic arm) | One-hot the raw strings via ColumnTransformer                   | ~186                   |
-| `baseline_plus_tabpfn.ipynb` (TabPFN arm)  | Native categorical, no encoding                                 | 81                     |
-| `tabpfn_interpretability.ipynb`            | Integer codes, treated as **numeric**                           | 81                     |
+| Notebook                                   | Code now                                                        | Stored width (until re-run) |
+| ------------------------------------------ | --------------------------------------------------------------- | --------------------------- |
+| `eda.ipynb`                                | Shared 9-level encoder at load                                  | 9 (already)                 |
+| `preprocessing.ipynb`                      | Same encoder; column name kept; then OHE                        | 88 if last run used `stent_brand` |
+| `baseline_feature_selections.ipynb`        | Shared encoder, then OHE the 9 levels                           | **185** (old)               |
+| `baseline_plus_tabpfn.ipynb` (classic arm) | Shared encoder, then ColumnTransformer OHE                      | ~186 (old)                  |
+| `baseline_plus_tabpfn.ipynb` (TabPFN arm)  | Same 9-level column, native/categorical                         | 81 (old 106-level codes)    |
+| `tabpfn_interpretability.ipynb`            | 9-level codes; brand dropped from continuous PDP                | 81; Fig 1 still sweeps codes |
 
 
-Part 3 attributes `Stent type-SES`'s absence from the ML consensus to "one-hot fragmentation" (L136, L144) —
-correct, but the fragmentation is a **choice made in one notebook and not in the others**, not a property of the
-variable. Also note that in Part 5 the integer coding means the PDP for `Stent type-SES` sweeps an **arbitrary
-brand ordering as if it were a continuous scale** (Part 5 Figure 1 describes it as "nearly flat across its coded
-range"), which is not a meaningful operation for a nominal variable.
-
-The `preprocessing.ipynb` artefacts (`X_train.npy`, `preprocessor.joblib`, 88 features) are **not used by any of
-the five reported analyses**.
+The `preprocessing.ipynb` artefacts (`X_train.npy`, `preprocessor.joblib`) are used only by the
+TSSI scout notebooks. Re-run preprocessing before those scouts if you want matching brand dummies.
 
 ### 12.6 [CRITICAL] Interpretability claims that overreach their sample
 
 
 | Claim                                                                             | Actual basis                                                                                                                                                                                                                    | Required restatement                                                                                                                                                                           |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance            | **15 rows, all of them VLST cases** (§5.9)                                                                                                                                                                                      | **[REV4]** Captions now say 15 VLST cases / not a population measure. Keep that wording in the paper.                                                                                          |
+| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance            | **Code:** full cohort. **Stored PNGs:** old 15-case run (§5.9)                                                                                                                                                                  | Re-run [3/5]; until then captions are marked **[STALE]**.                                                                                                                                     |
 | Part 5 Figures 8, 9, 11, 12 — "dominant pairwise terms" among LV/WBC/eGFR/LDL     | **One** positive-class patient, budget 256                                                                                                                                                                                      | Already flagged in the text (L223) — keep and strengthen. These are **not** cohort interactions. The only cohort-level interaction evidence in the repository is the 16-pair LR screen (§7.6). |
 | Part 5 Figure 1: "predicted risk … rises steeply toward ~0.6"; Table 3: "P(y=1    | 0) = 0.2430"                                                                                                                                                                                                                    | `balance_probabilities=True` — a **uniform-prior** rescaling; true prevalence is 0.0177                                                                                                        |
 | Part 5 Table 5: `Cre` and `No.of stents per lesion` with `mutual_info = 0.000000` | Imputed zeros for features outside the MI top-15                                                                                                                                                                                | **[REV4]** Table 5 caption now says these are fill zeros, not measured zeros.                                                                                                                  |
@@ -1636,7 +1635,7 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")  | **[REV4/closed in reports]** Replaced with a note that the notebook *did* print those tables; CSVs are uncommitted; PNGs are mixed stale/current.                                                                                                              |
 | **C4**  | Part 4 Tables 2–3 operating point                                                         | **[REV4/closed in reports]** Text now labels the PNG as optimistic pooled F1 and quotes the honest nested counts. Keep both, labelled.                                                                                                                         |
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
-| **C6**  | Every Part 5 SHAP caption (Figures 3, 5, 6, 7; Table 4)                                   | **[REV4/closed in reports]** Captions now say 15 VLST cases / not a population measure.                                                                                                                                                                        |
+| **C6**  | Every Part 5 SHAP caption (Figures 3, 5, 6, 7; Table 4)                                   | **Code fixed:** full-cohort SHAP. Reports marked **[STALE]** until re-run. Do not keep “15 VLST cases” as the protocol.                                                                                                                                          |
 | **C7**  | Every Part 5 PDP caption (Figures 1, 2; Table 3)                                          | **[REV4/closed in reports]** Methods note + Table 3: balanced-prior, not absolute risk.                                                                                                                                                                        |
 | **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
 | **C9**  | Part 5 Table 5 caption                                                                    | **[REV4/closed in reports]** Caption now says MI 0.0 for `Cre` / `No.of stents per lesion` are fill zeros.                                                                                                                                                     |

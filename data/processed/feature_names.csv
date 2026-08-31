@@ -79,11 +79,11 @@ Aspirin
 Clopidogrel
 Ticagrelor
 DAPT
-stent_brand_firebird
-stent_brand_other
-stent_brand_partner
-stent_brand_resolute
-stent_brand_tivoli
-stent_brand_xiencev
-stent_brand_xv
-stent_brand_xx
+Stent type-SES_firebird
+Stent type-SES_other
+Stent type-SES_partner
+Stent type-SES_resolute
+Stent type-SES_tivoli
+Stent type-SES_xiencev
+Stent type-SES_xv
+Stent type-SES_xx
