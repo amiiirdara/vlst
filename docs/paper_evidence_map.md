@@ -83,7 +83,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | **D4** | **The Markdown reports remain part of the analysis and are read on their merits — but where a report and the code disagree, the code is authoritative.**                                                                                                                                         | Every `[DISCREPANCY]` below now carries an explicit resolution. Reports still count as the source for *reasoning, framing and caveats*; the notebooks are the source for *values*. |
 
 
-### 0.2 The seven in-scope notebooks
+### 0.2 In-scope notebooks
 
 
 | #   | Notebook                                                      | Written up as | Export status                              |
@@ -95,6 +95,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | 5   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 supp.  | stored metrics → Table S-TSSI              |
 | 6   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 supp.  | stored metrics → Table S-TSSI              |
 | 7   | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | artefacts unused by any analysis (§12.5)   |
+| 8   | `modeling/rating/wang_vlst_score.ipynb`                       | Part 4 supp.  | frozen Wang integer score → Table S-Wang   |
 
 
 Eleven notebooks on disk are excluded by D1–D2 and are not audited (ten under `failed_hypothesis/`, plus `tabpfn_playground.ipynb`). D4 is a reading rule, not an exclusion.
@@ -145,7 +146,7 @@ high risk of VLST so that intensive follow-up and treatment choices after year 1
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | VLST definition          | Thrombosis **> 1 year** after stent implantation; **ARC 2007 definite ST**, angiographically confirmed                                                  | Cite; this is our target (§2.3)                                                                   |
 | Why it matters           | ~20% of new MI after index PCI; adjusted mortality **4-fold** higher than MI unrelated to a previously stented site                                     | Cite Lemesle et al. via Wang                                                                      |
-| Existing score           | Dangas LST score (2012) also used for VLST, **c-statistic 0.66**; Wang's own 8-variable Cox score **c = 0.80 / 0.82** (derivation / Shantou validation) | The natural comparator this ML paper must beat (§13 B10). Do not write as if no VLST score exists |
+| Existing score           | Dangas LST score (2012) also used for VLST, **c-statistic 0.66**; Wang's own 8-variable Cox score **c = 0.80 / 0.82** (derivation / Shantou validation) | Frozen integer points now scored on these 5,185 rows (Part 4 S-Wang; §5.10). Do not write as if no VLST score exists |
 | Intended user / decision | Risk-stratify after PCI; inform monitoring and therapy **more than 1 year** after the index procedure                                                   | Keep; our models are the same clinical task on the same patients                                  |
 | Pre-registration         | Cohort study **NCT03491891**; ethics NO. 2013-256, both hospitals                                                                                       | The *cohort* was pre-registered. The TabPFN analysis was not. Do not imply otherwise              |
 
@@ -286,7 +287,7 @@ in these three columns.
 | `Vessel dialation`                             | Misspelling of "dilatation" / ectasia. Wang: "Vessel ectasia".                                                                                                                                                                                                                                                                                                                                                                    |
 | `Stent release pressure`                       | **Solved.** Wang: **atm**, 13.95 ± 2.99 vs 13.93 ± 2.80.                                                                                                                                                                                                                                                                                                                                                                          |
 | `Aspirin`, `Clopidogrel`, `Ticagrelor`, `DAPT` | **Mostly solved.** All patients received DAPT for **at least one year**. Continuation after year 1 was at the treating physician's discretion. Wang Table 1 "DAPT" is **DAPT during follow-up** (44.37% vs 38.04%, p = 0.226) — i.e. persistence beyond the mandated year, **not** a baseline discharge prescription. These four columns are **post-baseline** and must not be treated as index-PCI covariates without saying so. |
-| `Stent type-SES`                               | **Partially solved, encoding still a mess.** Wang treated SES as a **binary class flag** (sirolimus-eluting stent; 68.76% vs 82.61%). In this repository the same column holds **106 free-text brand strings**. Wang's published analysis used the collapsed class; our notebooks do not (§12.5).                                                                                                                                 |
+| `Stent type-SES`                               | **Partially solved, encoding still a mess.** Wang treated SES as a **binary class flag** (sirolimus-eluting stent; 68.76% vs 82.61%). In this repository the same column holds **106 free-text brand strings**. `wang_vlst_score.ipynb` uses the **`PES` flag**, whose counts match Wang Table 1 SES. Part 1/2 use a 9-level encoder; stored Part 4/5 still one-hot the raw strings (§12.5). |
 | **Laboratory and echo timing**                 | **Narrowed, not closed.** See §4.3.                                                                                                                                                                                                                                                                                                                                                                                               |
 
 
@@ -469,6 +470,7 @@ protocol paragraph.
 | Classic-ML feature selection         | `code/modeling/interpretability/baseline_feature_selections.ipynb`                   | Part 2                                 |
 | Stats-vs-ML comparison               | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`                              | Part 3                                 |
 | Nested-CV baselines + TabPFN         | `code/modeling/rating/baseline_plus_tabpfn.ipynb`                                    | Part 4                                 |
+| Wang 2020 integer score (frozen)     | `code/modeling/rating/wang_vlst_score.ipynb`                                         | Part 4 Table S-Wang                    |
 | TabPFN interpretability              | `code/modeling/interpretability/tabpfn_interpretability.ipynb`                       | Part 5                                 |
 | Leaky baselines (with TSSI)          | `code/modeling/rating/baseline_tssi_leakage.ipynb`                                   | Part 4 Table S-TSSI                    |
 | Baselines without TSSI, single split | `code/modeling/rating/baseline_without_tssi.ipynb`                                   | Part 4 Table S-TSSI                    |
@@ -604,13 +606,31 @@ wording; **[TODO-PDP]** remains only if a paper draft still quotes 0.24 as absol
 Verified: `balance_probabilities=True` appears at L610, L774, L1067, L1087, L1107, L1415, L1433 and L1453 — every
 TabPFN instantiation in the notebook, with no exceptions.
 
-### 5.10 The published clinical baseline is not in this repository
+### 5.10 The published clinical baseline — integer score now scored **[CLOSED]**
 
 Wang 2020's VLST score is an 8-variable Cox model (DM, previous PCI, AMI as admitting diagnosis, eGFR < 90,
 3-vessel disease, number of stents per lesion, SES, no post-dilation), derivation c-statistic 0.80 (cross-validated
-0.75), Shantou c-statistic 0.82, with decision-curve analysis against the Dangas LST score. **None of that model,
-its linear predictor, or its score points is implemented in any in-scope notebook.** The ML comparison is currently
-TabPFN vs untuned sklearn defaults, not TabPFN vs the score already published on these patients. **[TODO-SCORE]**
+0.75), Shantou c-statistic 0.82, with decision-curve analysis against the Dangas LST score.
+
+**Now in-scope.** `code/modeling/rating/wang_vlst_score.ipynb` scores the **published Table 2 integer points**
+on all 5,185 rows (frozen; not a nested-CV fit). Encoding: SES → `PES` (matches Wang Table 1 SES 82.61% / 68.76%);
+4 post-dilation points → `No postdilation` = 1. Using Wang Table 1's 14 VLST "No post-dilation" cases
+(`1.1:1Post dilation` = 1) as the 4-point group yields ROC-AUC 0.5084.
+
+| Quantity | Value | Source |
+| --- | ---: | --- |
+| Full-cohort ROC-AUC | **0.8013** | notebook (Wang published c = 0.80) |
+| Full-cohort PR-AUC | **0.1032** | notebook |
+| Fold-mean ROC-AUC | 0.8005 ± 0.0607 | same 5 outer folds as Part 4; score not refit |
+| Fold-mean PR-AUC | 0.1134 ± 0.0518 | same |
+| Nested-CV TabPFN ROC / PR | 0.9883 / **0.8534** | Part 4 notebook (D4) |
+| Nested-CV CatBoost ROC / PR | 0.9704 / 0.6967 | Part 4 notebook (D4) |
+
+Risk bins (≤7 / 8–9 / ≥10): n = 3135 / 1577 / 473; rates 0.51% / 2.22% / 8.67%. Wang's printed intermediate n = 1837
+does not add (3135+1837+473 = 5445 ≠ 5185); low and high n match this file.
+
+**Still absent (not B10):** the Cox linear predictor itself, Dangas decision-curve analysis, and the Shantou file
+(B11). Reports: Part 4 Table S-Wang / Figure S-Wang (both trees + concat).
 
 ---
 
@@ -682,7 +702,7 @@ for attribution), also now labelled in that report.
 
 ### 6.5 Threshold reporting: honest and optimistic versions both exist
 
-The notebook computes both. The paper tables report the optimistic one.
+The notebook computes both. Part 4 **Table 2 quotes the honest nested print.** Figure 3 / Table 3 remain the optimistic pooled cut, labelled as biased.
 
 
 | Version                 | How the threshold is chosen                                                                                       | TabPFN result                                                                                         |
@@ -694,10 +714,7 @@ The notebook computes both. The paper tables report the optimistic one.
 Sources: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L831 (`t_f1 = best_fbeta_threshold(y_true_oof, …)`),
 L1010–1026 (nested block), L992–1008 (pooled block).
 
-Part 4 discloses that the pooled threshold is used ("a single operating point for the comparison table, not the
-nested inner-fold thresholds", L89) but does not say that this makes precision/recall/F1/F2 optimistically biased,
-and does not report the honest nested numbers at all. The honest numbers are lower on recall
-(0.717 vs the reported 0.837).
+Part 4 now states that the pooled cut **optimistically biases** precision, recall, F1, and F2, and **Table 2 is the honest nested print** (TabPFN recall **0.7174**, TN/FP/FN/TP = 5080/13/26/66). Figure 3 / Table 3 remain the pooled cut; Table 3 markdown uses the notebook pooled row (recall 0.7935), not the stale PNG 0.8370. Do not quote 0.837.
 
 ### 6.6 [GAP] No external validation of the *machine-learning* models
 
@@ -710,7 +727,8 @@ and the five baselines — and the comparison that reviewers will expect, becaus
 already tested. **[TODO-EXT]**
 
 Until then, the honest statement is: nested-CV discrimination on the derivation cohort only; the published score
-has an external cohort this analysis did not use.
+has an external cohort this analysis did not use. The frozen integer points *are* now scored on the derivation
+file (ROC-AUC 0.8013, PR-AUC 0.1032; §5.10). That is not a substitute for Shantou.
 
 ---
 
@@ -745,6 +763,8 @@ threshold-independent**. Source of the Markdown values:
 | Logistic Regression | PR-AUC  | 0.342          | 0.3418         | 0.3568 ± 0.1153                | ✓                                 |
 | Logistic Regression | ROC-AUC | 0.925          | 0.9246         | 0.9256 ± 0.0225                | ✓                                 |
 | Logistic Regression | Brier   | 0.0543         | 0.0543         | —                              | ✓                                 |
+| Wang 2020 integer score (frozen) | ROC-AUC | 0.8013 | 0.8013 | 0.8005 ± 0.0607 | Full cohort + same 5 folds; not a nested-CV fit (§5.10) |
+| Wang 2020 integer score (frozen) | PR-AUC | 0.1032 | 0.1032 | 0.1134 ± 0.0518 | Same |
 
 
 **Prevalence baseline for PR-AUC: 0.0177.** Every PR-AUC above should be reported against this reference.
@@ -758,15 +778,16 @@ calibration becomes a supporting result rather than a caveat. **[TODO-P4]**
 **Fold mean ± SD is available for every model** (right-hand column, notebook L976–982). Part 4's own provenance note
 claims it is not (L11); under D4 that note is simply wrong.
 
-### 7.2 Part 4 — operating-point metrics
+### 7.2 Part 4 — optimistic pooled operating-point metrics (Table 3; do not quote instead of §7.3)
 
 Protocol: pooled OOF probabilities thresholded at the **F1-maximising pooled threshold** (optimistically biased,
-see §6.5). Source: Part 4 Table 2 (L105–112) / `paper_table2_f1_operating_point.csv`; notebook L992–1008.
+see §6.5). **Part 4 Table 3 markdown now uses the notebook column**, not the stale PNG. PNG/CSV still show
+t = 0.901 / recall 0.8370 until B1. Source: notebook L992–1008.
 
 
 | Model               | Threshold (md / nb) | Accuracy        | Precision           | Recall              | Specificity     | F1              | F2              | TN/FP/FN/TP (md) | TN/FP/FN/TP (nb)  |
 | ------------------- | ------------------- | --------------- | ------------------- | ------------------- | --------------- | --------------- | --------------- | ---------------- | ----------------- |
-| TabPFN              | **0.901 / 0.173**   | 0.9919 / 0.9923 | **0.7404 / 0.7766** | **0.8370 / 0.7935** | 0.9947 / 0.9959 | 0.7857 / 0.7849 | 0.8157 / 0.7900 | 5066/27/15/77    | **5072/21/19/73** |
+| TabPFN              | 0.173 (PNG still 0.901) | 0.9923 | 0.7766 | 0.7935 | 0.9959 | 0.7849 | 0.7900 | PNG 5066/27/15/77 | **5072/21/19/73** |
 | XGBoost             | 0.381               | 0.9896          | 0.7639              | 0.5978              | 0.9967          | 0.6707          | 0.6250          | 5076/17/37/55    | identical         |
 | CatBoost            | 0.347               | 0.9882          | 0.6703              | 0.6630              | 0.9941          | 0.6667          | 0.6645          | 5063/30/31/61    | identical         |
 | LightGBM            | 0.228               | 0.9892          | 0.7812              | 0.5435              | 0.9973          | 0.6410          | 0.5787          | 5079/14/42/50    | identical         |
@@ -776,14 +797,14 @@ see §6.5). Source: Part 4 Table 2 (L105–112) / `paper_table2_f1_operating_poi
 
 **Every classic-model row matches exactly. Only the TabPFN row differs.** See §12.2.
 
-**D4 resolution.** Use the notebook column: TabPFN t_F1 = **0.173**, precision **0.7766**, recall **0.7935**,
-**5072/21/19/73**. The widely-quoted "TP = 77, FN = 15" belongs to the superseded run and must not appear. Under the
-honest nested threshold it is TP = 66, FN = 26 (§7.3).
+**D4 resolution.** Use the notebook pooled column only as the *optimistic* companion: TabPFN t_F1 = **0.173**, precision **0.7766**, recall **0.7935**,
+**5072/21/19/73**. The widely-quoted "TP = 77, FN = 15" / recall 0.837 belongs to the superseded PNG and must not appear as a result. The quoteable operating point is §7.3 / Part 4 Table 2.
 
-### 7.3 Part 4 — honest nested operating point (in the notebook, absent from the reports)
+### 7.3 Part 4 — honest nested operating point (Part 4 Table 2; quote this)
 
 Protocol: per-fold thresholds from inner CV, applied once to unseen outer-fold cases.
-Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1010–1026.
+Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1010–1026; now tabulated in Part 4 Table 2
+(both trees + concat).
 
 
 | Model               | Threshold mean ± SD | Accuracy | Precision | Recall | Specificity | F1     | F2     | TN/FP/FN/TP   |
@@ -963,7 +984,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 | Are the six Part 4 models compared on identical data and folds? | **Yes** — same `oof_probabilities` arrays, same outer folds.                                                                                                                                                                                                                                                                                  |
 | Are they compared with identical tuning effort?                 | **No.** Classic models are untuned defaults; TabPFN uses high-effort thinking mode.                                                                                                                                                                                                                                                           |
 | Are they compared on identical feature representations?         | **No.** TabPFN bypasses the ColumnTransformer.                                                                                                                                                                                                                                                                                                |
-| Are the Part 4 operating-point metrics unbiased?                | **No** — threshold selected on the evaluation labels. Honest version exists (§7.3).                                                                                                                                                                                                                                                           |
+| Are the Part 4 operating-point metrics unbiased?                | **Table 2 (nested) is the honest protocol.** Figure 3 / Table 3 pooled F1 is optimistically biased (§6.5, §7.3).                                                                                                                                                                                                                                                           |
 | Is Part 2 comparable with Part 4?                               | **No.** Part 2 is a full-cohort fit/val discovery split, **88** encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
 | Is Part 5 comparable with Part 4?                               | **No.** Part 5 uses local TabPFN with `balance_probabilities=True`; Part 4 uses the client with thinking mode and no probability balancing. Different models, different output scales.                                                                                                                                                        |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
@@ -1261,15 +1282,18 @@ No truncation note.
 | Fig 1        | Figure | `paper_fig1_pr_roc_curves.png`             | **[STALE]** — TabPFN curve from the superseded run                 |
 | Table 1      | Table  | `paper_table1_ranking.png/.csv`            | **[STALE]** — TabPFN Brier 0.036 → 0.0060; add fold mean ± SD      |
 | Fig 2        | Figure | `paper_fig2_calibration_curves.png`        | **[STALE]** — title reads Brier 0.0360                             |
-| Fig 3        | Figure | `paper_fig3_confusion_matrices.png`        | **[STALE]** — title reads t_F1 0.901                               |
-| Table 2      | Table  | `paper_table2_f1_operating_point.png/.csv` | **[STALE]** — TabPFN row only                                      |
-| Table 3      | Table  | `paper_table3_confusion_counts.png/.csv`   | **[STALE]** — TabPFN row only; also redundant (§11.3)              |
+| Fig 3        | Figure | `paper_fig3_confusion_matrices.png`        | **[STALE]** PNG — pooled cut; TabPFN panel t_F1 0.901. Caption tells the reader to quote Table 2. |
+| Table 2      | Table  | honest nested print (no PNG)               | **Current** — notebook L1010–1026; TabPFN recall 0.7174                                           |
+| Table 3      | Table  | `paper_table2_f1_operating_point.png/.csv` | Markdown = notebook pooled (recall 0.7935). PNG still stale 0.837. Labelled optimistic.           |
 | Table S-TSSI | Table  | `paper_table_s_tssi_leakage.png/.csv`      | Current — stored 70/30 metrics, not nested-CV                      |
 | Fig S-TSSI   | Figure | `paper_fig_s_tssi_pr_auc.png`              | Current — PR-AUC with vs without TSSI                              |
+| Table S-Wang-bins | Table | `paper_table_s_wang_score_bins.png/.csv` | Current — frozen Wang bins vs published n/rates                   |
+| Table S-Wang | Table  | `paper_table_s_wang_vs_ml.png/.csv`        | Current — frozen Wang vs nested-CV TabPFN/CatBoost/LR             |
+| Fig S-Wang   | Figure | `paper_fig_s_wang_score_rate.png`          | Current — observed VLST rate by integer score                     |
 
 
-**Produced by the notebook but absent from the report:** `best_model_threshold_fpfn_panel.png`,
-`model_comparison.csv`, `nested_cv_operating_point.csv`, `fold_metrics.csv`,
+**Produced by the notebook but absent as committed CSVs:** `best_model_threshold_fpfn_panel.png`,
+`model_comparison.csv`, `nested_cv_operating_point.csv` (numbers now in Part 4 Table 2), `fold_metrics.csv`,
 `best_model_threshold_sweep.csv`, `oof_predictions.csv`, `fold_thresholds.csv`.
 
 **[GAP — confirmed by directory listing]** None of the CSV/PNG artefacts written to `/kaggle/working/...` were
@@ -1305,7 +1329,7 @@ exist in the repo. **[TODO-REPRO]**
 | Table 5 | Table  | `paper_table5_consensus.png/.csv`     |
 
 
-**Totals: 33 figures and 24 tables across the five reports.**
+**Totals: 34 figures and 26 tables across the five reports** (including Part 4 S-Wang).
 
 ---
 
@@ -1334,6 +1358,7 @@ paper's framing changes and this layout does not apply.
 | Group                                           | Items                                                                                                                                                                                                 |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Leakage evidence (**now in Part 4 supplement**) | Table S-TSSI and Figure S-TSSI: with-TSSI vs without-TSSI metric contrast (§7.5) and the case vs non-case time distribution (min 1,241 vs min 380 days), framed as binary-ified survival time (§4.2). |
+| Published clinical baseline (**now in Part 4 supplement**) | Table S-Wang / Figure S-Wang: frozen Wang 2020 integer score vs nested-CV TabPFN (§5.10). Cox LP, Dangas DCA, and Shantou remain absent (B11). |
 | Statistical detail                              | Part 1 Fig 1, Table R, Fig 2, Table 2, Table 3, Fig 5, Fig 6, Fig S5a–b (Pearson/Spearman pairwise)                                                                                                   |
 | Domain analysis                                 | Part 1 Fig S1, Table S1, Fig S2a–d, Fig S3, Fig S4, Table S2 (**all 16 interaction rows, not 8**)                                                                                                     |
 | Feature-selection methods                       | Part 2 Table 0, Fig 1, Table 1, Table 2, Table 3, Table 4 — each with an explicit note that LOCO's pool is a column-order prefix and that scoring used the test set                                   |
@@ -1587,6 +1612,7 @@ Groups B–E are execution work.
 | **A2** How were controls sampled?                          | **Closed by Wang 2020.** Consecutive complete-follow-up cohort, not case-control. 1.77% is published incidence (§2.3, §4.2).   |
 | **A3** What does `Stent thrombosis = 1` mean?              | **Closed by Wang 2020.** ARC 2007 definite ST, angiographically confirmed, > 1 year (§2.3).                                    |
 | **A5** Recruitment frame, ethics, consent                  | **Closed by Wang 2020.** Jilin University, Jan 2014–Jun 2015, NCT03491891, ethics 2013-256 (§2.3).                             |
+| **B10** Wang integer score as comparator                   | **Closed.** Frozen Table 2 points on 5,185 rows: ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV TabPFN 0.9883 / 0.8534 (§5.10). Cox LP / DCA / Shantou still out (B11). |
 
 
 ### A. Remaining author questions after Wang 2020
@@ -1612,7 +1638,7 @@ Groups B–E are execution work.
 | **B6** [TODO-MI]          | **Re-run** `mutual_info_classif` and re-export Part 5 Table 1 to fill the blank `Fast-Glu` and `ZES` cells.                                                                                                                                                                                  | Seconds — pure sklearn, zero TabPFN calls                                                                                                                       | A published "top 15" with two empty cells is not acceptable (§12.6).                                                                                                                                                          |
 | **B7** [TODO-TABLE1]      | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3).                                                                                     | Low                                                                                                                                                             | A conventional Table 1 already exists in Wang 2020; the repo still needs a verified, ML-complete version.                                                                                                                     |
 | **B9**                    | **Optional but strengthens the comparison:** tune the five classic baselines, or confirm Part 4 one-hot matches the 9-level encoder after re-run.                                                                                                                                 | Medium                                                                                                                                                          | Right now it is untuned defaults vs high-effort TabPFN (§6.3) on non-identical representations until Part 4 is re-run (§6.4). Disclosure is the minimum; tuning is the fix.                                                                          |
-| **B10** [TODO-SCORE]      | **Implement Wang's 8-variable VLST score as a comparator** on the same 5,185 rows (and on Shantou if obtained): DM, previous PCI, AMI as admitting diagnosis, eGFR < 90, 3-vessel disease, stents per lesion, SES, no post-dilation. Report nested-CV PR-AUC/ROC-AUC against TabPFN.         | Low–medium                                                                                                                                                      | This is the published clinical baseline. A paper that claims better prediction on the same cohort without beating this score will be the first reviewer comment. Watch the post-dilation coding (§3.3).                       |
+| **B10** [TODO-SCORE — closed] | **Wang 8-variable integer score scored** on the same 5,185 rows (`wang_vlst_score.ipynb`): ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV TabPFN 0.9883 / 0.8534. SES=`PES`; 4 points on `No postdilation`. Cox linear predictor, Dangas DCA, and Shantou remain out (B11). | Done (derivation integer score) | Post-dilation polarity was the trap (§3.3, §5.10). |
 | **B11** [TODO-EXT]        | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used.                                                                                                                                                                                         | Political, not computational                                                                                                                                    | Without it, state clearly that ML validation is derivation-cohort nested CV only.                                                                                                                                             |
 
 
@@ -1624,9 +1650,9 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | #       | Where                                                                                     | Action                                                                                                                                                                                                                                                         |
 | ------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **C1**  | Part 4 Table 1 / Figure 2 stale Brier story                                               | **[REV4/closed in reports]** Captions rewritten to notebook 0.0060. PNG/CSV re-export still **[TODO-P4]**.                                                                                                                                                     |
-| **C2**  | Part 4 "TabPFN catches the most events (TP = 77, FN = 15)"                                | **[REV4/closed in reports]** Caption now quotes notebook pooled 73/19 and nested 66/26. PNG still stale.                                                                                                                                                       |
-| **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")  | **[REV4/closed in reports]** Replaced with a note that the notebook *did* print those tables; CSVs are uncommitted; PNGs are mixed stale/current.                                                                                                              |
-| **C4**  | Part 4 Tables 2–3 operating point                                                         | **[REV4/closed in reports]** Text now labels the PNG as optimistic pooled F1 and quotes the honest nested counts. Keep both, labelled.                                                                                                                         |
+| **C2**  | Part 4 "TabPFN catches the most events (TP = 77, FN = 15)"                                | **[closed in reports]** Caption and Table 3 markdown no longer quote 0.837 / TP = 77. PNG still stale (B1). Quote Table 2 nested 66/26, recall 0.7174.                                                                                                                                                       |
+| **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")  | **[closed in reports]** Footer now says the notebook *did* print fold-wise mean ± SD and nested operating points; CSVs uncommitted; PNGs mixed stale/current.                                                                                                              |
+| **C4**  | Part 4 Tables 2–3 operating point                                                         | **[closed in reports]** Table 2 = honest nested (all six models). Table 3 / Figure 3 = optimistic pooled, labelled as biased; TabPFN markdown row is notebook 0.7935 not PNG 0.8370.                                                                                                                         |
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
 | **C6**  | Every Part 5 SHAP caption (Figures 3, 5, 6, 7; Table 4)                                   | **Code fixed:** full-cohort SHAP. Reports marked **[STALE]** until re-run. Do not keep “15 VLST cases” as the protocol.                                                                                                                                          |
 | **C7**  | Every Part 5 PDP caption (Figures 1, 2; Table 3)                                          | **[REV4/closed in reports]** Methods note + Table 3: balanced-prior, not absolute risk.                                                                                                                                                                        |
@@ -1647,7 +1673,7 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | #                           | Item                                                                                                                                                                                                                                                                                                                                                                                                               | Notes                                                                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative.                                                           | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
-| **W2** [closed in reports]  | **Clinical motivation and citations.** Drafted in `paper_results/00_front_matter.md` (and concatenated `paper_results.md` Part 0): Wang 2020 definition/cohort/score; why TabPFN; what “personalised” does *not* mean; what this pack adds *beyond* Wang’s 8-variable Cox score (does not re-implement that score).                                                                                         | Cite Wang; do not write as if no VLST score exists.                                       |
+| **W2** [closed in reports]  | **Clinical motivation and citations.** Drafted in `paper_results/00_front_matter.md` (and concatenated `paper_results.md` Part 0): Wang 2020 definition/cohort/score; why TabPFN; what “personalised” does *not* mean; what this pack adds *beyond* Wang’s 8-variable Cox score. Frozen integer points are now scored (Part 4 S-Wang; B10 closed for that comparator). | Cite Wang; do not write as if no VLST score exists.                                       |
 | **W3** [closed in reports]  | **Limitations section** in the same Part 0 file: no ML external/temporal test (Wang’s score has Shantou); binary vs Cox; EPV ≈ 5.4; TabPFN client non-determinism; unrecorded remote version; post-baseline DAPT; WBC excluded by Wang; `LV` unnamed; no PR-AUC intervals.                                                                                                                              | §4.2, §6.6, §12.9, §12.10.                                                                |
 | **W4** [TODO-EPV — closed]  | **EPV stated explicitly** (92 / 17 ≈ **5.4**) in Part 0 and next to Part 1 Table 4 / Figure S4 adjusted ORs (both report trees + concat).                                                                                                                                                                                                                                                            | Was computed nowhere (§2.2).                                                              |
 | **W5** [closed in reports]  | **Terminology pass** enforcing §12.12 in Part 0 and part headers: association (Parts 1, 5 MI); prediction (Part 4 nested CV only); interpretation/attribution (Parts 2, 5). Banned words removed from captions (“risk factor”, “independent signal”). Wang’s score remains the only result called externally tested.                                                                                  |                                                                                           |
@@ -1669,9 +1695,8 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 ### Suggested order
 
 1. **A1/A4 (**`LV`**, WBC vs Wang's exclusion) in parallel with B1+B2.** Lab timing no longer gates the whole paper; `LV` still gates any claim that names it.
-2. **B10** (Wang score as comparator) as soon as Part 4 exports are clean — same 5,185 rows, no new data required.
-3. **B11** (Shantou file) as a data-access ask, not a compute task.
-4. **B4, B6, B7** — all cheap, all independent. B7 is now "rebuild and verify against Wang Table 1," not "invent from nothing." (B5 / Part 3 notebook is done.)
-5. **C1–C16 report wording is done.** Remaining C-related work is PNG re-export: B1 (Part 4 TabPFN panels), optional C12 split-axis Figure 3. Part 4 encoding unification is B9.
-6. **W1–W5 are drafted** in `paper_results/00_front_matter.md` (Part 0 of `paper_results.md`) and Part 1 Table 4. Remaining B-list: B1/B2 Part 4 export, B10 Wang score comparator, B11 Shantou file.
+2. **B11** (Shantou file) as a data-access ask, not a compute task. B10 (Wang integer score on the derivation file) is closed.
+3. **B4, B6, B7** — all cheap, all independent. B7 is now "rebuild and verify against Wang Table 1," not "invent from nothing." (B5 / Part 3 notebook is done.)
+4. **C1–C16 report wording is done.** Remaining C-related work is PNG re-export: B1 (Part 4 TabPFN panels), optional C12 split-axis Figure 3. Part 4 encoding unification is B9.
+5. **W1–W5 are drafted** in `paper_results/00_front_matter.md` (Part 0 of `paper_results.md`) and Part 1 Table 4. Remaining B-list: B1/B2 Part 4 export, B11 Shantou file. B10 (Wang integer score) is closed.
 
