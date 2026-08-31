@@ -1,21 +1,21 @@
-Model,Algorithm,Metric,Priority label,Rank,In ranked list
-cat,LOCO,pr_auc,"Age, years",—,No
-cat,LOCO,pr_auc,Male sex,—,No
-cat,LOCO,pr_auc,Current drinking,18,Yes
-cat,LOCO,pr_auc,Diabetes mellitus,—,No
-cat,LOCO,pr_auc,aspirin,—,No
-cat,LOCO,pr_auc,Hypertension,20,Yes
-cat,LOCO,pr_auc,Dapt,—,No
-cat,LOCO,pr_auc,Dyslipidemia,—,No
-cat,LOCO,pr_auc,HbA1C,—,No
-cat,LOCO,pr_auc,Clopidogrel,—,No
-cat,LOCO,pr_auc,Current smoker,30,Yes
-cat,LOCO,f1,"Age, years",—,No
-cat,LOCO,f1,Male sex,—,No
-cat,LOCO,f1,Current drinking,5,Yes
-cat,LOCO,f1,Diabetes mellitus,—,No
-cat,LOCO,f1,aspirin,—,No
-cat,LOCO,f1,Hypertension,14,Yes
-cat,LOCO,f1,Dapt,—,No
-cat,LOCO,f1,Dyslipidemia,—,No
-cat,LOCO,f1,HbA1C,—,No
+model,algorithm,metric,feature,rank,in_topk
+cat,LOCO,pr_auc,"Age, years",,False
+cat,LOCO,pr_auc,Male sex,,False
+cat,LOCO,pr_auc,Current drinking,51,True
+cat,LOCO,pr_auc,Diabetes mellitus,,False
+cat,LOCO,pr_auc,aspirin,,False
+cat,LOCO,pr_auc,Hypertension,55,True
+cat,LOCO,pr_auc,Dapt,,False
+cat,LOCO,pr_auc,Dyslipidemia,,False
+cat,LOCO,pr_auc,HbA1C,,False
+cat,LOCO,pr_auc,Clopidogrel,50,True
+cat,LOCO,pr_auc,Current smoker,24,True
+cat,SHAP,pr_auc,"Age, years",,False
+cat,SHAP,pr_auc,Male sex,,False
+cat,SHAP,pr_auc,Current drinking,,False
+cat,SHAP,pr_auc,Diabetes mellitus,,False
+cat,SHAP,pr_auc,aspirin,,False
+cat,SHAP,pr_auc,Hypertension,35,True
+cat,SHAP,pr_auc,Dapt,,False
+cat,SHAP,pr_auc,Dyslipidemia,,False
+cat,SHAP,pr_auc,HbA1C,,False

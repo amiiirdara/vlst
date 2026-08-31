@@ -2,7 +2,7 @@
 
 This document gathers publication-oriented figures and tables from the exploratory data analysis of very late stent thrombosis (VLST) in `eda.ipynb`.
 
-**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed to levels with n ≥ 30 plus `other` (**9 levels**) for the χ² screen — not the 106 raw brand strings one-hot-encoded in Parts 2 and 4. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical risk factor.
+**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed to levels with n ≥ 30 plus `other` (**9 levels**) for the χ² screen via the shared encoder (`code/modeling/tools/stent_encoding.py`). Part 2 now uses that same 9-level column and one-hots it (drop-first → **88** scaled columns). Part 4 still needs a re-run before its stored one-hot width matches. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical association.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -84,7 +84,7 @@ Rendered table image (open separately if needed): [paper_figures/paper_table_tes
 
 Rendered table image: [paper_figures/paper_table1_continuous_fdr.png](paper_figures/paper_table1_continuous_fdr.png)
 
-**Table 1.** FDR-significant continuous associations with VLST, including test type, effect-size metric (Cohen d or Mann–Whitney r), mean/median differences (VLST − no VLST), raw p, and FDR q. Features annotated as time-at-risk should not be interpreted as baseline risk factors.
+**Table 1.** FDR-significant continuous associations with VLST, including test type, effect-size metric (Cohen d or Mann–Whitney r), mean/median differences (VLST − no VLST), raw p, and FDR q. Features annotated as time-at-risk should not be interpreted as baseline clinical associations.
 
 | Feature | Test | Direction | Effect size | ES | Δ mean | Δ median | p | q (FDR) | Sig | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -150,7 +150,7 @@ Rendered table image: [paper_figures/paper_table2_binary_fdr.png](paper_figures/
 
 ![Figure 5](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
-**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after collapsing rare levels (n < 30) to `other` (**9 levels**). This is the EDA encoding. Part 2/4 one-hot the **raw 106 brand strings**; Part 5 codes brands as integers. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
+**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after the shared encoder (canonicalize aliases, collapse n < 30 → `other`, **9 levels**). Raw distinct strings in this run: **99**. Rates: `other` 5.5%, `xiencev` 3.3%, `partner` 2.3%, `excel` 2.1%, `firebird` 1.6%, `tivoli` 0.83%, `resolute` 0.82%, `xv` 0%, `xx` 0%. Part 2 one-hots these 9 levels. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
 
 **Source file:** [paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
@@ -176,7 +176,7 @@ Rendered table image: [paper_figures/paper_table3_categorical.png](paper_figures
 
 Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png)
 
-**Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). Given ~92 events, EPV is low and the model is for screening/confounding context, not prediction. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
+**Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). **EPV = 92 / 17 ≈ 5.4** (92 events, 17 covariates), below the conventional EPV ≥ 10 rule. Adjusted ORs are for screening/confounding context, **not prediction**. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
 
 **OR estimators (do not mix).** Table 4 “Univariate OR” is from this unweighted logit (one covariate at a time, same scaling). Table 2 OR is the **2×2 / Fisher** estimator. Supplementary Figure S4 “Univariate OR” is from the joint-domain specification. For `Previous PCI` those three numbers are **6.46 / 6.49 / 6.73**. OR < 1 for `1.1:1Post dilation` or `Clopidogrel` is not a treatment benefit.
 
@@ -206,7 +206,7 @@ Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_fi
 
 ![Figure 6](paper_figures/paper_fig6_uni_vs_multivariable_or.png)
 
-**Figure 6.** Comparison of univariate ORs (diamonds) with multivariable adjusted ORs and 95% CIs (circles/whiskers) for features entering the exploratory joint model. Attenuation toward the null suggests confounding or shared information; persistence of association after adjustment supports an independent signal within this sparse specification.
+**Figure 6.** Comparison of univariate ORs (diamonds) with multivariable adjusted ORs and 95% CIs (circles/whiskers) for features entering the exploratory joint model. Attenuation toward the null suggests confounding or shared information; persistence of association after adjustment means the name still moves log-odds in this sparse specification, not a causal or standalone clinical claim.
 
 **Source file:** [paper_figures/paper_fig6_uni_vs_multivariable_or.png](paper_figures/paper_fig6_uni_vs_multivariable_or.png)
 
@@ -228,7 +228,7 @@ Heatmaps that include `Stent thrombosis` also show predictor–outcome Pearson/S
 
 ![Figure S5a](paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png)
 
-**Figure S5a.** Pearson correlation among the 42 numeric columns with strongest |r| versus the outcome, against the next 41, including `Stent thrombosis`. Produced by `eda.ipynb` (no re-run). Off-diagonal blocks are feature–feature structure; the target row/column is the linear predictor–outcome slice.
+**Figure S5a.** Pearson correlation among the 42 numeric columns with strongest |r| versus the outcome, against the next 41, including `Stent thrombosis`. Produced by the 2026-08-31 `eda.ipynb` re-run. Off-diagonal blocks are feature–feature structure; the target row/column is the linear predictor–outcome slice.
 
 ![Figure S5b](paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png)
 
@@ -291,13 +291,13 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 ![Figure S3](paper_figures/domain_multivariable_or_panels.png)
 
-**Figure S3.** Domain-specific sparse logistic models (core demographics plus up to five non-redundant domain representatives). The stored PNG uses the previous bootstrap CIs. Notebook cells 10f / 10g-3 now fit **unweighted** `statsmodels.Logit` with **Wald 95% CIs** as primary (2,000-replicate percentile bootstrap stored as robustness). Re-run before quoting the new intervals. The dashed line marks OR = 1.
+**Figure S3.** Domain-specific sparse logistic models (core demographics plus up to five non-redundant domain representatives). Primary interval is the unweighted Wald 95% CI from `statsmodels.Logit` (2,000-replicate percentile bootstrap stored as robustness). The dashed line marks OR = 1.
 
 ### Supplementary Figure S4. Joint cross-domain model (uni vs adjusted OR)
 
 ![Figure S4](paper_figures/domain_joint_uni_vs_multi_or.png)
 
-**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs. Continuous covariates are per 1 SD; time-since-stent is excluded. Same inferential note as Figure S3: stored figure is the old bootstrap run; current code uses unweighted Wald CIs (primary) plus a 2,000-replicate bootstrap robustness check. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model. The “Univariate OR” column below is from **this joint-domain specification** (`Previous PCI` 6.73), not Table 2’s 2×2 OR (6.49) or Table 4’s univariate logit (6.46).
+**Figure S4.** Joint sparse cross-domain logistic model comparing univariate ORs with adjusted ORs (**EPV = 92 / 17 ≈ 5.4** on the parent 17-covariate screen; this joint-domain fit is a separate specification). Continuous covariates are per 1 SD; time-since-stent is excluded. Unweighted Wald 95% CIs are primary. `LVEF`’s adjusted OR **reverses sign** versus its univariate OR when `LV` is in the model. The “Univariate OR” column below is from **this joint-domain specification** (`Previous PCI` 6.73), not Table 2’s 2×2 OR (6.49) or Table 4’s univariate logit (6.46).
 
 | Feature | Domain | Univariate OR | Adjusted OR | OR lower | OR upper |
 | --- | --- | --- | --- | --- | --- |

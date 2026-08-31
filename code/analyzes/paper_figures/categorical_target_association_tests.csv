@@ -1,0 +1,2 @@
+Feature,Family,Test,Raw levels,Levels used (after collapse),Collapse rule,n,Chi-square,df,P-value,Cramer's V,Min expected,Significant,p_bonferroni,p_holm,p_fdr_bh,Sig Bonferroni (p_adj<0.05),Sig Holm (p_adj<0.05),Sig FDR (q<0.05),Multiplicity family
+Stent type-SES,categorical,Chi-square,99,9,n < 30 -> other,5185,44.89765382631003,8,3.8480486221745815e-07,0.09305451355533624,3.2648023143683704,Yes,3.8480486221745815e-07,3.8480486221745815e-07,3.8480486221745815e-07,Yes,Yes,Yes,categorical_vs_VLST

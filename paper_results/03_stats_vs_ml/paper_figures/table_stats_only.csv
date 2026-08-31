@@ -1,16 +1,16 @@
-Feature,Domain,Why statistical methods keep it and ML top-12 does not
-CKD5,Laboratory / renal,"FDR hit but collinear with eGFR; adjusted OR flips sign. In ML union prefix, not in 3-way consensus"
-No.of stents per lesion,Procedural,Tiny univariate effect (MW r=0.037); dropped from a 12-feature predictive shortlist
-HbA1c,Laboratory,FDR hit that attenuates after adjustment; Diabetes/Fast-Glu compete
+Feature,Domain,Why statistical methods keep it and ML top-20 does not
+CKD5,Laboratory / renal,"FDR hit but collinear with eGFR; adjusted OR flips sign. Often selected, not in 3-way consensus"
+No.of stents per lesion,Procedural,Tiny univariate effect (MW r=0.037); not in any model three-way set
 NO.of vessels,Anatomy,Continuous vessel count; collinear with the vessel-disease binaries
 Total stent length,Procedural,Small univariate effect; collinear with stent count / vessel burden
-1.1:1Post dilation,Procedural,"Complement of No postdilation; strong 2x2, collinear pair, may not enter the LOCO pool of 40"
-No postdilation,Procedural,Strong univariate OR; multivariable OR attenuates to ~1 after the complement is in the model
+Fiberinogen,Laboratory,Weak MW r=0.035. The old F2-consensus hit; PR-AUC three-way no longer keeps it
+No postdilation,Procedural,Strong univariate OR; multivariable OR attenuates to ~1 after the complement is in the model. Boosting keeps the 1.1:1 flag instead
 CKD90,Laboratory / renal,Binary renal cutpoint; ML prefers continuous eGFR/Cre rather than the threshold
+Previous PCI,History,"Fisher OR=6.49. Frequently selected, but no model puts it in LOCO ∩ SHAP ∩ FFS on PR-AUC"
 3-vessel disease,Anatomy,Anatomy binary; collinear with NO.of vessels / multi-vessel CAD
-Clopidogrel,Medication,Full-cohort medication association; weak on a 28-event hold-out ranking task
-Diabetes,Comorbidity,Univariate FDR; multivariable CI includes 1; trees may split on labs instead
-PES,Stent type,Stent-polymer binary; collinear with Stent type-SES
+Clopidogrel,Medication,Full-cohort medication association; trees split on labs/procedure instead
+Diabetes,Comorbidity,Univariate FDR; multivariable CI includes 1; trees may split on HbA1c instead
+PES,Stent type,Stent-polymer binary; collinear with the 9-level brand column
 Multi-vessel CAD,Anatomy,Overlaps Single-vessel and 3-vessel; shared anatomical information
-Single-vessel disease,Anatomy,"Complement of multi-vessel disease (same 2x2 as Multi-vessel CAD, inverted)"
-Stent type-SES,Stent type,Multi-level factor; one-hot encoding splits the signal across rare dummy columns
+Single-vessel disease,Anatomy,Complement of multi-vessel disease (same 2×2 inverted)
+Stent type-SES,Stent type,χ² on 9 collapsed brands. ML one-hots those 9 levels (drop-first → 8 dummies); the parent name never enters a 3-way set

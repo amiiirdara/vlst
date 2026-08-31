@@ -1,8 +1,8 @@
-Model,Family,n union features
-lr,Linear,33
-rf,Bagged trees,32
-rf_b,Bagged trees,33
-cat,Boosting,30
-xgb,Boosting,32
-xgb_b,Boosting,30
-lgb,Boosting,30
+Code,Classic model,Family,Union size
+cat,CatBoost,Boosting,32
+lgb,LightGBM,Boosting,30
+lr,Logistic regression,Linear,32
+rf,Random forest,Bagged trees,35
+rf_b,Random forest (subsample),Bagged trees,34
+xgb,XGBoost,Boosting,31
+xgb_b,XGBoost (subsample),Boosting,30

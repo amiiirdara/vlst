@@ -13,6 +13,13 @@ cohort of **5,185 ACS-PCI patients with 92 events (1.77%)**, identical to `data/
 gaps that this map treated as unanswerable from the repo are answered there. What remains unanswered is listed
 explicitly.
 
+**Revision 5.** Part 1–3 figures and catalogues were refreshed from the 2026-08-31 re-runs of `eda.ipynb` and
+`baseline_feature_selections.ipynb` (Kaggle, paper protocol). Part 2 stored export is no longer the leaky
+70/30 / F1/F2 / 185-column smoke run. ML consensus is now 13 PR-AUC three-way names; Jaccard vs FDR is
+5/28 ≈ 0.18 with intersection `{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}`. Part 2 scaled width is **88**
+(9-level stent encoder, OHE drop-first). Kaggle `selector_summary_long.csv` was not downloaded; Part 2
+tables were reconstructed from notebook displays. Part 4/5 stored runs are still pre-unification.
+
 **Revision 4.** Paper-style Markdown reports (both trees + `paper_results/paper_results.md`) were aligned to the
 *code* on methodology. Imputers are described as inert (no missing values). Part 4 now states the unequal
 feature view (classics ~186 scaled one-hot columns vs TabPFN raw 81) and that GridSearch winners are not
@@ -96,10 +103,10 @@ Eleven notebooks on disk are excluded by D1–D2 and are not audited (ten under 
 
 Part 3, the statistics-vs-ML comparison, previously had **no notebook and no script**. That is closed.
 
-Generating code: `code/analyzes/stats_vs_ml/rebuild_comparison.py`, invoked by
-`code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`. It recomputes the overlap from the verified
-§8.1 statistical FDR set and the §8.6 ML consensus set, asserts Jaccard = 5/35 = 0.1429 with intersection
-`{WBC, eGFR, LV, Fiberinogen, Previous PCI}`, and writes Figures 1–4 plus Tables 1–4 to both
+Generating code: `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`.
+It recomputes the overlap from the verified
+§8.1 statistical FDR set and the §8.6 ML consensus set, asserts Jaccard = 5/28 ≈ 0.1786 with intersection
+`{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}`, and writes Figures 1–4 plus Tables 1–4 to both
 `paper_results/03_stats_vs_ml/paper_figures/` and `code/analyzes/stats_vs_ml/paper_figures/`.
 **[TODO-P3 — closed]**
 
@@ -190,9 +197,8 @@ rows of Part 4 (§12.2) and the handful of narrative claims listed in §13.C.
 
 
 **[RISK]** The EDA Markdown says the multivariable model "is sparse and intended for screening/confounding context"
-(`paper_results/01_eda/EDA_paper_figures_and_tables.md` L176) — a fair caveat, and under D4 it stands. But EPV is
-computed nowhere in `eda.ipynb` and appears in no report. **[TODO-EPV]** State it explicitly (92 / 17 ≈ 5.4) next
-to every adjusted odds ratio.
+(`paper_results/01_eda/EDA_paper_figures_and_tables.md`) — a fair caveat. **EPV = 92 / 17 ≈ 5.4** is now stated in
+Part 0 and next to Table 4 / Figure S4 adjusted ORs. **[TODO-EPV — closed in reports]**
 
 ### 2.3 Target definition and recruitment — filled by Wang 2020
 
@@ -418,13 +424,13 @@ exclusion from Wang's Cox model in Discussion.
 
 ### 4.4 Analysis-induced leakage in Part 2 (feature selection)
 
-**Code fix applied; not yet re-run.** The stored Part 2 figures/tables and the Part 3 consensus still come from
-the prior reduced export below. `baseline_feature_selections.ipynb` is now a **single paper protocol**
-(no smoke switch): **full cohort** (no parked 70/30 test), **PR-AUC only**, LOCO / SHAP / FFS **independent**
-(each takes its own cheap fit-slice importance pool). Budget: top-20, SHAP 40/40/3, LOCO cap 60,
-FFS `24 × 12` with early stop, 400 boosting rounds. `USE_CACHE=False`. Re-run on Kaggle, then rebuild Part 3.
+**Code fix applied; re-run stored 2026-08-31.** The stored Part 2 figures/tables and the Part 3 consensus
+come from the paper-protocol Kaggle run: **full cohort** (no parked 70/30 test), **PR-AUC only**, LOCO / SHAP / FFS
+**independent** (each takes its own cheap fit-slice importance pool). Budget: top-20, SHAP 40/40/3, LOCO cap 60,
+FFS `24 × 12` with early stop, 400 boosting rounds. `USE_CACHE=False`. Split: fit 4,148 (74 events) / val 1,037
+(18 events). Scaled width **88** after the shared 9-level stent encoder.
 
-Historical (stored) leak, for provenance of current figures:
+Historical leak, for provenance of the *previous* figures (replaced):
 
 
 | Selector       | Evaluation target (stored run)                                                                                                               | Source                                                                                 |
@@ -434,12 +440,11 @@ Historical (stored) leak, for provenance of current figures:
 | FFS            | Honest inner hold-out (20% of train, ≈ 726 rows, ≈ 13 events) — **but** restricted to the LOCO top-30 pool, so it inherits the contamination | same file, L621–634, L647                                                              |
 
 
-SHAP and FFS “read what LOCO returned” **on purpose**: a compute cap (full 185-column SHAP/FFS is too slow). That
-is not a second model copying LOCO. The stored run nested them inside a *column-order prefix* that was also
-test-scored. After the code change they still nest, but the pool is train-importance-ordered and inner-val scored.
+SHAP and FFS no longer read LOCO’s selected names. Each selector builds its own cheap fit-slice importance
+pool (LOCO 60 / SHAP 40 / FFS 24). The historical table above is the *replaced* leaky export.
 
-Until Kaggle re-export, the "ML consensus catalogue" in Part 3 remains a **discovery** list selected against the
-same 28 test events, and no generalisation claim can rest on it.
+Until Kaggle re-export of Part 4, the nested-CV classic arm is still the pre-unification 106-string one-hot.
+Part 2/3 catalogues are no longer that leaky 28-event shortlist.
 
 ### 4.5 Non-leakage but comparability-breaking design choices
 
@@ -462,7 +467,7 @@ protocol paragraph.
 | ------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------- |
 | Statistical EDA                      | `code/analyzes/eda.ipynb`                                                            | Part 1                                 |
 | Classic-ML feature selection         | `code/modeling/interpretability/baseline_feature_selections.ipynb`                   | Part 2                                 |
-| Stats-vs-ML comparison               | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb` (+ `rebuild_comparison.py`) | Part 3                                 |
+| Stats-vs-ML comparison               | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`                              | Part 3                                 |
 | Nested-CV baselines + TabPFN         | `code/modeling/rating/baseline_plus_tabpfn.ipynb`                                    | Part 4                                 |
 | TabPFN interpretability              | `code/modeling/interpretability/tabpfn_interpretability.ipynb`                       | Part 5                                 |
 | Leaky baselines (with TSSI)          | `code/modeling/rating/baseline_tssi_leakage.ipynb`                                   | Part 4 Table S-TSSI                    |
@@ -545,26 +550,21 @@ Two distinct baseline exercises exist and must not be conflated:
 
 ### 5.7 Classic ML feature selection (Part 2)
 
-- Feature view: raw one-hot of all 81 columns → **185 columns**
-(`.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L223).
-- **Stored export** (figures still shown): top-12, SHAP universe 24 / 12 perms, LOCO cap 40, FFS pool 30.
-- **Paper protocol** (current code, not re-run): `FEATURE_TOPK = 20`, `SHAP_UNIVERSE = 40`, `SHAP_N_PERM = 40`,
-`LOCO_MAX_FEATURES = 60`, `FFS_CANDIDATE_POOL = 24`, `FFS_MAX_STEPS = 12`, 400 boosting rounds. No `RUN_MODE`.
-- Seven classic models: `lr`, `rf`, `rf_b`, `cat`, `xgb`, `xgb_b`, `lgb`. TabPFN was configured but unavailable
-in the stored run (L446–447).
-- Three objectives: `pr_auc`, `f1`, `f2`.
+- Feature view: shared 9-level stent encoder, then OHE drop-first + scale → **88 columns**
+(Kaggle log: `scaled features: 88`; `Stent brand: 106 raw strings -> 9 levels`).
+- **Stored export (2026-08-31 paper protocol):** top-20, SHAP universe 40, LOCO cap 60, FFS pool 24 × 12
+with early stop, PR-AUC only, independent selectors, fit/val 4148/1037.
+- Seven classic models: `lr`, `rf`, `rf_b`, `cat`, `xgb`, `xgb_b`, `lgb`. TabPFN was optional and not in this run.
+- One objective: `pr_auc`.
 
-**[CRITICAL — stored LOCO is not a ranking; code has changed]** The **prior reduced dump** set
-`order = list(range(n))` then truncated to the first 40 (old L524–526): the first 40 **columns in
-ColumnTransformer output order**. Every published "ML consensus" name in Parts 2 and 3 is still from that
-prefix. The **current** notebook ranks each selector’s own pool by cheap fit-slice importance (SHAP/FFS no
-longer nest in LOCO), scores **PR-AUC only** on a val slice of the **full** cohort, and caps FFS at 16×8
-with early stop. Not re-run. Part 2/3 markdowns now say so; Figure 1's caption no longer reads the 40-cap
-as a finding.
+**[CLOSED]** The prior reduced dump set `order = list(range(n))` then truncated to the first 40 ColumnTransformer
+columns and nested SHAP/FFS in that pool, scored on the 28-event test fold. That export is **replaced**.
+Current selectors rank each pool by cheap fit-slice importance, score PR-AUC on the val slice of the full
+cohort, and do not nest. Kaggle `selector_summary_long.csv` was not committed; tables were reconstructed from
+notebook displays (XGBoost’s 7-name list completed as `WBC; eGFR` from the truncated `WB…`).
 
-**[CRITICAL — stored SHAP sample is 87.5% positive; code has changed]** The stored `run_shap` used all 28 test
-positives plus 4 random negatives, then scored PR-AUC/F1/F2 on those 32 rows. Current code uses a stratified
-val sample at cohort prevalence. Not re-run. Part 2 markdown now discloses the stored sample.
+**[CLOSED]** Stored SHAP is a stratified val sample at cohort prevalence, not the old 87.5% positive 32-row
+slice.
 
 ### 5.8 TabPFN (Part 4)
 
@@ -964,7 +964,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 | Are they compared with identical tuning effort?                 | **No.** Classic models are untuned defaults; TabPFN uses high-effort thinking mode.                                                                                                                                                                                                                                                           |
 | Are they compared on identical feature representations?         | **No.** TabPFN bypasses the ColumnTransformer.                                                                                                                                                                                                                                                                                                |
 | Are the Part 4 operating-point metrics unbiased?                | **No** — threshold selected on the evaluation labels. Honest version exists (§7.3).                                                                                                                                                                                                                                                           |
-| Is Part 2 comparable with Part 4?                               | **No.** Stored Part 2 is a prior reduced 70/30 test-scored export. Paper-protocol Part 2 is a full-cohort fit/val discovery split, 185 encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
+| Is Part 2 comparable with Part 4?                               | **No.** Part 2 is a full-cohort fit/val discovery split, **88** encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
 | Is Part 5 comparable with Part 4?                               | **No.** Part 5 uses local TabPFN with `balance_probabilities=True`; Part 4 uses the client with thinking mode and no probability balancing. Different models, different output scales.                                                                                                                                                        |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
 | Are univariate ORs consistent across tables?                    | **No.** See §12.4.                                                                                                                                                                                                                                                                                                                            |
@@ -987,7 +987,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 the vessel-disease family (`3-vessel`, `Multi-vessel`, `Single-vessel`, `NO.of vessels` — 4 slots for 1
 construct), and the renal family (`CKD5`, `CKD90` alongside continuous `eGFR` — 3 slots for 1 construct). The
 "20 statistical discoveries" headline should be reported as roughly **12 distinct clinical constructs**.
-**[REV4]** Part 1 and Part 3 markdowns now say this. Jaccard / Venn stay on the 20-name lists.
+**[REV4]** Part 1 and Part 3 markdowns now say this. Jaccard / Venn stay on the **name** lists (now 20 vs 13).
 
 ### 8.2 Multivariable-model survivors (bootstrap CI excluding 1)
 
@@ -998,54 +998,50 @@ From the joint domain model: `WBC`, `eGFR`, `LV`, `LVEF` (**sign-flipped**), `No
 
 ### 8.3 LOCO (Part 2)
 
-- Pool: the **first 40 columns of the encoded matrix in ColumnTransformer order** (23 continuous + 17 binary),
-not an importance ranking.
-- Scored on the 1,556-row test set (28 events), for `pr_auc`, `f1`, `f2`, for each of 7 models.
-- Unique names after pooling all three metrics: **40 for every model** — i.e. the cap, not a result.
-- Cross-model intersection (present in all 7 models' top-12): PR-AUC → `LV`, `eGFR`; F1 → `LV`, `eGFR`;
-F2 → `LV`.
+- Pool: cheap fit-slice importance prefix, cap **60**.
+- Scored on the 1,037-row val slice (18 events), **PR-AUC only**, 7 models.
+- Unique names in the log: **60 for every model** — the cap, not a finding.
+- Cross-model intersection of top-20: `Cre`, `LV`, `LVEF`, `WBC`, `eGFR`.
 
 ### 8.4 Coalition SHAP (Part 2)
 
-- Universe: LOCO top-24 (nested inside the arbitrary 40).
-- Value function: PR-AUC / F1 / F2 computed on **32 test rows, of which 28 are cases (87.5% prevalence)**,
-averaged over 3 background draws, 12 permutations.
-- Unique names per model: 30–36.
-- Cross-model intersection: PR-AUC → `LV`; F1 → `eGFR`; F2 → `LV`, `WBC`.
+- Universe: independent cheap-importance prefix of **40** (not nested in LOCO).
+- Value function: PR-AUC on a stratified val subsample at cohort prevalence.
+- Unique names per model: **40** (the universe).
+- Cross-model intersection of top-20: `HGB`, `WBC`.
 
 ### 8.5 FFS (Part 2)
 
-- Candidate pool: LOCO top-30.
-- Greedy forward addition, scored on an inner 20% hold-out of the training set (≈ 726 rows, ≈ 13 events).
-- Unique names per model: 18–24 (sparsest of the three selectors).
-- Cross-model intersection: PR-AUC → `Cre`; F1 → `WBC`; F2 → `WBC`.
+- Candidate pool: independent cheap-importance prefix of **24**.
+- Greedy forward addition on the val slice; stop at 12 steps or when PR-AUC gain ≤ 0.
+- Unique names per model: 4–12 (sparsest; CatBoost 4, LightGBM 5 after early stop).
+- Cross-model intersection of top-20: **empty**.
 
 ### 8.6 Classic-model consensus (Part 2 Table 2 and Table 4)
 
-**Strictest global intersection** (all 7 models × all 3 selectors × all metrics): `WBC`**,** `eGFR` — 2 names.
-**Global union:** 40 names (= the LOCO cap).
+**Strictest global intersection** (all 7 models × all 3 selectors, PR-AUC top-20): **empty**.
+**Global union of scored names:** 86.
 
-**Within-model LOCO ∩ SHAP ∩ FFS, by model and metric** (Part 2 Table 2, L156–178):
-
-
-| Model | PR-AUC                           | F1                               | F2                           |
-| ----- | -------------------------------- | -------------------------------- | ---------------------------- |
-| lr    | Cre, Men, Min-stent diameter, TG | Cre, Men                         | Fast-Glu, LV, Men, WBC, eGFR |
-| rf    | LVEF, WBC, eGFR                  | LV, Previous PCI, WBC, eGFR      | Cre, Fiberinogen, Platelet   |
-| rf_b  | CaI, LVEF, WBC                   | eGFR                             | HL, LV, LVEF, STEMI          |
-| cat   | LV, WBC, eGFR                    | HGB, HL, LV, Platelet, WBC, eGFR | Hypertension, LV, WBC, eGFR  |
-| xgb   | Cre, LV, TCL                     | LV, LVEF, WBC, eGFR              | LV, WBC, eGFR                |
-| xgb_b | Cre, HGB, LV, WBC                | WBC, eGFR                        | LV, WBC, eGFR                |
-| lgb   | Cre, HL                          | Current drinking, HL, WBC        | History of HF, Men, WBC      |
+**Within-model LOCO ∩ SHAP ∩ FFS, PR-AUC** (Part 2 Table 2):
 
 
-**Union of the above (the "ML consensus catalogue", n = 20, Part 3 L45):** `WBC`, `eGFR`, `LV`, `Cre`, `Men`,
-`LVEF`, `Previous PCI`, `Fiberinogen`, `HGB`, `Platelet`, `HL`, `STEMI`, `Hypertension`, `Fast-Glu`, `TG`,
-`TCL`, `CaI`, `Min-stent diameter`, `Current drinking`, `History of HF`.
+| Model | PR-AUC |
+| ----- | ------ |
+| lr    | Cre, LV, Men, UA, WBC, eGFR |
+| rf    | HGB, LDL, LVEF, Men, WBC, eGFR |
+| rf_b  | CaI, HGB, LVEF, WBC |
+| cat   | 1.1:1Post dilation, HGB, WBC |
+| xgb   | 1.1:1Post dilation, Aneurysm, Cre, HGB, LV, WBC, eGFR |
+| xgb_b | 1.1:1Post dilation, LV, LVEF, WBC, eGFR |
+| lgb   | HbA1c, LV |
 
-**Union sizes per model** (Part 2 Table 3): lr 33, rf 32, rf_b 33, cat 30, xgb 32, xgb_b 30, lgb 30.
-**Jaccard between selector unions:** 0.95–0.97 — high **because the selectors are nested in one pool**, which
-Part 2 correctly notes (L140).
+
+**Union of the above (the "ML consensus catalogue", n = 13):** `1.1:1Post dilation`, `Aneurysm`, `CaI`, `Cre`,
+`HGB`, `HbA1c`, `LDL`, `LV`, `LVEF`, `Men`, `UA`, `WBC`, `eGFR`.
+
+**Union sizes per model** (Part 2 Table 3, top-20 unions): lr 32, rf 35, rf_b 34, cat 32, xgb 31, xgb_b 30, lgb 30.
+**Jaccard between selector unions** (top-20, models pooled): LOCO–SHAP 0.62, SHAP–FFS 0.48, LOCO–FFS 0.43 —
+moderate because the selectors are independent (the old 0.95–0.97 figure was nested-pool artefact).
 
 ### 8.7 TabPFN interpretability (Part 5)
 
@@ -1101,92 +1097,91 @@ measurement timing is undocumented.
 ## 9. Overlap and disagreement: statistics vs machine learning
 
 Source: `paper_results/03_stats_vs_ml/feature_extraction_comparison.md`. Generating code:
-`code/analyzes/stats_vs_ml/rebuild_comparison.py` (notebook wrapper `stats_vs_ml_comparison.ipynb`).
-Headline arithmetic is asserted in that script: Jaccard = 5/35 ≈ 0.1429, intersection
-`{WBC, eGFR, LV, Fiberinogen, Previous PCI}`. **[TODO-P3 — closed]**
+`code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`.
+Headline arithmetic is asserted in that notebook: Jaccard = 5/28 ≈ 0.1786, intersection
+`{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}`. **[TODO-P3 — closed]**
 
 ### 9.1 Headline overlap
 
 
-| Quantity                  | Value                                                      | Source     |
-| ------------------------- | ---------------------------------------------------------- | ---------- |
-| Statistical FDR catalogue | 20 names                                                   | Part 3 L43 |
-| ML consensus catalogue    | 20 names                                                   | Part 3 L45 |
-| Intersection              | **5** — `WBC`, `eGFR`, `LV`, `Fiberinogen`, `Previous PCI` | Part 3 L61 |
-| Jaccard                   | 5 / 35 ≈ **0.14**                                          | Part 3 L55 |
-| Statistics-only           | 15                                                         | Part 3 §4  |
-| ML-only                   | 15                                                         | Part 3 §5  |
+| Quantity                  | Value                                                            | Source     |
+| ------------------------- | ---------------------------------------------------------------- | ---------- |
+| Statistical FDR catalogue | 20 names                                                         | Part 3 §1  |
+| ML consensus catalogue    | 13 names                                                         | Part 3 §1  |
+| Intersection              | **5** — `WBC`, `eGFR`, `LV`, `HbA1c`, `1.1:1Post dilation`       | Part 3 §2  |
+| Jaccard                   | 5 / 28 ≈ **0.18**                                                | Part 3 §2  |
+| Statistics-only           | 15                                                               | Part 3 §4  |
+| ML-only                   | 8                                                                | Part 3 §5  |
 
 
-**[VERIFIED]** 20 + 20 − 5 = 35. The two 20-name input lists match §8.1 and §8.6, which are themselves
-verified against `eda.ipynb` and `baseline_feature_selections.ipynb`. `rebuild_comparison.py` asserts the
+**[VERIFIED]** 20 + 13 − 5 = 28. The input lists match §8.1 and §8.6. `stats_vs_ml_comparison.ipynb` asserts the
 same intersection and Jaccard.
 
 ### 9.2 Shared features and the evidence behind each
 
 
-| Feature      | Statistical evidence           | ML evidence                              |
-| ------------ | ------------------------------ | ---------------------------------------- |
-| WBC          | MW r = 0.130, q = 9.48e-20     | Global 7-model × 3-selector intersection |
-| eGFR         | Cohen d = −0.712, q = 3.71e-19 | Global 7-model × 3-selector intersection |
-| LV           | Cohen d = 1.127, q = 3.26e-16  | Cross-model LOCO/SHAP; cat/xgb consensus |
-| Fiberinogen  | MW r = 0.035, q = 0.0286       | RF F2 consensus only                     |
-| Previous PCI | Fisher OR = 6.485, q = 0.0002  | RF F1 consensus only                     |
+| Feature            | Statistical evidence           | ML evidence                                      |
+| ------------------ | ------------------------------ | ------------------------------------------------ |
+| WBC                | MW r = 0.130, q = 9.48e-20     | In 6/7 model three-way sets; cross-model LOCO/SHAP |
+| eGFR               | Cohen d = −0.712, q = 3.71e-19 | Cross-model LOCO; lr/rf/xgb_b three-way          |
+| LV                 | Cohen d = 1.127, q = 3.26e-16  | Cross-model LOCO; lr/lgb/xgb/xgb_b three-way     |
+| HbA1c              | MW r = 0.052, q = 7e-4         | LightGBM three-way only                          |
+| 1.1:1Post dilation | χ² OR = 0.187, q = 3.69e-9     | CatBoost / XGBoost / XGB_b three-way             |
 
 
-**[DISCREPANCY, minor]** Part 3 L96 writes "MW r = 0.13, q = 9.5e-20" for WBC — the CSV gives q = 9.48e-20 ✓.
-Part 3 L100 writes "Fisher OR = 6.5" for Previous PCI, while three different tables in this repository give
-6.485, 6.465, and 6.733 for the same quantity. See §12.4.
+**[REV5]** `Fiberinogen` and `Previous PCI` left the intersection when F1/F2 were dropped. `Previous PCI` is
+still frequently selected. Three Previous-PCI OR estimators remain (§12.4).
 
 ### 9.3 Statistics-only (15) — the repository's own explanations, audited
 
-Part 3's Table 3 gives a reason for each. The reasons fall into three buckets, and **all three are correct but
-two of them are artefacts of this analysis rather than findings about the data**:
+Part 3's Table 3 gives a reason for each. The reasons fall into three buckets:
 
 
 | Bucket                       | Names                                                                                                                                             | Assessment                                                                                                                                                                                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Genuine collinear redundancy | `1.1:1Post dilation`, `No postdilation`, `Multi-vessel CAD`, `Single-vessel disease`, `3-vessel disease`, `NO.of vessels`, `CKD90`, `CKD5`, `PES` | **Real.** Univariate testing scores every member of a redundant block; a fitted model needs one.                                                                                           |
-| One-hot fragmentation        | `Stent type-SES`                                                                                                                                  | **Real but self-inflicted.** The selector notebook one-hot-encodes the raw 106 brand strings, whereas the EDA collapses to 9 levels. Same variable, two incompatible encodings. See §12.5. |
-| Never in the candidate pool  | `No.of stents per lesion`, `Total stent length`, `HbA1c`, `Clopidogrel`, `Diabetes`                                                               | **Artefact.** These may simply sit beyond column 40 in ColumnTransformer order. Their absence is not evidence.                                                                             |
+| Genuine collinear redundancy | `No postdilation`, `Multi-vessel CAD`, `Single-vessel disease`, `3-vessel disease`, `NO.of vessels`, `CKD90`, `CKD5`, `PES` | **Real.** Univariate testing scores every member of a redundant block; a fitted model needs one. The 1.1:1 flag *is* now in consensus; its complement is not. |
+| Brand encoding               | `Stent type-SES`                                                                                                                                  | **Real but encoding.** χ² is on 9 collapsed brands; ML one-hots those 9 levels. `Stent type-SES_resolute` is frequently selected; the parent name is not in a 3-way set. |
+| Weak / not in three-way      | `No.of stents per lesion`, `Total stent length`, `Clopidogrel`, `Diabetes`, `Previous PCI`, `Fiberinogen`                               | **Filter, not a missing pool.** Selectors now rank their own prefixes. Absence means not in LOCO ∩ SHAP ∩ FFS top-20. Previous PCI is frequently selected anyway. |
 
 
-Part 3 states the third mechanism honestly at L145 and L226. The paper must carry that caveat into every
-sentence about statistics-only features, not bury it in a methods note.
-
-### 9.4 ML-only (15) — the repository's own explanations, audited
+### 9.4 ML-only (8) — the repository's own explanations, audited
 
 
 | Feature                                                                                         | Univariate status         | Repository's stated reason                                                | Assessment                                                                                                                               |
 | ----------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Cre                                                                                             | p = 0.88 (MW r = 0.002)   | Renal surrogate for eGFR                                                  | Plausible; note `Cre` skew = 7.48, kurtosis = 161                                                                                        |
 | Men                                                                                             | p = 0.27                  | `Men × eGFR` interaction is FDR-significant; joint model adjusted OR 3.28 | The interaction q = 0.028 comes from **16 hand-picked pairs**; the adjusted OR 3.28 arises from a null univariate. **Exploratory only.** |
-| LVEF                                                                                            | raw p = 0.033, q = 0.0666 | (was "OR persists")                                                       | **[REV4]** Part 3 now states the **sign reversal** (0.851 → 1.65) when `LV` is in the same model.                                        |
-| HGB                                                                                             | raw p = 0.039, q = 0.0716 | Threshold-metric consensus                                                | Plausible                                                                                                                                |
-| Fast-Glu                                                                                        | raw p = 0.025, q = 0.0536 | Correlated with HbA1c / diabetes                                          | Plausible                                                                                                                                |
-| CaI                                                                                             | raw p = 0.051, q = 0.0869 | On the FDR boundary                                                       | Plausible; note `CaI` is the **top** mutual-information feature in Part 5                                                                |
-| Platelet, HL, STEMI, Current drinking, History of HF, Hypertension, TG, TCL, Min-stent diameter | ns                        | Metric/hold-out artefacts                                                 | Part 3 L235 already calls LightGBM's set "algorithm artefacts". Endorse that framing.                                                    |
+| LVEF                                                                                            | raw p = 0.033, q = 0.0666 | Sign reversal 0.851 → 1.65 when `LV` is in the same model                 | Unchanged. Trees still split on systolic function.                                                                                       |
+| HGB                                                                                             | raw p = 0.039, q = 0.0716 | CatBoost/RF/XGB three-way                                                 | Plausible                                                                                                                                |
+| CaI                                                                                             | raw p = 0.051, q = 0.0869 | RF_b three-way; FDR boundary                                              | Plausible; note `CaI` is the **top** mutual-information feature in Part 5                                                                |
+| LDL                                                                                             | ns (p = 0.33)             | RF three-way lipid split                                                  | Val-slice artefact risk                                                                                                                  |
+| UA                                                                                              | ns (p = 0.17)             | LR three-way ACS offset                                                   | Val-slice artefact risk                                                                                                                  |
+| Aneurysm                                                                                        | ns (p = 0.40)             | XGB three-way only                                                        | Unstable; do not headline                                                                                                                |
 
+
+The old F1/F2-only names (`Platelet`, `HL`, `STEMI`, `Current drinking`, `History of HF`, `Hypertension`, `TG`,
+`TCL`, `Min-stent diameter`, `Fast-Glu`) are **no longer in consensus**.
 
 ### 9.5 The comparison's structural weakness
 
 Part 3 compares:
 
 - a **full-cohort, 92-event, multiplicity-controlled association screen** with
-- a **28-event, test-set-scored, top-12-of-an-arbitrary-40-column-prefix predictive shortlist**.
+- an **18-event, val-slice, top-20-of-independent-pools predictive shortlist** (88-column encoded matrix).
 
-Part 3 says as much in its own table (L33–40) and is careful throughout. But the framing "Only 5 of 20 ... also sit
-in the ML three-selector consensus" invites the reader to treat 0.14 as a scientific finding about the biology.
-It is largely a finding about the two procedures' differing power, encodings and candidate pools. Rewrite the
-comparison as a **methods-comparison** result, not a biological one.
+That is a fairer methods comparison than the old 28-event / nested-40-prefix export, but it is still a
+**methods result**, not a biological ranking. Rewrite any sentence that treats Jaccard 0.18 as a finding
+about VLST biology.
 
 ---
 
 ## 10. Complete figure and table inventory
 
-**Regeneration status at a glance.** Part 1, Part 2, Part 3 and Part 5 exports match their generating code
-(Part 3 via `rebuild_comparison.py`). Part 4's nested-CV export set is **[STALE]** for TabPFN and must be
-re-exported (§12.2). Part 4's TSSI leakage supplement is current (stored single-split metrics, no re-run).
+**Regeneration status at a glance.** Part 1 figures were copied from the 2026-08-31 `eda.ipynb` outputs
+(categorical SES rates, paper tables, heatmaps, domain Wald panels). Part 2 and Part 3 were rebuilt from the
+paper-protocol selector run (`rebuild_part2_paper_figures.py`, `stats_vs_ml_comparison.ipynb`). Part 4's nested-CV
+export set is **[STALE]** for TabPFN and must be re-exported (§12.2). Part 4's TSSI leakage supplement is current
+(stored single-split metrics, no re-run). Part 5 PNGs remain mixed stale/current.
 
 ### Part 1 — EDA (`paper_results/01_eda/EDA_paper_figures_and_tables.md`)
 
@@ -1255,7 +1250,7 @@ No truncation note.
 | Table 4 | Table  | `table_ml_only.png/.csv`           |
 
 
-**[CLOSED]** Generating code: `code/analyzes/stats_vs_ml/rebuild_comparison.py` (notebook `stats_vs_ml_comparison.ipynb`). Jaccard 5/35 and the five-name intersection are asserted in the script. Markdown reports now embed the PNGs rather than placeholders.
+**[CLOSED]** Generating code: `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`. Jaccard 5/28 and the five-name intersection `{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}` are asserted in the notebook.
 
 ### Part 4 — nested-CV rating  — **every item below is [STALE] for TabPFN**
 
@@ -1330,7 +1325,7 @@ paper's framing changes and this layout does not apply.
 | **Figure 1** | Part 4 Figure 1 (PR and ROC curves) with the prevalence line, **PR panel first and larger**                                                                                   | The single most important result. PR-AUC leads because prevalence is 1.77%.                                                                                                                                                                       |
 | **Figure 2** | Part 4 Figure 2 (calibration), **re-exported** from the current notebook state                                                                                                | The Brier question is settled (§12.2): TabPFN's 0.0060 is the best of the six. Calibration now *supports* the result instead of qualifying it — but the caption must be rewritten from scratch, because the existing one says the opposite.       |
 | **Figure 3** | A **new** single figure merging Part 1 Figure 4 (binary ORs) and Part 1 Figure 3 (continuous effect sizes) with **separate panels per effect-size metric**                    | Fixes the d-vs-r comparability problem of §7.8 while keeping the association story in one place.                                                                                                                                                  |
-| **Figure 4** | Part 5 Figure 13 (consensus ranking) **or** Part 3 Figure 1 (Venn) — pick one                                                                                                 | Both answer "which variables matter". Two is redundant in the main text. Prefer Figure 13 if the paper's thesis is interpretation; prefer the Venn if the thesis is methods comparison. The Venn is now generated by `rebuild_comparison.py`.     |
+| **Figure 4** | Part 5 Figure 13 (consensus ranking) **or** Part 3 Figure 1 (Venn) — pick one                                                                                                 | Both answer "which variables matter". Two is redundant in the main text. Prefer Figure 13 if the paper's thesis is interpretation; prefer the Venn if the thesis is methods comparison. The Venn is now generated by `stats_vs_ml_comparison.ipynb`.     |
 
 
 ### 11.2 Supplement
@@ -1468,14 +1463,14 @@ All three are labelled "Univariate OR". Three different estimators are in use (2
 class-weighted logistic, unweighted logistic) without any of the tables saying so. Pick one estimator, or label
 each column with its estimator.
 
-### 12.5 [DISCREPANCY] `Stent type-SES` encoding — **code unified; stored runs still old**
+### 12.5 [DISCREPANCY] `Stent type-SES` encoding — **code unified; Part 2 stored run matches; Part 4/5 still old**
 
-**[REV4+]** All in-scope notebooks now call `code/modeling/tools/stent_encoding.py`: canonicalize
-aliases, collapse n < 30 → `other` (**9 levels**), keep the column name `Stent type-SES`.
-`PES` / `ZES` / `EVS` stay as the drug-class partition (Wang's published SES rates match `PES`).
-Part 5 continuous PDP **excludes** the brand column (nominal, not a dose axis).
+**[REV5]** `eda.ipynb` and `baseline_feature_selections.ipynb` have been re-run with
+`code/modeling/tools/stent_encoding.py`: canonicalize aliases, collapse n < 30 → `other` (**9 levels**).
+Part 2 scaled width is **88**. EDA χ²: 99 raw levels → 9 used, χ² = 44.90, df = 8, V = 0.093.
+`PES` / `ZES` / `EVS` stay as the drug-class partition.
 
-Stored Part 2/4/5 figures and the 185-column smoke matrices are still the **pre-unification**
+Part 4/5 stored figures and the nested-CV smoke matrices are still the **pre-unification**
 exports until those notebooks are re-run. After re-run, classics one-hot 9 brands (~8 dummies
 with `drop="first"`), not 106 raw strings.
 
@@ -1484,7 +1479,7 @@ with `drop="first"`), not 106 raw strings.
 | ------------------------------------------ | --------------------------------------------------------------- | --------------------------- |
 | `eda.ipynb`                                | Shared 9-level encoder at load                                  | 9 (already)                 |
 | `preprocessing.ipynb`                      | Same encoder; column name kept; then OHE                        | 88 if last run used `stent_brand` |
-| `baseline_feature_selections.ipynb`        | Shared encoder, then OHE the 9 levels                           | **185** (old)               |
+| `baseline_feature_selections.ipynb`        | Shared encoder, then OHE the 9 levels                           | **88** (2026-08-31 run)     |
 | `baseline_plus_tabpfn.ipynb` (classic arm) | Shared encoder, then ColumnTransformer OHE                      | ~186 (old)                  |
 | `baseline_plus_tabpfn.ipynb` (TabPFN arm)  | Same 9-level column, native/categorical                         | 81 (old 106-level codes)    |
 | `tabpfn_interpretability.ipynb`            | 9-level codes; brand dropped from continuous PDP                | 81; Fig 1 still sweeps codes |
@@ -1506,19 +1501,17 @@ TSSI scout notebooks. Re-run preprocessing before those scouts if you want match
 | Part 5 Table 2 caption: "8.6 h" wall time                                         | Verified in the notebook                                                                                                                                                                                                        | Fine; keep as a reproducibility note.                                                                                                                                                          |
 
 
-### 12.7 [STALE PNG] Part 2 Table 0 CatBoost spec — reports corrected
+### 12.7 [CLOSED] Part 2 Table 0 CatBoost spec
 
-**[REV4]** Markdown Table 0 and `paper_table0_classic_models.csv` now say GPU **Plain** boosting
-(`task_type=GPU`; Ordered is CPU-only) and `eval_metric=PRAUC`, matching the current Part 2 factory
-(`baseline_feature_selections.ipynb`) and Part 4. The exported **PNG** of Table 0 is still the old
-“Ordered boosting” image until re-export. Do not quote the PNG over the CSV.
+**[REV5]** Table 0 PNG was re-exported with GPU **Plain** boosting and `eval_metric=PRAUC`.
 
-### 12.8 [RISK] Part 2 figures are a prior reduced export; the notebook no longer has a smoke switch
+### 12.8 [CLOSED] Part 2 figures are the paper-protocol run
 
-The notebook is a single paper protocol (top-20, SHAP 40 permutations, LOCO 60, FFS 24×12, 400 rounds). The
-**stored figures** are still the old reduced export (`FEATURE_TOPK = 12`, `SHAP_N_PERM = 12`,
-`LOCO_MAX_FEATURES = 40` of 185). Monte-Carlo error on those Shapley estimates is unquantified. Do not publish
-the stored figures as the paper result; re-run the paper protocol, then replace Parts 2 and 3.
+The notebook is a single paper protocol (top-20, SHAP 40 permutations, LOCO 60, FFS 24×12, 400 rounds).
+**Stored figures (2026-08-31)** match that protocol: PR-AUC only, independent selectors, 88 columns,
+fit/val 4148/1037. Kaggle long CSVs were not committed; Harmony panels were rebuilt from notebook
+displays (`rebuild_part2_paper_figures.py`). Do not quote the old F1/F2 / 0.95 Jaccard / 185-column
+story.
 
 ### 12.9 [RISK] Unquantified uncertainty everywhere
 
@@ -1614,18 +1607,18 @@ Groups B–E are execution work.
 | **B2** [TODO-REPRO]       | **Persist** `oof_predictions.csv`**,** `fold_thresholds.csv`**,** `fold_metrics.csv`**,** `model_comparison.csv`**,** `nested_cv_operating_point.csv` into the repo.                                                                                                                         | Low                                                                                                                                                             | Confirmed absent from `data/result/` entirely. Without OOF predictions nobody — including you — can add confidence intervals later without re-running TabPFN. Do this *at the same time as B1* while the run is reproducible. |
 | **B3** [TODO-CI]          | **Bootstrap CIs on PR-AUC / ROC-AUC / Brier, and a paired test** (bootstrap difference or DeLong for ROC) between TabPFN and CatBoost.                                                                                                                                                       | Low **once B2 exists** — pure post-processing of OOF probabilities, no model refits.                                                                            | Currently there is no interval on any metric and no test behind "TabPFN dominates" (§12.9). Interim fallback that costs nothing: TabPFN wins PR-AUC in **5 of 5 folds** (§7.4).                                               |
 | **B4** [TODO-T4]          | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; raise `N_BOOT` from 200 to ≥ 2,000.                                                                                                                                                                  | Low                                                                                                                                                             | As it stands the model is not identified: `1.1:1Post dilation` sits beside its exact complement, and `eGFR` beside `CKD5` and `CKD90` (§12.1). `CKD90`'s CI is 2.708–639.506. **This table cannot be published as written.**  |
-| **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `rebuild_comparison.py` + `stats_vs_ml_comparison.ipynb`. Jaccard 5/35 asserted; figures/tables written to both report trees.                                                                                                                   | Done                                                                                                                                                            | Inputs remain the §8.1 FDR set and §8.6 ML consensus. Re-run the script if either catalogue changes.                                                                                                                          |
+| **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `stats_vs_ml_comparison.ipynb`. Jaccard 5/28 asserted after the 2026-08-31 catalogues. | Done | Inputs are the §8.1 FDR set and §8.6 ML consensus. Re-run the notebook if either catalogue changes. |
+| **B8** [CLOSED]           | **Part 2 paper protocol re-run on Kaggle** (2026-08-31): full-cohort discovery, PR-AUC only, independent selectors, top-20 / SHAP 40 / LOCO 60 / FFS 24×12. Parts 2–3 figures replaced. Download `selector_summary_long.csv` when convenient (tables were reconstructed from notebook HTML). | Done | Part 2/3 still do not support a *predictive* claim — they are discovery catalogues on a val slice (§4.4, §9.5). |
 | **B6** [TODO-MI]          | **Re-run** `mutual_info_classif` and re-export Part 5 Table 1 to fill the blank `Fast-Glu` and `ZES` cells.                                                                                                                                                                                  | Seconds — pure sklearn, zero TabPFN calls                                                                                                                       | A published "top 15" with two empty cells is not acceptable (§12.6).                                                                                                                                                          |
 | **B7** [TODO-TABLE1]      | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3).                                                                                     | Low                                                                                                                                                             | A conventional Table 1 already exists in Wang 2020; the repo still needs a verified, ML-complete version.                                                                                                                     |
-| **B8**                    | **Part 2 is a single paper protocol** (no smoke switch): full-cohort discovery, PR-AUC only, independent selectors, top-20 / SHAP 40 / LOCO 60 / FFS 24×12 / 400 rounds. **Re-run on Kaggle** (`USE_CACHE=False`), then refresh Part 3. Stored figures remain the prior reduced export until then. | Kaggle — 7 models × 3 selectors                                                                                                                                 | Until re-export, Part 2/3 cannot support a predictive claim (§4.4).                                                                                                                                                           |
-| **B9**                    | **Optional but strengthens the comparison:** tune the five classic baselines, or drop the ~106 one-hot brand dummies so all six models see comparable input.                                                                                                                                 | Medium                                                                                                                                                          | Right now it is untuned defaults vs high-effort TabPFN (§6.3) on non-identical representations (§6.4). Disclosure is the minimum; tuning is the fix.                                                                          |
+| **B9**                    | **Optional but strengthens the comparison:** tune the five classic baselines, or confirm Part 4 one-hot matches the 9-level encoder after re-run.                                                                                                                                 | Medium                                                                                                                                                          | Right now it is untuned defaults vs high-effort TabPFN (§6.3) on non-identical representations until Part 4 is re-run (§6.4). Disclosure is the minimum; tuning is the fix.                                                                          |
 | **B10** [TODO-SCORE]      | **Implement Wang's 8-variable VLST score as a comparator** on the same 5,185 rows (and on Shantou if obtained): DM, previous PCI, AMI as admitting diagnosis, eGFR < 90, 3-vessel disease, stents per lesion, SES, no post-dilation. Report nested-CV PR-AUC/ROC-AUC against TabPFN.         | Low–medium                                                                                                                                                      | This is the published clinical baseline. A paper that claims better prediction on the same cohort without beating this score will be the first reviewer comment. Watch the post-dilation coding (§3.3).                       |
 | **B11** [TODO-EXT]        | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used.                                                                                                                                                                                         | Political, not computational                                                                                                                                    | Without it, state clearly that ML validation is derivation-cohort nested CV only.                                                                                                                                             |
 
 
 ### C. Rewrite or delete — claims that are now known to be wrong
 
-All sixteen items below are **closed in the paper-style reports** (both trees + `paper_results.md`). Remaining work is PNG re-export or encoding unification (B1, B9, C11 image, optional C12 split panels), not more caption edits.
+All sixteen items below are **closed in the paper-style reports** (both trees + `paper_results.md`). Remaining work is Part 4/5 PNG re-export (B1) and optional encoding unification on Part 4 (B9), not more Part 2/3 caption edits.
 
 
 | #       | Where                                                                                     | Action                                                                                                                                                                                                                                                         |
@@ -1640,11 +1633,11 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
 | **C9**  | Part 5 Table 5 caption                                                                    | **[REV4/closed in reports]** Caption now says MI 0.0 for `Cre` / `No.of stents per lesion` are fill zeros.                                                                                                                                                     |
 | **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (OR 0.144), `Clopidogrel` (OR 0.464) | **[REV4/closed in reports]** Word removed from paper-style reports (Parts 1, 3, 5 and the concatenated bundle). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). Audit text below still names the banned word.          |
-| **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV4/closed in reports]** Markdown + CSV: GPU **Plain**, `eval_metric=PRAUC` (aligned with Part 4). Table 0 **PNG** still stale until re-export (§12.7).                                                                                                    |
+| **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
 | **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[REV4/closed in reports]** Labelled: Table 2 = 2×2/Fisher (**6.49**); Table 4 univariate column = unweighted logit (**6.46**); Table S4 joint-domain univariate (**6.73**). Do not pick one number without naming the estimator.                             |
-| **C14** | `Stent type-SES`                                                                          | **[REV4/closed in reports]** Three encodings disclosed (EDA 9 collapsed levels; Part 2/4 raw 106 one-hot; Part 5 integer codes; Wang binary SES flag). Part 5 Fig 1: the SES PDP sweep is **not** a nominal brand contrast. Unifying encodings remains **B9**. |
-| **C15** | Any statement of the form "LOCO saturates the 40-feature cap"                             | **[REV4/closed in reports]** Part 2 Fig 1 already says the stored run evaluated a 40-column prefix, not that 40 features were independently important.                                                                                                         |
+| **C14** | `Stent type-SES`                                                                          | **[REV5]** EDA and Part 2 use the shared 9-level encoder (Part 2 → 88 columns). Part 4/5 stored runs still need re-export. Wang binary SES flag remains a third encoding. Part 5 Fig 1: the SES PDP sweep is **not** a nominal brand contrast. |
+| **C15** | Any statement of the form "LOCO saturates the 40-feature cap"                             | **[REV5]** Replaced: LOCO unique count is 60 because 60 columns were scored, not because 60 were independently important.                                                                                                         |
 | **C16** | Part 1 Table S2                                                                           | **[REV4/closed in reports]** All **16** pairs from `domain_interaction_screen.csv` are shown; only LV×eGFR and Men×eGFR pass FDR.                                                                                                                              |
 
 
@@ -1654,10 +1647,10 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | #                           | Item                                                                                                                                                                                                                                                                                                                                                                                                               | Notes                                                                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative.                                                           | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
-| **W2**                      | **Clinical motivation and citations.** Wang 2020 now supplies VLST definition, incidence/mortality citations, the LST-score gap, and this cohort's protocol. Still to write: why TabPFN, what "personalised" means, and an honest statement of what this paper adds *beyond Wang's already-validated 8-variable score*.                                                                                            | Cite Wang; do not write as if no VLST score exists.                                       |
-| **W3**                      | **Limitations section**, covering at minimum: ML models have no external/temporal validation (Wang's score does, on Shantou data we did not use); binary classification vs the published Cox analysis; EPV ≈ 5.4; TabPFN client non-determinism despite `random_state=42`; TabPFN as a remote service whose version is unrecorded; DAPT columns are post-baseline; WBC was excluded by the original investigators. | §4.2, §6.6, §12.9, §12.10.                                                                |
-| **W4** [TODO-EPV]           | **EPV stated explicitly** (92 / 17 ≈ 5.4) next to every adjusted odds ratio.                                                                                                                                                                                                                                                                                                                                       | Computed nowhere (§2.2).                                                                  |
-| **W5**                      | **Terminology pass** enforcing §12.12: "association" for Part 1 and mutual information, "prediction" for Part 4 OOF results only, "interpretation/attribution" for Parts 2 and 5. Never "risk factor", "causal", "independent predictor", "clinically useful", "validated". Wang's own score *was* externally validated — do not use "validated" for TabPFN by contagion.                                          |                                                                                           |
+| **W2** [closed in reports]  | **Clinical motivation and citations.** Drafted in `paper_results/00_front_matter.md` (and concatenated `paper_results.md` Part 0): Wang 2020 definition/cohort/score; why TabPFN; what “personalised” does *not* mean; what this pack adds *beyond* Wang’s 8-variable Cox score (does not re-implement that score).                                                                                         | Cite Wang; do not write as if no VLST score exists.                                       |
+| **W3** [closed in reports]  | **Limitations section** in the same Part 0 file: no ML external/temporal test (Wang’s score has Shantou); binary vs Cox; EPV ≈ 5.4; TabPFN client non-determinism; unrecorded remote version; post-baseline DAPT; WBC excluded by Wang; `LV` unnamed; no PR-AUC intervals.                                                                                                                              | §4.2, §6.6, §12.9, §12.10.                                                                |
+| **W4** [TODO-EPV — closed]  | **EPV stated explicitly** (92 / 17 ≈ **5.4**) in Part 0 and next to Part 1 Table 4 / Figure S4 adjusted ORs (both report trees + concat).                                                                                                                                                                                                                                                            | Was computed nowhere (§2.2).                                                              |
+| **W5** [closed in reports]  | **Terminology pass** enforcing §12.12 in Part 0 and part headers: association (Parts 1, 5 MI); prediction (Part 4 nested CV only); interpretation/attribution (Parts 2, 5). Banned words removed from captions (“risk factor”, “independent signal”). Wang’s score remains the only result called externally tested.                                                                                  |                                                                                           |
 
 
 ### E. Housekeeping
@@ -1679,6 +1672,6 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 2. **B10** (Wang score as comparator) as soon as Part 4 exports are clean — same 5,185 rows, no new data required.
 3. **B11** (Shantou file) as a data-access ask, not a compute task.
 4. **B4, B6, B7** — all cheap, all independent. B7 is now "rebuild and verify against Wang Table 1," not "invent from nothing." (B5 / Part 3 notebook is done.)
-5. **C1–C16 report wording is done.** Remaining C-related work is PNG re-export: B1 (Part 4 TabPFN panels), C11 Table 0 image, optional C12 split-axis Figure 3. Encoding unification is B9, not a caption fix.
-6. **B8** re-run on Kaggle, then refresh Part 3; then W2–W5 (limitations, EPV, terminology in the manuscript itself).
+5. **C1–C16 report wording is done.** Remaining C-related work is PNG re-export: B1 (Part 4 TabPFN panels), optional C12 split-axis Figure 3. Part 4 encoding unification is B9.
+6. **W1–W5 are drafted** in `paper_results/00_front_matter.md` (Part 0 of `paper_results.md`) and Part 1 Table 4. Remaining B-list: B1/B2 Part 4 export, B10 Wang score comparator, B11 Shantou file.
 

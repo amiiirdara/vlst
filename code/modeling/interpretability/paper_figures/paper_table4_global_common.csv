@@ -1,3 +1,3 @@
 Scope,n features,Features
-"All 7 models × LOCO, SHAP, FFS × pr_auc/f1/f2",2,WBC; eGFR
-Any model / selector / metric (union),40,40 unique features (full list truncated in notebook display)
+"All 7 models × LOCO, SHAP, FFS (PR-AUC top-20)",0,
+Any model / selector (union of scored names),86,86 unique names (full list not downloaded from Kaggle)

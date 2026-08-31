@@ -2,11 +2,11 @@
 
 This document gathers publication-oriented figures and tables from the multi-model feature selectors in `baseline_feature_selections.ipynb`.
 
-**Cohort / protocol.** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol** (current code; figures below are not yet this run): no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE` of the full cohort, `random_state=42`); **PR-AUC only**; LOCO / SHAP / FFS independent; top-20; SHAP universe 40 / 40 permutations / 3 background draws; LOCO cap 60; FFS pool 24 × 12 steps with early stop; boosting 400 rounds. Models use the **scaled** view: `ColumnTransformer` one-hots the **raw 106** `Stent type-SES` strings (EDA instead collapses to 9 levels) and then `StandardScaler` → **185 columns**. Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. TabPFN may be configured but is optional. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
+**Cohort / protocol (2026-08-31 Kaggle run).** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol:** no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE=0.2`, `random_state=42`): **fit = 4,148 rows (74 events)** / **val = 1,037 rows (18 events)**. **PR-AUC only.** LOCO / SHAP / FFS are **independent** (each takes its own cheap fit-slice importance pool). Budget: top-20; SHAP universe 40; LOCO cap 60; FFS pool 24 × 12 steps with early stop (`FFS_MIN_GAIN=0`); boosting 400 rounds. `USE_CACHE=False`. GPU: Tesla T4. Models use the **scaled** view: shared 9-level stent-brand encoder, then `ColumnTransformer` one-hot (drop-first) + `StandardScaler` → **88 columns** (81 raw − 1 brand + 8 dummies). Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
 
-**Methods note — stored figures vs paper protocol.** Figures and tables below are a **prior reduced export** and must be replaced after the paper-protocol Kaggle run. In that export, selectors scored on a 1,556-row / 28-event **test** fold; LOCO’s 40-column cap was ColumnTransformer **output order**; SHAP and FFS nested in that pool; SHAP used **all 28 test events plus 4 random controls** (87.5% prevalence); metrics were `pr_auc`, `f1`, `f2`; top-12. Do not quote these figures as the paper result.
+**Kaggle note.** Per-selector CSVs (`selector_summary_long.csv`, `loco_*.csv`, …) were written to `/kaggle/working/model_feature_selectors` and are **not** in this repo. Tables below are reconstructed from the notebook’s displayed frames and the three compact PNGs embedded in the report cell. XGBoost’s 7-name three-way list was truncated in HTML as `… LV; WB…`; the alphabetically sorted completion is `WBC; eGFR`.
 
-**Selectors (intent of the current code; figures are the old run).** LOCO = drop-one and refit on the val slice. Coalition SHAP = permutation coalitions on a cheap-importance universe (not LOCO’s names). FFS = greedy forward search on its own cheap-importance pool. Objective: **`pr_auc` only**. Wald / GLM standard errors are not applicable to tree selectors. These catalogues do **not** feed Part 4 (nested-CV uses all 81 raw features, not this 185-column mask). SMOTE is not used.
+**Selectors.** LOCO = drop-one and refit on the val slice (cheap-importance prefix of 60). Coalition SHAP = permutation coalitions on a cheap-importance universe of 40 (not LOCO’s names). FFS = greedy forward search on its own 24-name pool, stop at 12 steps or when PR-AUC stops rising. Objective: **`pr_auc` only**. These catalogues are **interpretation / attribution**, not prediction, and do **not** feed Part 4. SMOTE is not used.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -31,7 +31,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 ![Table 0](paper_figures/paper_table0_classic_models.png)
 
-**Table 0.** Seven sklearn-style classifiers from the notebook `MODEL_SPECS` (TabPFN omitted). Row colour encodes family: linear (navy), bagged trees (teal), boosting (violet). All seven share the same scaled feature matrix; only the inductive bias changes.
+**Table 0.** Seven sklearn-style classifiers from the notebook `MODEL_SPECS` (TabPFN omitted). Row colour encodes family: linear (navy), bagged trees (teal), boosting (violet). All seven share the same 88-column scaled matrix; only the inductive bias changes.
 
 | Code | Classic model | Family | GPU | Specification (notebook) |
 | --- | --- | --- | --- | --- |
@@ -45,9 +45,9 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 **How to read later tables through this lens.**
 
-- **Logistic regression** can only use additive log-odds. LOCO/SHAP/FFS therefore highlight columns that still matter after linear sharing of credit (often one of a correlated pair, plus sex/lipids/renal labs).
-- **Random forests** split on interactions and can keep both a lab and its clinical twin. Consensus tends to sit on cardiac function (`LV` / `LVEF`), inflammation (`WBC`), and renal filtration (`eGFR`).
-- **Boosting** (CatBoost / XGBoost / LightGBM) is the same tree idea with sequential residual fitting. CatBoost and XGBoost agree most often on `LV`, `WBC`, and `eGFR`; LightGBM’s three-way intersection is more metric-specific.
+- **Logistic regression** can only use additive log-odds. Consensus sits on renal labs (`Cre`, `eGFR`), inflammation (`WBC`), sex (`Men`), ACS presentation (`UA`), and `LV`.
+- **Random forests** split on interactions and keep both a lab and its clinical twin (`LVEF` beside `LV`).
+- **Boosting** recovers post-dilation and `WBC` most often; LightGBM’s three-way set is `HbA1c; LV` only.
 
 **Source files:** [paper_figures/paper_table0_classic_models.png](paper_figures/paper_table0_classic_models.png), [paper_figures/paper_table0_classic_models.csv](paper_figures/paper_table0_classic_models.csv)
 
@@ -55,23 +55,23 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 ## 2. How much each selector keeps
 
-In the **prior export** shown here, LOCO used a 40-column ColumnTransformer-order cap, so every model reports **40** unique LOCO features once the three old metrics are pooled. SHAP and FFS were nested inside that pool (universe 24 / candidate pool 30; top-12 per metric). The paper protocol instead uses independent cheap-importance pools (LOCO 60 / SHAP 40 / FFS 24) and PR-AUC only.
+LOCO scores a 60-name cheap-importance prefix, so every model reports **60** unique LOCO names in `selector_summary_long`. SHAP’s universe is **40** by construction. FFS is the path length after early stop (4–12). These are **not** top-20 counts; the consensus tables below use top-20.
 
 ### Figure 1. Unique selected features by classic model and selector
 
 ![Figure 1](paper_figures/paper_fig1_unique_counts.png)
 
-**Figure 1.** Unique feature counts after pooling `pr_auc`, `f1`, and `f2`. Squares on the left mark family (navy = linear, teal = bagged trees, violet = boosting). LOCO saturates the 40-feature cap for every model **because the stored run evaluated a 40-column prefix**, not because 40 features were independently important. FFS is the sparsest (18–24 unique names). SHAP sits in between (30–36). Linear and subsampled RF keep slightly larger SHAP/FFS unions than boosting.
+**Figure 1.** Unique feature counts in the selector log (PR-AUC). LOCO saturates the 60-feature cap for every model because 60 columns were scored, not because 60 were independently important. FFS is sparse because it stops when PR-AUC stops rising.
 
 | Model | Family | LOCO | SHAP | FFS |
 | --- | --- | ---: | ---: | ---: |
-| lr | Linear | 40 | 35 | 24 |
-| rf | Bagged trees | 40 | 32 | 24 |
-| rf_b | Bagged trees | 40 | 36 | 24 |
-| cat | Boosting | 40 | 31 | 18 |
-| xgb | Boosting | 40 | 32 | 20 |
-| xgb_b | Boosting | 40 | 33 | 22 |
-| lgb | Boosting | 40 | 30 | 19 |
+| lr | Linear | 60 | 40 | 12 |
+| rf | Bagged trees | 60 | 40 | 12 |
+| rf_b | Bagged trees | 60 | 40 | 8 |
+| cat | Boosting | 60 | 40 | 4 |
+| xgb | Boosting | 60 | 40 | 12 |
+| xgb_b | Boosting | 60 | 40 | 11 |
+| lgb | Boosting | 60 | 40 | 5 |
 
 **Source file:** [paper_figures/paper_fig1_unique_counts.png](paper_figures/paper_fig1_unique_counts.png)
 
@@ -79,15 +79,15 @@ In the **prior export** shown here, LOCO used a 40-column ColumnTransformer-orde
 
 ![Table 3](paper_figures/paper_table3_union_by_model.png)
 
-**Table 3.** Size of the union of top-12 sets across LOCO, SHAP, FFS and all three metrics. Logistic regression and subsampled RF have the largest unions (33); boosting models are slightly tighter (30–32).
+**Table 3.** Size of the union of **top-20** sets across LOCO, SHAP, and FFS (PR-AUC only). Feature-name lists were truncated in the notebook HTML and are not reconstructed here.
 
 | Code | Classic model | Family | Union size |
 | --- | --- | --- | ---: |
-| lr | Logistic regression | Linear | 33 |
-| rf | Random forest | Bagged trees | 32 |
-| rf_b | Random forest (subsample) | Bagged trees | 33 |
-| cat | CatBoost | Boosting | 30 |
-| xgb | XGBoost | Boosting | 32 |
+| lr | Logistic regression | Linear | 32 |
+| rf | Random forest | Bagged trees | 35 |
+| rf_b | Random forest (subsample) | Bagged trees | 34 |
+| cat | CatBoost | Boosting | 32 |
+| xgb | XGBoost | Boosting | 31 |
 | xgb_b | XGBoost (subsample) | Boosting | 30 |
 | lgb | LightGBM | Boosting | 30 |
 
@@ -97,7 +97,7 @@ In the **prior export** shown here, LOCO used a 40-column ColumnTransformer-orde
 
 ![Figure 7](paper_figures/paper_fig7_union_by_model.png)
 
-**Figure 7.** Per-model unions relative to the global unique count of 40 (dashed line). No classic model recovers the full 40-name union on its own.
+**Figure 7.** Per-model top-20 unions relative to the global unique count of **86** scored names (dashed line). No classic model recovers the full 86-name union on its own.
 
 **Source file:** [paper_figures/paper_fig7_union_by_model.png](paper_figures/paper_fig7_union_by_model.png)
 
@@ -105,25 +105,19 @@ In the **prior export** shown here, LOCO used a 40-column ColumnTransformer-orde
 
 ## 3. Cross-model consensus
 
-A feature is “shared by all 7 models” only if it appears in every classic model’s top-12 for that selector and metric.
+A feature is “shared by all 7 models” only if it appears in every classic model’s **top-20** for that selector (PR-AUC).
 
 ### Table 1. Features shared by all classic models
 
 ![Table 1](paper_figures/paper_table1_common_by_algorithm.png)
 
-**Table 1.** Cross-model intersection (row colour = selector). At most two names survive. LOCO agrees on `LV` and `eGFR` for PR-AUC and F1; F2 keeps only `LV`. SHAP centres on `LV` / `eGFR` and adds `WBC` on F2. FFS shares only a single lab across all seven models: `Cre` on PR-AUC, `WBC` on F1/F2.
+**Table 1.** Cross-model intersection (row colour = selector). LOCO agrees on five labs/cardiac names. SHAP agrees only on `HGB` and `WBC`. FFS agrees on **nothing** — greedy paths diverge once each model’s own 24-name pool is searched independently.
 
 | Algorithm | Metric | n common | Features shared by all 7 models |
 | --- | --- | ---: | --- |
-| LOCO | pr_auc | 2 | LV; eGFR |
-| LOCO | f1 | 2 | LV; eGFR |
-| LOCO | f2 | 1 | LV |
-| SHAP | pr_auc | 1 | LV |
-| SHAP | f1 | 1 | eGFR |
-| SHAP | f2 | 2 | LV; WBC |
-| FFS | pr_auc | 1 | Cre |
-| FFS | f1 | 1 | WBC |
-| FFS | f2 | 1 | WBC |
+| LOCO | pr_auc | 5 | Cre; LV; LVEF; WBC; eGFR |
+| SHAP | pr_auc | 2 | HGB; WBC |
+| FFS | pr_auc | 0 | — |
 
 **Source files:** [paper_figures/paper_table1_common_by_algorithm.png](paper_figures/paper_table1_common_by_algorithm.png), [paper_figures/paper_table1_common_by_algorithm.csv](paper_figures/paper_table1_common_by_algorithm.csv)
 
@@ -131,7 +125,7 @@ A feature is “shared by all 7 models” only if it appears in every classic mo
 
 ![Figure 6](paper_figures/paper_fig6_cross_model_common.png)
 
-**Figure 6.** Bar height is `n common` from Table 1; labels are the shared names. LOCO/SHAP recover cardiac–renal structure; FFS recovers a single laboratory marker.
+**Figure 6.** Bar height is `n common` from Table 1; labels are the shared names.
 
 **Source file:** [paper_figures/paper_fig6_cross_model_common.png](paper_figures/paper_fig6_cross_model_common.png)
 
@@ -139,7 +133,7 @@ A feature is “shared by all 7 models” only if it appears in every classic mo
 
 ![Figure 2](paper_figures/paper_fig2_jaccard.png)
 
-**Figure 2.** Jaccard index between the unions of top-12 sets (all models and metrics pooled). Overlap is high (0.95–0.97) because the three selectors are nested in the same LOCO-ranked pool. High union overlap does not imply a large cross-model intersection (Table 1).
+**Figure 2.** Jaccard index between the unions of **top-20** sets (all seven models pooled). LOCO vs SHAP = **0.62**; SHAP vs FFS = **0.48**; LOCO vs FFS = **0.43**. These are moderate because the three selectors are **independent**. The previous 0.95–0.97 figure was an artefact of nesting SHAP/FFS inside one LOCO pool.
 
 **Source file:** [paper_figures/paper_fig2_jaccard.png](paper_figures/paper_fig2_jaccard.png)
 
@@ -147,45 +141,33 @@ A feature is “shared by all 7 models” only if it appears in every classic mo
 
 ## 4. Within-model consensus, by classic model
 
-Here the intersection is inside one model: names that LOCO, SHAP, and FFS all put in that model’s top-12 for a given metric.
+Here the intersection is inside one model: names that LOCO, SHAP, and FFS all put in that model’s top-20 for PR-AUC.
 
-### Table 2. LOCO ∩ SHAP ∩ FFS per model and metric
+### Table 2. LOCO ∩ SHAP ∩ FFS per model (PR-AUC)
 
 ![Table 2](paper_figures/paper_table2_consensus_by_model.png)
 
-**Table 2.** Within-model three-selector consensus. Row colour = family. CatBoost has the largest F1 consensus (6 names); subsampled RF has the smallest (only `eGFR` on F1).
+**Table 2.** Within-model three-selector consensus. Row colour = family. XGBoost has the largest set (7 names); LightGBM the smallest (2).
 
 | Code | Classic model | Family | Metric | n (LOCO ∩ SHAP ∩ FFS) | Consensus features |
 | --- | --- | --- | --- | ---: | --- |
-| lr | Logistic regression | Linear | pr_auc | 4 | Cre; Men; Min-stent diameter; TG |
-| lr | Logistic regression | Linear | f1 | 2 | Cre; Men |
-| lr | Logistic regression | Linear | f2 | 5 | Fast-Glu; LV; Men; WBC; eGFR |
-| rf | Random forest | Bagged trees | pr_auc | 3 | LVEF; WBC; eGFR |
-| rf | Random forest | Bagged trees | f1 | 4 | LV; Previous PCI; WBC; eGFR |
-| rf | Random forest | Bagged trees | f2 | 3 | Cre; Fiberinogen; Platelet |
-| rf_b | Random forest (subsample) | Bagged trees | pr_auc | 3 | CaI; LVEF; WBC |
-| rf_b | Random forest (subsample) | Bagged trees | f1 | 1 | eGFR |
-| rf_b | Random forest (subsample) | Bagged trees | f2 | 4 | HL; LV; LVEF; STEMI |
-| cat | CatBoost | Boosting | pr_auc | 3 | LV; WBC; eGFR |
-| cat | CatBoost | Boosting | f1 | 6 | HGB; HL; LV; Platelet; WBC; eGFR |
-| cat | CatBoost | Boosting | f2 | 4 | Hypertension; LV; WBC; eGFR |
-| xgb | XGBoost | Boosting | pr_auc | 3 | Cre; LV; TCL |
-| xgb | XGBoost | Boosting | f1 | 4 | LV; LVEF; WBC; eGFR |
-| xgb | XGBoost | Boosting | f2 | 3 | LV; WBC; eGFR |
-| xgb_b | XGBoost (subsample) | Boosting | pr_auc | 4 | Cre; HGB; LV; WBC |
-| xgb_b | XGBoost (subsample) | Boosting | f1 | 2 | WBC; eGFR |
-| xgb_b | XGBoost (subsample) | Boosting | f2 | 3 | LV; WBC; eGFR |
-| lgb | LightGBM | Boosting | pr_auc | 2 | Cre; HL |
-| lgb | LightGBM | Boosting | f1 | 3 | Current drinking; HL; WBC |
-| lgb | LightGBM | Boosting | f2 | 3 | History of HF; Men; WBC |
+| lr | Logistic regression | Linear | pr_auc | 6 | Cre; LV; Men; UA; WBC; eGFR |
+| rf | Random forest | Bagged trees | pr_auc | 6 | HGB; LDL; LVEF; Men; WBC; eGFR |
+| rf_b | Random forest (subsample) | Bagged trees | pr_auc | 4 | CaI; HGB; LVEF; WBC |
+| cat | CatBoost | Boosting | pr_auc | 3 | 1.1:1Post dilation; HGB; WBC |
+| xgb | XGBoost | Boosting | pr_auc | 7 | 1.1:1Post dilation; Aneurysm; Cre; HGB; LV; WBC; eGFR |
+| xgb_b | XGBoost (subsample) | Boosting | pr_auc | 5 | 1.1:1Post dilation; LV; LVEF; WBC; eGFR |
+| lgb | LightGBM | Boosting | pr_auc | 2 | HbA1c; LV |
 
 **Source files:** [paper_figures/paper_table2_consensus_by_model.png](paper_figures/paper_table2_consensus_by_model.png), [paper_figures/paper_table2_consensus_by_model.csv](paper_figures/paper_table2_consensus_by_model.csv)
+
+**ML consensus catalogue (union of Table 2, n = 13):** `1.1:1Post dilation`, `Aneurysm`, `CaI`, `Cre`, `HGB`, `HbA1c`, `LDL`, `LV`, `LVEF`, `Men`, `UA`, `WBC`, `eGFR`. This is the set compared with statistical FDR in Part 3.
 
 ### Figure 3. Consensus-set size
 
 ![Figure 3](paper_figures/paper_fig3_consensus_size.png)
 
-**Figure 3.** Heatmap of `n (LOCO ∩ SHAP ∩ FFS)` from Table 2. Darker orange = more names on which all three selectors agree for that classic model.
+**Figure 3.** Bar height is `n (LOCO ∩ SHAP ∩ FFS)` from Table 2. Colour = model family.
 
 **Source file:** [paper_figures/paper_fig3_consensus_size.png](paper_figures/paper_fig3_consensus_size.png)
 
@@ -193,7 +175,7 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ![Figure 4](paper_figures/paper_fig4_feature_by_model.png)
 
-**Figure 4.** Cell = number of metrics (0–3) in which the feature is in that model’s LOCO ∩ SHAP ∩ FFS set. Squares under the x-axis mark family.
+**Figure 4.** Cell = 1 if the feature is in that model’s LOCO ∩ SHAP ∩ FFS set (PR-AUC). `WBC` appears in six of seven models; `eGFR` and `LV` in four; `1.1:1Post dilation` in the three boosting variants except LightGBM.
 
 **Source file:** [paper_figures/paper_fig4_feature_by_model.png](paper_figures/paper_fig4_feature_by_model.png)
 
@@ -201,23 +183,23 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ![Figure 5](paper_figures/paper_fig5_family_stacked.png)
 
-**Figure 5.** For each consensus feature, how many (model × metric) cells come from linear vs bagged trees vs boosting. `WBC`, `LV`, and `eGFR` have support in all three families. `Men` is linear-dominant. `LVEF` is bagged-tree-dominant.
+**Figure 5.** For each consensus feature, how many models in each family include it. `WBC` has support in all three families. `Men` is linear + bagged. `1.1:1Post dilation` is boosting-only. `Aneurysm` is XGBoost-only.
 
 **Source file:** [paper_figures/paper_fig5_family_stacked.png](paper_figures/paper_fig5_family_stacked.png)
 
 ### Reading Table 2 / Figures 3–5 by classic model
 
-**Logistic regression (`lr`).** The linear three-selector core is creatinine + male sex on PR-AUC and F1, with stent diameter and triglycerides on PR-AUC. On F2 the consensus expands to `Fast-Glu`, `LV`, `Men`, `WBC`, `eGFR`. `Men` is almost unique to LR in Figure 4.
+**Logistic regression (`lr`).** Linear three-way: `Cre`, `LV`, `Men`, `UA`, `WBC`, `eGFR`. Sex and unstable-angina are almost unique to LR among the consensus names.
 
-**Random forest (`rf`).** PR-AUC consensus is `LVEF`, `WBC`, `eGFR`. F1 adds `LV` and `Previous PCI`. F2 shifts toward haemostasis labs (`Cre`, `Fiberinogen`, `Platelet`).
+**Random forest (`rf`).** `HGB`, `LDL`, `LVEF`, `Men`, `WBC`, `eGFR`. Keeps haemoglobin and LDL that the linear model does not.
 
-**Random forest, subsampled (`rf_b`).** Less stable: F1 consensus shrinks to `eGFR` alone. Treat `rf_b` as a sensitivity check on `rf`.
+**Random forest, subsampled (`rf_b`).** `CaI`, `HGB`, `LVEF`, `WBC`. Treat `rf_b` as a sensitivity check on `rf`; `CaI` is unique to this variant.
 
-**CatBoost (`cat`).** Most internally consistent booster: `LV`, `WBC`, and `eGFR` appear in all three metrics. F1 also agrees on `HGB`, `HL`, and `Platelet`; F2 adds `Hypertension`.
+**CatBoost (`cat`).** `1.1:1Post dilation`, `HGB`, `WBC`. Does not put `eGFR` or `LV` in the three-way set on this run.
 
-**XGBoost (`xgb` / `xgb_b`).** Both recover `LV` / `WBC` / `eGFR` on F1 and F2. PR-AUC consensus is more lipid/renal (`Cre`, `TCL` or `HGB`).
+**XGBoost (`xgb` / `xgb_b`).** Both recover `1.1:1Post dilation`, `LV`, `WBC`; the full XGB run also keeps `Aneurysm`, `Cre`, `HGB`, `eGFR`.
 
-**LightGBM (`lgb`).** Does not put `LV` or `eGFR` in the three-way intersection. Consensus is `Cre; HL` (PR-AUC), `Current drinking; HL; WBC` (F1), and `History of HF; Men; WBC` (F2).
+**LightGBM (`lgb`).** Smallest three-way: `HbA1c; LV`. This is the only model that puts `HbA1c` in the intersection — and that is enough to put `HbA1c` in the Part 3 consensus union.
 
 ---
 
@@ -227,12 +209,12 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ![Table 4](paper_figures/paper_table4_global_common.png)
 
-**Table 4.** Features that appear in every model × selector union (all metrics pooled) are only `WBC` and `eGFR`. The complementary union is 40 unique names.
+**Table 4.** Features that appear in **every** model × selector top-20: **none**. The complementary union of all scored names is **86**.
 
 | Scope | n features | Features |
 | --- | ---: | --- |
-| All 7 models × LOCO, SHAP, FFS × all metrics | 2 | WBC; eGFR |
-| Any model / selector / metric (union) | 40 | 40 unique names (full string truncated in notebook HTML) |
+| All 7 models × LOCO, SHAP, FFS (PR-AUC top-20) | 0 | — |
+| Any model / selector (union of scored names) | 86 | 86 unique names (full string not downloaded from Kaggle) |
 
 **Source files:** [paper_figures/paper_table4_global_common.png](paper_figures/paper_table4_global_common.png), [paper_figures/paper_table4_global_common.csv](paper_figures/paper_table4_global_common.csv)
 
@@ -240,36 +222,13 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ## 6. Priority-feature ranks
 
-The notebook scores a hand-specified `PRIORITY_FEATURES` list against each model × selector ranking. The stored display is the first 20 rows: CatBoost × LOCO, `pr_auc` then `f1`.
+The notebook scores a hand-specified `PRIORITY_FEATURES` list (Wang Table 1 English labels) against each model × selector ranking. Most labels **do not match** the dataset column names (`Age, years` vs `Age`, `Male sex` vs `Men`, `aspirin` vs `Aspirin`). The display is the first 20 rows: CatBoost × LOCO then SHAP, PR-AUC only.
 
 ### Table 5. Priority ranks (display excerpt)
 
 ![Table 5](paper_figures/paper_table5_priority_ranks_excerpt.png)
 
-**Table 5.** Green = the priority label was found in CatBoost’s LOCO ranking; red = not found. Most labels miss because they do not match the scaled column names (`Age, years` vs `Age`, `Male sex` vs `Men`). Hits: Current drinking, Hypertension, Current smoker.
-
-| Model | Algorithm | Metric | Priority label | Rank | In ranked list |
-| --- | --- | --- | --- | --- | --- |
-| cat | LOCO | pr_auc | Age, years | — | No |
-| cat | LOCO | pr_auc | Male sex | — | No |
-| cat | LOCO | pr_auc | Current drinking | 18 | Yes |
-| cat | LOCO | pr_auc | Diabetes mellitus | — | No |
-| cat | LOCO | pr_auc | aspirin | — | No |
-| cat | LOCO | pr_auc | Hypertension | 20 | Yes |
-| cat | LOCO | pr_auc | Dapt | — | No |
-| cat | LOCO | pr_auc | Dyslipidemia | — | No |
-| cat | LOCO | pr_auc | HbA1C | — | No |
-| cat | LOCO | pr_auc | Clopidogrel | — | No |
-| cat | LOCO | pr_auc | Current smoker | 30 | Yes |
-| cat | LOCO | f1 | Age, years | — | No |
-| cat | LOCO | f1 | Male sex | — | No |
-| cat | LOCO | f1 | Current drinking | 5 | Yes |
-| cat | LOCO | f1 | Diabetes mellitus | — | No |
-| cat | LOCO | f1 | aspirin | — | No |
-| cat | LOCO | f1 | Hypertension | 14 | Yes |
-| cat | LOCO | f1 | Dapt | — | No |
-| cat | LOCO | f1 | Dyslipidemia | — | No |
-| cat | LOCO | f1 | HbA1C | — | No |
+**Table 5.** Hits under CatBoost LOCO: Current smoker (rank 24), Clopidogrel (50), Current drinking (51), Hypertension (55). SHAP hit: Hypertension (35). The rest miss because of the alias mismatch, not because the clinical variables were unscored.
 
 **Source files:** [paper_figures/paper_table5_priority_ranks_excerpt.png](paper_figures/paper_table5_priority_ranks_excerpt.png), [paper_figures/paper_table5_priority_ranks_excerpt.csv](paper_figures/paper_table5_priority_ranks_excerpt.csv)
 
@@ -279,13 +238,13 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list against each model
 
 ![Figure S1](paper_figures/selector_model_algorithm_counts.png)
 
-**Supplementary Figure S1.** Notebook heatmap of unique selected-feature counts (all metrics combined). Paper restyle: Figure 1.
+**Supplementary Figure S1.** Notebook heatmap of unique selected-feature counts. Paper restyle: Figure 1.
 
 **Source file:** [paper_figures/selector_model_algorithm_counts.png](paper_figures/selector_model_algorithm_counts.png)
 
 ![Figure S2](paper_figures/selector_top_repeated_features.png)
 
-**Supplementary Figure S2.** Features most often written into `selector_summary_long`. `WBC`, `eGFR`, `LVEF`, `Cre`, `LV`, and `Men` dominate.
+**Supplementary Figure S2.** Features most often written into `selector_summary_long` (max 21 = 7 models × 3 selectors). `WBC` leads; `HGB` / `LV` / post-dilation complements / `eGFR` follow. `Stent type-SES_resolute` (a 9-level dummy) appears in the top 25 — the brand signal is now a named level, not 106 fragments.
 
 **Source file:** [paper_figures/selector_top_repeated_features.png](paper_figures/selector_top_repeated_features.png)
 
@@ -320,4 +279,4 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list against each model
 
 ---
 
-*Numbers below are from a prior reduced export stored in `baseline_feature_selections.ipynb` (seven classic models, top-12, three metrics). They are not the paper protocol. Re-run the notebook, then replace these figures.*
+*Numbers from the 2026-08-31 paper-protocol Kaggle run of* `baseline_feature_selections.ipynb` *(seven classic models, PR-AUC, independent selectors, 9-level stent encoder → 88 columns, fit/val 4148/1037). Regenerated by* `code/modeling/tools/rebuild_part2_paper_figures.py`.
