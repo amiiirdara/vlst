@@ -4,4 +4,4 @@ Random Forest,Bagged trees,No,"class_weight=balanced, random_state=42"
 XGBoost,Boosting,Yes,eval_metric=aucpr; scale_pos_weight from train fold
 LightGBM,Boosting,Yes,metric=average_precision; class_weight=balanced
 CatBoost,Boosting,Yes,auto_class_weights=Balanced; eval_metric=PRAUC
-TabPFN,Foundation (tabular),Client GPU,"thinking=True, effort=high, metric=average_precision"
+TabPFN (local),Foundation (tabular),Yes (Kaggle T4),from tabpfn import TabPFNClassifier; n_estimators=auto; balance_probabilities=True; no thinking

@@ -18,12 +18,22 @@ explicitly.
 70/30 / F1/F2 / 185-column smoke run. ML consensus is now 13 PR-AUC three-way names; Jaccard vs FDR is
 5/28 ≈ 0.18 with intersection `{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}`. Part 2 scaled width is **88**
 (9-level stent encoder, OHE drop-first). Kaggle `selector_summary_long.csv` was not downloaded; Part 2
-tables were reconstructed from notebook displays. Part 4/5 stored runs are still pre-unification.
+tables were reconstructed from notebook displays. Part 5 stored SHAP/PDP remain mixed; Part 4 nested CV is the 2026-09 Kaggle **local TabPFN** run (9-level encoder).
+
+**Revision 6.** Part 4 is the executed Kaggle nested-CV run of `baseline_plus_tabpfn.ipynb` with
+`RUN_MODELS["TabPFN"]=False` and **`TabPFN (local)`** on (`from tabpfn import TabPFNClassifier`,
+`n_estimators="auto"`, `balance_probabilities=True`, Tesla T4, `tabpfn-v3-classifier-v3_default.ckpt`).
+Shared 9-level stent encoder before the split; classics one-hot that column (~89, no drop-first). Ranking
+leader is **LightGBM PR-AUC 0.6937**; TabPFN (local) is third on PR-AUC (**0.6754**) and first on ROC-AUC
+(**0.9845**), with Brier **0.0673** (worst of six). Honest nested recall: LightGBM 0.6630 (5063/30/31/61);
+TabPFN (local) 0.6848 (5041/52/29/63). Thinking-high client metrics (PR-AUC 0.8534 / Brier 0.0060 / nested
+recall 0.7174) are **historical**, not this snapshot. Figures 1–3 and Tables 0–3 were re-exported from this
+run. Client constructor is unchanged and unused.
 
 **Revision 4.** Paper-style Markdown reports (both trees + `paper_results/paper_results.md`) were aligned to the
-*code* on methodology. Imputers are described as inert (no missing values). Part 4 now states the unequal
-feature view (classics ~186 scaled one-hot columns vs TabPFN raw 81) and that GridSearch winners are not
-imported. Part 5 now states MI/SFS/SHAP = full cohort (the 15-row all-case SHAP slice is removed), shapiq `imputer` ≠
+*code* on methodology. Imputers are described as inert (no missing values). Part 4 now states that GridSearch
+winners are not imported. (The ~186-column / thinking-high description in that revision is superseded by
+Revision 6.) Part 5 now states MI/SFS/SHAP = full cohort (the 15-row all-case SHAP slice is removed), shapiq `imputer` ≠
 NaN fill, and `balance_probabilities=True` (not absolute risk). Part 2/3 now distinguish the **prior reduced export**
 (column-order LOCO pool; 87.5% SHAP sample) from the **paper-protocol selector code** (full-cohort fit/val;
 independent cheap-importance pools; PR-AUC only; no unused outer test; no smoke switch). Part 3 no longer says the LVEF adjusted OR “persists.” Exported Part 4 PNGs remain **[STALE]** for
@@ -90,7 +100,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | --- | ------------------------------------------------------------- | ------------- | ------------------------------------------ |
 | 1   | `analyzes/eda.ipynb`                                          | Part 1        | verified against notebook                  |
 | 2   | `modeling/interpretability/baseline_feature_selections.ipynb` | Part 2        | verified against notebook                  |
-| 3   | `modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4        | **[STALE]** for TabPFN only (§12.2)        |
+| 3   | `modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4        | **Current** — Kaggle local TabPFN (§5.8)   |
 | 4   | `modeling/interpretability/tabpfn_interpretability.ipynb`     | Part 5        | verified except two blank MI cells (§12.6) |
 | 5   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 supp.  | stored metrics → Table S-TSSI              |
 | 6   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 supp.  | stored metrics → Table S-TSSI              |
@@ -183,8 +193,9 @@ consistent and matches the raw file. It is the one set of numbers with no ambigu
 Cohen d = 1.127413 with q = 3.262999e-16 appears identically in `.nbdump/code__analyzes__eda.txt` L1961/L3772 and
 in `paper_table1_continuous_univariate.csv`; Part 2's consensus tables at
 `.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L1468–1535 reproduce Part 2's
-Tables 1–4 exactly. So D4 does **not** invalidate the reports wholesale. It changes exactly two things: the TabPFN
-rows of Part 4 (§12.2) and the handful of narrative claims listed in §13.C.
+Tables 1–4 exactly. So D4 does **not** invalidate the reports wholesale. Part 4 numbers now follow this Kaggle local-TabPFN
+notebook (§5.8, §7.1–7.4). Remaining report-vs-notebook gaps are Part 5 SHAP/PDP staleness and the §13.C
+items that are not Part 4.
 
 ### 2.2 Events per variable
 
@@ -444,8 +455,9 @@ Historical leak, for provenance of the *previous* figures (replaced):
 SHAP and FFS no longer read LOCO’s selected names. Each selector builds its own cheap fit-slice importance
 pool (LOCO 60 / SHAP 40 / FFS 24). The historical table above is the *replaced* leaky export.
 
-Until Kaggle re-export of Part 4, the nested-CV classic arm is still the pre-unification 106-string one-hot.
-Part 2/3 catalogues are no longer that leaky 28-event shortlist.
+Part 4 nested CV now uses the shared 9-level encoder (Kaggle run). Classics one-hot that column without
+`drop="first"` (~89). Part 2/3 catalogues remain the 88-column drop-first view. They are no longer the leaky
+28-event shortlist.
 
 ### 4.5 Non-leakage but comparability-breaking design choices
 
@@ -570,12 +582,22 @@ slice.
 
 ### 5.8 TabPFN (Part 4)
 
-- `tabpfn_client.TabPFNClassifier(thinking_mode=True, thinking_effort="high", thinking_metric="average_precision", random_state=42)`
-(`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L235–241).
-- TabPFN is **not** wrapped in the sklearn `Pipeline` used by the five classic models; it receives the raw frame
-including the 106-level `Stent type-SES` string column, while the classic models receive **scaled + one-hot**
-input (imputers in that transformer are inert). See §6.4. **[REV4]** disclosed in Part 4 Methods.
-- 25 TabPFN fits total (5 outer × [4 inner + 1 outer]); the first inner fit took 24 min 38 s (L327–330).
+**This snapshot (D4).** Nested 5×4 CV on Kaggle Tesla T4. `RUN_MODELS["TabPFN"]=False`. The scored arm is
+**`TabPFN (local)`**: `from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`,
+no thinking, checkpoint `tabpfn-v3-classifier-v3_default.ckpt`
+(`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`).
+
+The **client thinking-high constructor is still in the notebook and must not be edited**; it was not fit in this
+run. Prior thinking-high numbers (pooled PR-AUC 0.8534, ROC-AUC 0.9883, Brier 0.0060, nested recall 0.7174) are
+a different object.
+
+Shared 9-level stent encoder (106 raw strings → 9 levels, min_count=30) is applied **before** the split. Classics
+then `ColumnTransformer` scale + `OneHotEncoder(handle_unknown="ignore")` on that 9-level column inside each CV
+split (~89 columns). TabPFN (local) is **not** in that pipeline; it sees the same 9-level frame natively. Imputers
+are inert (no missing values).
+
+25 local-TabPFN fits (5 outer × [4 inner + 1 outer]). Ranking: LightGBM first on PR-AUC (0.6937); TabPFN (local)
+third on PR-AUC (0.6754), first on ROC-AUC (0.9845), worst Brier (0.0673).
 
 ### 5.9 TabPFN interpretability (Part 5)
 
@@ -623,8 +645,8 @@ on all 5,185 rows (frozen; not a nested-CV fit). Encoding: SES → `PES` (matche
 | Full-cohort PR-AUC | **0.1032** | notebook |
 | Fold-mean ROC-AUC | 0.8005 ± 0.0607 | same 5 outer folds as Part 4; score not refit |
 | Fold-mean PR-AUC | 0.1134 ± 0.0518 | same |
-| Nested-CV TabPFN ROC / PR | 0.9883 / **0.8534** | Part 4 notebook (D4) |
-| Nested-CV CatBoost ROC / PR | 0.9704 / 0.6967 | Part 4 notebook (D4) |
+| Nested-CV LightGBM ROC / PR | 0.9681 / **0.6937** | Part 4 notebook (D4, this run) |
+| Nested-CV TabPFN (local) ROC / PR | **0.9845** / 0.6754 | Part 4 notebook (D4, this run) |
 
 Risk bins (≤7 / 8–9 / ≥10): n = 3135 / 1577 / 473; rates 0.51% / 2.22% / 8.67%. Wang's printed intermediate n = 1837
 does not add (3135+1837+473 = 5445 ≠ 5185); low and high n match this file.
@@ -670,51 +692,48 @@ into nested CV would leak: the 70/30 test slice overlaps later outer folds.
 This is a correct, honest threshold-selection design. Calling the procedure "nested CV" is defensible only if the
 paper states plainly that the nesting is for **threshold** selection.
 
-### 6.3 [DISCREPANCY / RISK] No hyperparameter tuning, unequal model effort
+### 6.3 [RISK] No hyperparameter tuning; this run is local TabPFN, not thinking-high
 
 - The five classic models use **library defaults** apart from class weighting and internal eval metrics
 (`baseline_plus_tabpfn.ipynb` fit cell). No grid, no random search inside the nested loop.
-- **TabPFN** (client) still runs with `thinking_mode=True, thinking_effort="high"` — constructor unchanged.
-- **TabPFN (local)** is now a seventh arm in the same notebook (`from tabpfn import TabPFNClassifier`,
-no thinking). Toggle `RUN_MODELS` to run only that arm. **Not yet executed**; stored OOF/figures remain
-the six-model thinking-high run.
+- **TabPFN (local)** is the stored arm: no thinking, `n_estimators="auto"`, `balance_probabilities=True`.
+- The **client thinking-high constructor is unchanged** and `RUN_MODELS["TabPFN"]=False`. Do not treat this
+scoreboard as a thinking-high result.
 
-Comparing an untuned default RandomForest / LogisticRegression against a high-effort TabPFN and concluding
-"TabPFN dominates" is **not a fair comparison**. Nothing in Part 4 discloses that the baselines are untuned.
-**[REV4]** Part 4 Table 0 / Methods now say: same split and threshold protocol; classics not grid-searched;
-unequal search budget disclosed; `TabPFN (local)` exists in the notebook but is not in the stored six-model run.
+Comparing untuned RandomForest / LogisticRegression against a foundation model is still **not a fair
+hyperparameter search**. On this run the comparison does **not** show TabPFN dominating: LightGBM leads PR-AUC.
+Part 4 Table 0 / Methods disclose: same split and threshold protocol; classics not grid-searched; local TabPFN
+not thinking-high.
 
-### 6.4 [RISK] The models do not see the same feature representation
+### 6.4 Feature representation (9-level encoder; classics still one-hot)
 
+**[REV6]** Part 4 applies the shared 9-level stent encoder **before** the split. Both arms see that collapsed
+brand column. What still differs is the sklearn pipeline:
 
-| Model                       | Input                                                                                                                                                                                                     |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LR, RF, XGB, LGBM, CatBoost | `ColumnTransformer`: median imputation + `StandardScaler` on numerics; most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")` on `Stent type-SES` → the 106 brand strings become 106 columns |
-| TabPFN                      | Raw frame, native categorical handling, no scaling                                                                                                                                                        |
+| Model                       | Input |
+| --------------------------- | ----- |
+| LR, RF, XGB, LGBM, CatBoost | `ColumnTransformer`: median + `StandardScaler` on numerics; most-frequent + `OneHotEncoder(handle_unknown="ignore")` on the **9-level** `Stent type-SES` (~89 columns; no `drop="first"`) |
+| TabPFN (local)              | Same 9-level frame, native categorical handling, no scaling |
 
-
-Since there are no missing values, imputation is inert. The one-hot expansion of 106 sparse brand levels is not:
-it hands the tree models 106 near-empty columns while TabPFN handles the column natively.
-
-**[REV4]** Part 4 Methods now state this (classics ~186 columns vs TabPFN raw 81). Do not describe imputers as a
-data-cleaning step. The shapiq `imputer="baseline"` in Part 5 is a different object (hidden-feature replacement
-for attribution), also now labelled in that report.
+Imputation is inert (no missing values). Do not describe imputers as a data-cleaning step. The old ~186-column
+106-string one-hot is **not** this run. Part 2 still uses drop-first → 88 columns. The shapiq `imputer="baseline"`
+in Part 5 is a different object (hidden-feature replacement for attribution).
 
 ### 6.5 Threshold reporting: honest and optimistic versions both exist
 
 The notebook computes both. Part 4 **Table 2 quotes the honest nested print.** Figure 3 / Table 3 remain the optimistic pooled cut, labelled as biased.
 
 
-| Version                 | How the threshold is chosen                                                                                       | TabPFN result                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Honest (nested)**     | Inner-CV OOF on the training portion, applied once to unseen outer fold                                           | precision 0.8354, recall 0.7174, F1 0.7719, TN/FP/FN/TP = 5080/13/26/66, mean threshold 0.297 ± 0.053 |
-| **Optimistic (pooled)** | `best_fbeta_threshold(y_true_oof, probs)` — grid-searched to maximise F1 **against the same labels being scored** | precision 0.7766, recall 0.7935, F1 0.7849, TN/FP/FN/TP = 5072/21/19/73, threshold 0.173              |
+| Version | How the threshold is chosen | LightGBM | TabPFN (local) |
+| --- | --- | --- | --- |
+| **Honest (nested)** | Inner-CV OOF on the training portion, applied once to unseen outer fold | precision 0.6703, recall 0.6630, F1 0.6667, 5063/30/31/61, mean t 0.121 ± 0.085 | precision 0.5478, recall 0.6848, F1 0.6087, 5041/52/29/63, mean t 0.915 ± 0.012 |
+| **Optimistic (pooled)** | F1 cut on the concatenated OOF labels that are then scored | precision 0.6263, recall 0.6739, F1 0.6492, 5056/37/30/62, t = 0.064 | precision 0.5067, recall **0.8261**, F1 0.6281, 5019/74/16/76, t = 0.886 |
 
+Sources: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` nested block L1105–1120, pooled block L1088–1103.
 
-Sources: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L831 (`t_f1 = best_fbeta_threshold(y_true_oof, …)`),
-L1010–1026 (nested block), L992–1008 (pooled block).
-
-Part 4 now states that the pooled cut **optimistically biases** precision, recall, F1, and F2, and **Table 2 is the honest nested print** (TabPFN recall **0.7174**, TN/FP/FN/TP = 5080/13/26/66). Figure 3 / Table 3 remain the pooled cut; Table 3 markdown uses the notebook pooled row (recall 0.7935), not the stale PNG 0.8370. Do not quote 0.837.
+Part 4 **Table 2 is the honest nested print.** Figure 3 / Table 3 are the pooled cut, labelled as optimistically
+biased. Do not quote TabPFN (local) pooled recall 0.8261 as the nested result. Historical thinking-high nested
+recall 0.7174 / pooled 0.7935 / PNG 0.8370 are **not** this run.
 
 ### 6.6 [GAP] No external validation of the *machine-learning* models
 
@@ -737,117 +756,90 @@ file (ROC-AUC 0.8013, PR-AUC 0.1032; §5.10). That is not a substitute for Shant
 ### 7.1 Part 4 — nested-CV ranking metrics (the paper's headline results)
 
 Evaluation protocol for all rows: **pooled out-of-fold probabilities from 5 outer folds, n = 5,185, 92 events,
-threshold-independent**. Source of the Markdown values:
-`paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md` §2, Table 1 (L62–69) and
-`paper_figures/paper_table1_ranking.csv`. Source of the notebook values:
-`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L974–990 (ranking) and L728–737 (Brier).
+threshold-independent**. Source: executed Kaggle notebook
+`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1071–1086 and
+`paper_results/04_tabpfn_rating/paper_figures/paper_table1_ranking.csv`. Markdown matches the notebook (D4).
 
 
-| Model               | Metric  | Markdown value | Notebook value | Fold mean ± SD (notebook only) | Status                            |
-| ------------------- | ------- | -------------- | -------------- | ------------------------------ | --------------------------------- |
-| TabPFN              | PR-AUC  | 0.852          | 0.8534         | 0.8503 ± 0.0746                | rounding only                     |
-| TabPFN              | ROC-AUC | 0.990          | 0.9883         | 0.9884 ± 0.0061                | rounding only                     |
-| TabPFN              | Brier   | 0.0360         | **0.0060**     | —                              | **[DISCREPANCY] 6× → use 0.0060** |
-| CatBoost            | PR-AUC  | 0.697          | 0.6967         | 0.7007 ± 0.0684                | ✓                                 |
-| CatBoost            | ROC-AUC | 0.970          | 0.9704         | 0.9712 ± 0.0117                | ✓                                 |
-| CatBoost            | Brier   | 0.0090         | 0.0090         | —                              | ✓                                 |
-| LightGBM            | PR-AUC  | 0.677          | 0.6770         | 0.6841 ± 0.0937                | ✓                                 |
-| LightGBM            | ROC-AUC | 0.961          | 0.9613         | 0.9633 ± 0.0198                | ✓                                 |
-| LightGBM            | Brier   | 0.0096         | 0.0096         | —                              | ✓                                 |
-| XGBoost             | PR-AUC  | 0.665          | 0.6647         | 0.6792 ± 0.0883                | ✓                                 |
-| XGBoost             | ROC-AUC | 0.949          | 0.9493         | 0.9492 ± 0.0343                | ✓                                 |
-| XGBoost             | Brier   | 0.0093         | 0.0093         | —                              | ✓                                 |
-| Random Forest       | PR-AUC  | 0.456          | 0.4563         | 0.4740 ± 0.0319                | ✓                                 |
-| Random Forest       | ROC-AUC | 0.931          | 0.9313         | 0.9304 ± 0.0186                | ✓                                 |
-| Random Forest       | Brier   | 0.0147         | 0.0147         | —                              | ✓                                 |
-| Logistic Regression | PR-AUC  | 0.342          | 0.3418         | 0.3568 ± 0.1153                | ✓                                 |
-| Logistic Regression | ROC-AUC | 0.925          | 0.9246         | 0.9256 ± 0.0225                | ✓                                 |
-| Logistic Regression | Brier   | 0.0543         | 0.0543         | —                              | ✓                                 |
-| Wang 2020 integer score (frozen) | ROC-AUC | 0.8013 | 0.8013 | 0.8005 ± 0.0607 | Full cohort + same 5 folds; not a nested-CV fit (§5.10) |
-| Wang 2020 integer score (frozen) | PR-AUC | 0.1032 | 0.1032 | 0.1134 ± 0.0518 | Same |
+| Rank | Model | PR-AUC | PR fold mean ± SD | ROC-AUC | ROC fold mean ± SD | Brier | Status |
+| ---: | --- | ---: | --- | ---: | ---: | ---: | --- |
+| 1 | LightGBM | **0.6937** | 0.6941 ± 0.0917 | 0.9681 | 0.9695 ± 0.0164 | 0.0093 | ✓ |
+| 2 | XGBoost | 0.6815 | 0.6928 ± 0.1288 | 0.9439 | 0.9431 ± 0.0418 | **0.0088** | ✓ |
+| 3 | TabPFN (local) | 0.6754 | 0.6739 ± 0.0812 | **0.9845** | 0.9846 ± 0.0030 | 0.0673 | ✓ |
+| 4 | CatBoost | 0.6172 | 0.6353 ± 0.0540 | 0.9594 | 0.9612 ± 0.0137 | 0.0101 | ✓ |
+| 5 | Random Forest | 0.4865 | 0.5034 ± 0.0793 | 0.9209 | 0.9206 ± 0.0423 | 0.0143 | ✓ |
+| 6 | Logistic Regression | 0.3326 | 0.3451 ± 0.1213 | 0.9224 | 0.9235 ± 0.0251 | 0.0563 | ✓ |
+| — | Wang 2020 integer score (frozen) | 0.1032 | 0.1134 ± 0.0518 | 0.8013 | 0.8005 ± 0.0607 | — | Full cohort + same 5 folds; not a nested-CV fit (§5.10) |
 
 
-**Prevalence baseline for PR-AUC: 0.0177.** Every PR-AUC above should be reported against this reference.
-
-**D4 resolution — the single most important number change in this revision.** TabPFN's Brier is **0.0060**, which
-is the **best of the six models**, not 0.0360, which would have been the worst. Section §12.2 shows the notebook is
-internally consistent on this. Consequently every sentence of the form "TabPFN's Brier is worse than the tree
-ensembles" or "TabPFN is not a well-calibrated risk engine" is **false and must be deleted**, and TabPFN's
-calibration becomes a supporting result rather than a caveat. **[TODO-P4]**
-
-**Fold mean ± SD is available for every model** (right-hand column, notebook L976–982). Part 4's own provenance note
-claims it is not (L11); under D4 that note is simply wrong.
+**Prevalence baseline for PR-AUC: 0.0177.** Quote PR-AUC at this event rate. LightGBM is first on PR-AUC;
+TabPFN (local) is first on ROC-AUC and **worst** on Brier (0.0673). Historical thinking-high TabPFN
+(PR-AUC 0.8534 / Brier 0.0060) is **not** this notebook.
 
 ### 7.2 Part 4 — optimistic pooled operating-point metrics (Table 3; do not quote instead of §7.3)
 
 Protocol: pooled OOF probabilities thresholded at the **F1-maximising pooled threshold** (optimistically biased,
-see §6.5). **Part 4 Table 3 markdown now uses the notebook column**, not the stale PNG. PNG/CSV still show
-t = 0.901 / recall 0.8370 until B1. Source: notebook L992–1008.
+see §6.5). Source: notebook L1088–1103; `paper_table3_pooled_f1.csv`.
 
 
-| Model               | Threshold (md / nb) | Accuracy        | Precision           | Recall              | Specificity     | F1              | F2              | TN/FP/FN/TP (md) | TN/FP/FN/TP (nb)  |
-| ------------------- | ------------------- | --------------- | ------------------- | ------------------- | --------------- | --------------- | --------------- | ---------------- | ----------------- |
-| TabPFN              | 0.173 (PNG still 0.901) | 0.9923 | 0.7766 | 0.7935 | 0.9959 | 0.7849 | 0.7900 | PNG 5066/27/15/77 | **5072/21/19/73** |
-| XGBoost             | 0.381               | 0.9896          | 0.7639              | 0.5978              | 0.9967          | 0.6707          | 0.6250          | 5076/17/37/55    | identical         |
-| CatBoost            | 0.347               | 0.9882          | 0.6703              | 0.6630              | 0.9941          | 0.6667          | 0.6645          | 5063/30/31/61    | identical         |
-| LightGBM            | 0.228               | 0.9892          | 0.7812              | 0.5435              | 0.9973          | 0.6410          | 0.5787          | 5079/14/42/50    | identical         |
-| Random Forest       | 0.084               | 0.9786          | 0.4275              | 0.6087              | 0.9853          | 0.5022          | 0.5611          | 5018/75/36/56    | identical         |
-| Logistic Regression | 0.970               | 0.9799          | 0.4318              | 0.4130              | 0.9902          | 0.4222          | 0.4167          | 5043/50/54/38    | identical         |
+| Model | t_F1 | Accuracy | Precision | Recall | Specificity | F1 | F2 | TN/FP/FN/TP |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| LightGBM | 0.064 | 0.9871 | 0.6263 | 0.6739 | 0.9927 | 0.6492 | 0.6638 | 5056/37/30/62 |
+| XGBoost | 0.203 | 0.9884 | 0.6739 | 0.6739 | 0.9941 | 0.6739 | 0.6739 | 5063/30/30/62 |
+| TabPFN (local) | 0.886 | 0.9826 | 0.5067 | **0.8261** | 0.9855 | 0.6281 | 0.7336 | 5019/74/16/76 |
+| CatBoost | 0.416 | 0.9873 | 0.6806 | 0.5326 | 0.9955 | 0.5976 | 0.5568 | 5070/23/43/49 |
+| Random Forest | 0.104 | 0.9826 | 0.5098 | 0.5652 | 0.9902 | 0.5361 | 0.5532 | 5043/50/40/52 |
+| Logistic Regression | 0.985 | 0.9819 | 0.4857 | 0.3696 | 0.9929 | 0.4198 | 0.3881 | 5057/36/58/34 |
 
 
-**Every classic-model row matches exactly. Only the TabPFN row differs.** See §12.2.
-
-**D4 resolution.** Use the notebook pooled column only as the *optimistic* companion: TabPFN t_F1 = **0.173**, precision **0.7766**, recall **0.7935**,
-**5072/21/19/73**. The widely-quoted "TP = 77, FN = 15" / recall 0.837 belongs to the superseded PNG and must not appear as a result. The quoteable operating point is §7.3 / Part 4 Table 2.
+**D4.** Use this table only as the *optimistic* companion. TabPFN (local) pooled recall **0.8261** (TP = 76)
+is not the nested result. Historical thinking-high pooled 5072/21/19/73 and PNG 5066/27/15/77 are not this run.
 
 ### 7.3 Part 4 — honest nested operating point (Part 4 Table 2; quote this)
 
 Protocol: per-fold thresholds from inner CV, applied once to unseen outer-fold cases.
-Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1010–1026; now tabulated in Part 4 Table 2
-(both trees + concat).
+Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1105–1120;
+`paper_table2_nested_operating_point.csv`.
 
 
-| Model               | Threshold mean ± SD | Accuracy | Precision | Recall | Specificity | F1     | F2     | TN/FP/FN/TP   |
-| ------------------- | ------------------- | -------- | --------- | ------ | ----------- | ------ | ------ | ------------- |
-| TabPFN              | 0.297 ± 0.053       | 0.9925   | 0.8354    | 0.7174 | 0.9974      | 0.7719 | 0.7383 | 5080/13/26/66 |
-| CatBoost            | 0.317 ± 0.068       | 0.9867   | 0.6211    | 0.6413 | 0.9929      | 0.6310 | 0.6371 | 5057/36/33/59 |
-| XGBoost             | 0.237 ± 0.072       | 0.9882   | 0.6782    | 0.6413 | 0.9945      | 0.6592 | 0.6484 | 5065/28/33/59 |
-| LightGBM            | 0.099 ± 0.048       | 0.9863   | 0.6154    | 0.6087 | 0.9931      | 0.6120 | 0.6100 | 5058/35/36/56 |
-| Random Forest       | 0.114 ± 0.009       | 0.9834   | 0.5357    | 0.4891 | 0.9923      | 0.5114 | 0.4978 | 5054/39/47/45 |
-| Logistic Regression | 0.953 ± 0.035       | 0.9757   | 0.3365    | 0.3804 | 0.9865      | 0.3571 | 0.3708 | 5024/69/57/35 |
+| Model | Threshold mean ± SD | Accuracy | Precision | Recall | Specificity | F1 | F2 | TN/FP/FN/TP |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| LightGBM | 0.121 ± 0.085 | 0.9882 | 0.6703 | 0.6630 | 0.9941 | 0.6667 | 0.6645 | 5063/30/31/61 |
+| XGBoost | 0.225 ± 0.060 | 0.9875 | 0.6452 | 0.6522 | 0.9935 | 0.6486 | 0.6508 | 5060/33/32/60 |
+| TabPFN (local) | 0.915 ± 0.012 | 0.9844 | 0.5478 | **0.6848** | 0.9898 | 0.6087 | 0.6522 | 5041/52/29/63 |
+| CatBoost | 0.167 ± 0.040 | 0.9815 | 0.4836 | 0.6413 | 0.9876 | 0.5514 | 0.6020 | 5030/63/33/59 |
+| Random Forest | 0.118 ± 0.013 | 0.9840 | 0.5517 | 0.5217 | 0.9923 | 0.5363 | 0.5275 | 5054/39/44/48 |
+| Logistic Regression | 0.947 ± 0.035 | 0.9769 | 0.3654 | 0.4130 | 0.9870 | 0.3878 | 0.4025 | 5027/66/54/38 |
 
 
-**This table, not §7.2, is the defensible operating-point result.**
+**This table, not §7.2, is the defensible operating-point result.** LightGBM has the highest nested F1 (0.6667).
+TabPFN (local) catches more events (TP 63 vs 61) at more false positives (52 vs 30).
 
 ### 7.4 Part 4 — fold-wise ranking metrics
 
-Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1030–1060. Each fold n = 1,037, with
-n_pos = 18, 18, 18, 19, 19. Both metrics for all six models — the full grid, not the excerpt reported previously:
+Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1122–1153. Each fold n = 1,037, with
+n_pos = 18, 18, 18, 19, 19.
 
 
-| Model               | Metric  | Fold 1 | Fold 2 | Fold 3 | Fold 4 | Fold 5 |
-| ------------------- | ------- | ------ | ------ | ------ | ------ | ------ |
-| Logistic Regression | PR-AUC  | 0.2314 | 0.2850 | 0.3093 | 0.4727 | 0.4856 |
-| Logistic Regression | ROC-AUC | 0.8911 | 0.9440 | 0.9147 | 0.9420 | 0.9361 |
-| Random Forest       | PR-AUC  | 0.4524 | 0.5101 | 0.4543 | 0.4458 | 0.5075 |
-| Random Forest       | ROC-AUC | 0.8978 | 0.9435 | 0.9362 | 0.9336 | 0.9408 |
-| XGBoost             | PR-AUC  | 0.7252 | 0.6587 | 0.5398 | 0.7731 | 0.6991 |
-| XGBoost             | ROC-AUC | 0.9826 | 0.9402 | 0.8943 | 0.9602 | 0.9686 |
-| LightGBM            | PR-AUC  | 0.7374 | 0.7078 | 0.5234 | 0.7606 | 0.6914 |
-| LightGBM            | ROC-AUC | 0.9862 | 0.9402 | 0.9469 | 0.9788 | 0.9644 |
-| CatBoost            | PR-AUC  | 0.6987 | 0.6749 | 0.6086 | 0.7952 | 0.7261 |
-| CatBoost            | ROC-AUC | 0.9816 | 0.9595 | 0.9600 | 0.9846 | 0.9704 |
-| **TabPFN**          | PR-AUC  | 0.8241 | 0.7776 | 0.7928 | 0.9482 | 0.9088 |
-| **TabPFN**          | ROC-AUC | 0.9920 | 0.9850 | 0.9827 | 0.9972 | 0.9850 |
+| Model | Metric | Fold 1 | Fold 2 | Fold 3 | Fold 4 | Fold 5 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Logistic Regression | PR-AUC | 0.2177 | 0.3040 | 0.2566 | 0.4662 | 0.4811 |
+| Logistic Regression | ROC-AUC | 0.8881 | 0.9497 | 0.9092 | 0.9425 | 0.9279 |
+| Random Forest | PR-AUC | 0.4739 | 0.5447 | 0.4451 | 0.4315 | 0.6218 |
+| Random Forest | ROC-AUC | 0.9317 | 0.9219 | 0.8502 | 0.9638 | 0.9351 |
+| XGBoost | PR-AUC | 0.8085 | 0.6320 | 0.5226 | 0.8331 | 0.6680 |
+| XGBoost | ROC-AUC | 0.9778 | 0.9081 | 0.8918 | 0.9861 | 0.9515 |
+| LightGBM | PR-AUC | 0.7527 | 0.7142 | 0.5399 | 0.7718 | 0.6916 |
+| LightGBM | ROC-AUC | 0.9853 | 0.9465 | 0.9638 | 0.9857 | 0.9664 |
+| CatBoost | PR-AUC | 0.5668 | 0.6560 | 0.6440 | 0.7082 | 0.6015 |
+| CatBoost | ROC-AUC | 0.9749 | 0.9433 | 0.9631 | 0.9731 | 0.9516 |
+| TabPFN (local) | PR-AUC | 0.6384 | 0.6353 | 0.5829 | 0.7274 | 0.7855 |
+| TabPFN (local) | ROC-AUC | 0.9875 | 0.9840 | 0.9812 | 0.9880 | 0.9826 |
 
 
-TabPFN's PR-AUC beats every other model in **all five folds** — a 5/5 sweep. That is a more informative and more
-honest statement than the pooled point estimate, and it is free: no new computation. It is still not a paired
-significance test (§12.9), so "wins in 5 of 5 folds" is the strongest claim available without one.
-
-**[DISCREPANCY → resolved]** Part 4's Markdown states that fold-wise mean ± SD "are therefore not available from
-this notebook snapshot" (L11) and that the comparison-table cells were not executed (L149). Both statements are
-wrong; the outputs are at L974–1060 of the same notebook.
+LightGBM PR-AUC is higher than TabPFN (local) in **3 of 5** folds (1, 2, 4). TabPFN (local) is higher in folds 3
+and 5. **Do not say TabPFN wins 5/5** or that it dominates the scoreboard. There is still no paired significance
+test (§12.9).
 
 ### 7.5 Unreported metrics: single-split baselines with and without the leakage variable
 
@@ -982,11 +974,11 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 | Question                                                        | Answer                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Are the six Part 4 models compared on identical data and folds? | **Yes** — same `oof_probabilities` arrays, same outer folds.                                                                                                                                                                                                                                                                                  |
-| Are they compared with identical tuning effort?                 | **No.** Classic models are untuned defaults; TabPFN uses high-effort thinking mode.                                                                                                                                                                                                                                                           |
-| Are they compared on identical feature representations?         | **No.** TabPFN bypasses the ColumnTransformer.                                                                                                                                                                                                                                                                                                |
+| Are they compared with identical tuning effort?                 | **No.** Classic models are untuned defaults; TabPFN (local) is a foundation model without thinking-high. LightGBM still leads PR-AUC.                                                                                                                                                                                                          |
+| Are they compared on identical feature representations?         | **Closer than before.** Shared 9-level encoder; classics still one-hot (~89) while TabPFN (local) sees the 9-level frame natively.                                                                                                                                                                                                              |
 | Are the Part 4 operating-point metrics unbiased?                | **Table 2 (nested) is the honest protocol.** Figure 3 / Table 3 pooled F1 is optimistically biased (§6.5, §7.3).                                                                                                                                                                                                                                                           |
 | Is Part 2 comparable with Part 4?                               | **No.** Part 2 is a full-cohort fit/val discovery split, **88** encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
-| Is Part 5 comparable with Part 4?                               | **No.** Part 5 uses local TabPFN with `balance_probabilities=True`; Part 4 uses the client with thinking mode and no probability balancing. Different models, different output scales.                                                                                                                                                        |
+| Is Part 5 comparable with Part 4?                               | **No.** Part 5 is full-cohort attribution; Part 4 is nested-CV prediction. Both currently use local TabPFN with `balance_probabilities=True`, but they are different notebooks and different claims. Historical thinking-high Part 4 is not this snapshot.                                                                                      |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
 | Are univariate ORs consistent across tables?                    | **No.** See §12.4.                                                                                                                                                                                                                                                                                                                            |
 
@@ -1200,8 +1192,7 @@ about VLST biology.
 
 **Regeneration status at a glance.** Part 1 figures were copied from the 2026-08-31 `eda.ipynb` outputs
 (categorical SES rates, paper tables, heatmaps, domain Wald panels). Part 2 and Part 3 were rebuilt from the
-paper-protocol selector run (`rebuild_part2_paper_figures.py`, `stats_vs_ml_comparison.ipynb`). Part 4's nested-CV
-export set is **[STALE]** for TabPFN and must be re-exported (§12.2). Part 4's TSSI leakage supplement is current
+paper-protocol selector run (`rebuild_part2_paper_figures.py`, `stats_vs_ml_comparison.ipynb`). Part 4's nested-CV export set is **current** for the Kaggle local-TabPFN run (§5.8, §7.1–7.4). Part 4's TSSI leakage supplement is current
 (stored single-split metrics, no re-run). Part 5 PNGs remain mixed stale/current.
 
 ### Part 1 — EDA (`paper_results/01_eda/EDA_paper_figures_and_tables.md`)
@@ -1273,31 +1264,35 @@ No truncation note.
 
 **[CLOSED]** Generating code: `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`. Jaccard 5/28 and the five-name intersection `{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}` are asserted in the notebook.
 
-### Part 4 — nested-CV rating  — **every item below is [STALE] for TabPFN**
+### Part 4 — nested-CV rating  — **current (local TabPFN, 9-level encoder)**
 
 
-| ID           | Type   | File                                       | Status                                                             |
-| ------------ | ------ | ------------------------------------------ | ------------------------------------------------------------------ |
-| Table 0      | Table  | `paper_table0_models.png/.csv`             | model descriptions only; check the untuned-defaults wording (§6.3) |
-| Fig 1        | Figure | `paper_fig1_pr_roc_curves.png`             | **[STALE]** — TabPFN curve from the superseded run                 |
-| Table 1      | Table  | `paper_table1_ranking.png/.csv`            | **[STALE]** — TabPFN Brier 0.036 → 0.0060; add fold mean ± SD      |
-| Fig 2        | Figure | `paper_fig2_calibration_curves.png`        | **[STALE]** — title reads Brier 0.0360                             |
-| Fig 3        | Figure | `paper_fig3_confusion_matrices.png`        | **[STALE]** PNG — pooled cut; TabPFN panel t_F1 0.901. Caption tells the reader to quote Table 2. |
-| Table 2      | Table  | honest nested print (no PNG)               | **Current** — notebook L1010–1026; TabPFN recall 0.7174                                           |
-| Table 3      | Table  | `paper_table2_f1_operating_point.png/.csv` | Markdown = notebook pooled (recall 0.7935). PNG still stale 0.837. Labelled optimistic.           |
-| Table S-TSSI | Table  | `paper_table_s_tssi_leakage.png/.csv`      | Current — stored 70/30 metrics, not nested-CV                      |
-| Fig S-TSSI   | Figure | `paper_fig_s_tssi_pr_auc.png`              | Current — PR-AUC with vs without TSSI                              |
-| Table S-Wang-bins | Table | `paper_table_s_wang_score_bins.png/.csv` | Current — frozen Wang bins vs published n/rates                   |
-| Table S-Wang | Table  | `paper_table_s_wang_vs_ml.png/.csv`        | Current — frozen Wang vs nested-CV TabPFN/CatBoost/LR             |
-| Fig S-Wang   | Figure | `paper_fig_s_wang_score_rate.png`          | Current — observed VLST rate by integer score                     |
+| ID | Type | File | Status |
+| --- | --- | --- | --- |
+| Table 0 | Table | `paper_table0_models.png/.csv` | Current — TabPFN (local), not client thinking-high |
+| Fig 1 | Figure | `paper_fig1_pr_roc_curves.png` | Current — LightGBM first on PR-AUC (0.6937) |
+| Table 1 | Table | `paper_table1_ranking.png/.csv` | Current — notebook L1071–1086 |
+| Fig 2 | Figure | `paper_fig2_calibration_curves.png` | Current — TabPFN (local) Brier **0.0673** (worst) |
+| Fig 3 | Figure | `paper_fig3_confusion_matrices.png` | Current — **pooled** F1 cut; quote Table 2 for nested |
+| Table 2 | Table | `paper_table2_nested_operating_point.png/.csv` | Current — honest nested; TabPFN (local) recall 0.6848 |
+| Table 3 | Table | `paper_table3_pooled_f1.png/.csv` | Current — optimistic pooled; TabPFN (local) recall 0.8261 |
+| Counts | Table | `paper_table3_confusion_counts.png/.csv` | Current — nested TN/FP/FN/TP |
+| Sweep | Figure | `best_model_threshold_fpfn_panel.png` | Current — best-by-PR-AUC = LightGBM |
+| Table S-TSSI | Table | `paper_table_s_tssi_leakage.png/.csv` | Current — stored 70/30 metrics, not nested-CV |
+| Fig S-TSSI | Figure | `paper_fig_s_tssi_pr_auc.png` | Current — PR-AUC with vs without TSSI |
+| Table S-Wang-bins | Table | `paper_table_s_wang_score_bins.png/.csv` | Current — frozen Wang bins vs published n/rates |
+| Table S-Wang | Table | `paper_table_s_wang_vs_ml.png/.csv` | Current — frozen Wang vs LightGBM / TabPFN (local) / LR |
+| Fig S-Wang | Figure | `paper_fig_s_wang_score_rate.png` | Current — observed VLST rate by integer score |
 
 
-**Produced by the notebook but absent as committed CSVs:** `best_model_threshold_fpfn_panel.png`,
-`model_comparison.csv`, `nested_cv_operating_point.csv` (numbers now in Part 4 Table 2), `fold_metrics.csv`,
+Do **not** quote leftover `paper_table2_f1_operating_point.*` (deleted; it was a prior pooled export with TabPFN t=0.901).
+
+**Produced by the notebook but absent as committed CSVs:** `model_comparison.csv`,
+`nested_cv_operating_point.csv`, `fold_metrics.csv`,
 `best_model_threshold_sweep.csv`, `oof_predictions.csv`, `fold_thresholds.csv`.
 
-**[GAP — confirmed by directory listing]** None of the CSV/PNG artefacts written to `/kaggle/working/...` were
-copied into the repository. `data/result/modeling_results/` contains **only** a `paper_figures/` folder; there is no
+**[GAP — confirmed by directory listing]** None of the CSV artefacts written to `/kaggle/working/...` were
+copied into the repository except the `paper_figures/` exports. `data/result/modeling_results/` contains **only** a `paper_figures/` folder; there is no
 `oof_predictions.csv`, `fold_metrics.csv`, `fold_thresholds.csv`, `model_comparison.csv` or
 `nested_cv_operating_point.csv` anywhere under `data/result/`. The out-of-fold predictions — which would let a
 reviewer recompute every Part 4 number, add confidence intervals, and run DeLong or bootstrap comparisons — do not
@@ -1344,10 +1339,10 @@ paper's framing changes and this layout does not apply.
 | Slot         | Item                                                                                                                                                                          | Rationale                                                                                                                                                                                                                                         |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Table 1**  | Baseline cohort characteristics, cases vs controls                                                                                                                            | Wang 2020 Table 1 **already is this table** for this cohort. Rebuild it from `VLST.csv` (do not photocopy: post-dilation labelling is inconsistent in Wang, and `LV` / `CaI` need to appear). Cite Wang for the recruitment flow (6,038 → 5,185). |
-| **Table 2**  | Part 4 Table 1 **rebuilt**: PR-AUC and ROC-AUC as pooled value **and** fold mean ± SD, Brier, with prevalence 0.0177 stated; plus the honest nested operating point from §7.3 | Combines the two threshold-independent and threshold-dependent results into one defensible table. Must use the notebook values, not the stale Markdown values.                                                                                    |
+| **Table 2**  | Part 4 Table 1 **rebuilt**: PR-AUC and ROC-AUC as pooled value **and** fold mean ± SD, Brier, with prevalence 0.0177 stated; plus the honest nested operating point from §7.3 | Combines the two threshold-independent and threshold-dependent results into one defensible table. Must use the current local-TabPFN notebook values (LightGBM first on PR-AUC).                                                                                    |
 | **Table 3**  | Part 1 Table 4 **respecified** — see §12.1; one representative per collinear block, EPV stated                                                                                | Currently unpublishable as written.                                                                                                                                                                                                               |
 | **Figure 1** | Part 4 Figure 1 (PR and ROC curves) with the prevalence line, **PR panel first and larger**                                                                                   | The single most important result. PR-AUC leads because prevalence is 1.77%.                                                                                                                                                                       |
-| **Figure 2** | Part 4 Figure 2 (calibration), **re-exported** from the current notebook state                                                                                                | The Brier question is settled (§12.2): TabPFN's 0.0060 is the best of the six. Calibration now *supports* the result instead of qualifying it — but the caption must be rewritten from scratch, because the existing one says the opposite.       |
+| **Figure 2** | Part 4 Figure 2 (calibration), current Kaggle export                                                                                                                          | TabPFN (local) Brier **0.0673** is the **worst** of the six; XGBoost 0.0088 is best. Calibration **qualifies** local TabPFN; it does not support a “best-calibrated foundation model” claim. Historical thinking-high Brier 0.0060 is not this run. |
 | **Figure 3** | A **new** single figure merging Part 1 Figure 4 (binary ORs) and Part 1 Figure 3 (continuous effect sizes) with **separate panels per effect-size metric**                    | Fixes the d-vs-r comparability problem of §7.8 while keeping the association story in one place.                                                                                                                                                  |
 | **Figure 4** | Part 5 Figure 13 (consensus ranking) **or** Part 3 Figure 1 (Venn) — pick one                                                                                                 | Both answer "which variables matter". Two is redundant in the main text. Prefer Figure 13 if the paper's thesis is interpretation; prefer the Venn if the thesis is methods comparison. The Venn is now generated by `stats_vs_ml_comparison.ipynb`.     |
 
@@ -1358,7 +1353,7 @@ paper's framing changes and this layout does not apply.
 | Group                                           | Items                                                                                                                                                                                                 |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Leakage evidence (**now in Part 4 supplement**) | Table S-TSSI and Figure S-TSSI: with-TSSI vs without-TSSI metric contrast (§7.5) and the case vs non-case time distribution (min 1,241 vs min 380 days), framed as binary-ified survival time (§4.2). |
-| Published clinical baseline (**now in Part 4 supplement**) | Table S-Wang / Figure S-Wang: frozen Wang 2020 integer score vs nested-CV TabPFN (§5.10). Cox LP, Dangas DCA, and Shantou remain absent (B11). |
+| Published clinical baseline (**now in Part 4 supplement**) | Table S-Wang / Figure S-Wang: frozen Wang 2020 integer score vs nested-CV LightGBM / TabPFN (local) (§5.10). Cox LP, Dangas DCA, and Shantou remain absent (B11). |
 | Statistical detail                              | Part 1 Fig 1, Table R, Fig 2, Table 2, Table 3, Fig 5, Fig 6, Fig S5a–b (Pearson/Spearman pairwise)                                                                                                   |
 | Domain analysis                                 | Part 1 Fig S1, Table S1, Fig S2a–d, Fig S3, Fig S4, Table S2 (**all 16 interaction rows, not 8**)                                                                                                     |
 | Feature-selection methods                       | Part 2 Table 0, Fig 1, Table 1, Table 2, Table 3, Table 4 — each with an explicit note that LOCO's pool is a column-order prefix and that scoring used the test set                                   |
@@ -1372,8 +1367,8 @@ paper's framing changes and this layout does not apply.
 
 | Item                           | Reason                                                                                                                                                                                                              |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Part 4 Table 3                 | Identical content to Part 4 Table 2's last four columns. Pure duplication.                                                                                                                                          |
-| Part 4 Figure 3                | The same confusion counts as Tables 2–3, as a heatmap. Keep the table, drop the figure.                                                                                                                             |
+| Part 4 Table 3                 | Optimistic pooled F1 companion to Table 2 (honest nested). Keep both only if captions stay distinct; do not merge the counts.                                                                    |
+| Part 4 Figure 3                | Pooled confusion heatmaps. Keep with a caption that forbids quoting them instead of Table 2.                                                                                                    |
 | Part 2 Figure 7                | Explicitly "same numbers as Table 3" (Part 2 L94).                                                                                                                                                                  |
 | Part 2 Figures S1, S3          | Explicitly labelled "Paper restyle: Figure 1" and "Paper restyle: Figure 2" (Part 2 L280, L292). Unstyled duplicates.                                                                                               |
 | Part 2 Figure 6                | "Bar height is `n common` from Table 1" (Part 2 L132). A 9-row table as a bar chart.                                                                                                                                |
@@ -1409,61 +1404,32 @@ is an undisclosed specification rule.
 **This table cannot be published as it stands.** Refit with one representative per collinear block and report
 EPV, or drop the multivariable analysis and present univariate associations only.
 
-### 12.2 [RESOLVED under D4] Part 4's exported artefacts are stale; the notebook is not
+### 12.2 [CLOSED for this snapshot] Part 4 figures match the local-TabPFN notebook
 
-Revision 1 recorded this as an unresolvable conflict between "two different runs" and asked the author to decide
-which was authoritative. **That question is now answered, and it did not need the author.** Re-examining the
-notebook's own *embedded output images* — not just its text — settles it:
+The earlier conflict (thinking-high notebook Brier 0.0060 vs exported PNG 0.0360 / t_F1 0.173 vs 0.901) applied
+to a **client thinking-high** run. That run is **not** the current Part 4 snapshot.
 
+**This snapshot.** Kaggle nested CV, `TabPFN (local)`, 9-level encoder. Notebook text, embedded figures, and
+`paper_figures/` ranking / calibration / confusion exports agree: LightGBM PR-AUC 0.6937; TabPFN (local)
+PR-AUC 0.6754, ROC-AUC 0.9845, Brier **0.0673**; nested counts 5041/52/29/63; pooled TabPFN t_F1 0.886,
+5019/74/16/76.
 
-| Quantity                         | Notebook text output       | Notebook **embedded figures** | Exported `paper_figures/`* + Markdown |
-| -------------------------------- | -------------------------- | ----------------------------- | ------------------------------------- |
-| TabPFN Brier                     | **0.0060** (L737)          | **0.0060**                    | 0.0360                                |
-| TabPFN t_F1                      | **0.173** (L995)           | **0.173**                     | 0.901                                 |
-| TabPFN TN/FP/FN/TP               | **5072/21/19/73** (L1003)  | **5072/21/19/73**             | 5066/27/15/77                         |
-| TabPFN precision / recall        | **0.7766 / 0.7935** (L995) | —                             | 0.7404 / 0.8370                       |
-| Five classic models, all metrics | —                          | —                             | **identical to notebook**             |
+**What remains of the old story (historical only, do not quote as current results):**
+thinking-high PR-AUC 0.8534 / Brier 0.0060 / nested 5080/13/26/66. Two client thinking-high executions had
+differed (Brier 0.0060 vs 0.0360). That non-determinism still belongs in Limitations **for the unused client
+arm**, not as a conflict about which local-TabPFN number to report.
 
-
-Evidence for the middle column: the calibration panel stored inside the notebook
-(`.nbdump/imgs/rating_cell11_0.png`) is titled "TabPFN (Brier = 0.0060)" and its TabPFN reliability curve stops at
-~0.13 predicted probability; the confusion-matrix panel (`.nbdump/imgs/rating_cell13_0.png`) is titled
-"TabPFN (t_F1 = 0.173)" and shows 5072 / 21 / 19 / 73. Both agree with the text output of the same notebook.
-
-By contrast `paper_results/04_tabpfn_rating/paper_figures/paper_fig2_calibration_curves.png` is titled
-"TabPFN (Brier = 0.0360)" with a curve reaching ~0.57, and `paper_table1_ranking.csv` records
-`TabPFN,0.852,0.99,0.036`. That file is byte-identical (md5 `88faaa39…`) to
-`data/result/modeling_results/paper_figures/paper_fig2_calibration_curves.png`, so both copies of the export
-descend from the same superseded execution.
-
-**Conclusion.** The notebook run is **internally consistent throughout**. The `paper_figures/` layer — PNGs, CSVs
-and the Markdown tables built from them — was exported from an **earlier TabPFN execution** and never refreshed
-when TabPFN was re-run; the classic-model rows were unaffected because those models are deterministic.
-
-**What this changes:**
-
-1. **No author decision is required.** The authoritative numbers are the notebook's: Brier 0.0060, t_F1 0.173,
-  5072/21/19/73, precision 0.7766, recall 0.7935. Previous blocking item 4 is closed.
-2. **The calibration narrative inverts.** **[REV4]** Part 4 captions now say the notebook Brier is **0.0060**
-  (best of six) and that the PNG title 0.0360 is stale. **[TODO-P4]** is now only the PNG/CSV re-export.
-3. **What remains real is a reproducibility caveat, not a data conflict.** Two client executions of
-  `thinking_mode=True` with `random_state=42` produced materially different probabilities (Brier 6× apart, 4 of 92
-   events reclassified). That is a genuine non-determinism finding about the TabPFN client and belongs in
-   Limitations (§12.10) — but it no longer casts doubt on which numbers to report.
-4. **Part 4's entire export set must be regenerated** from the current notebook state: 3 PNGs, 4 CSVs, 4 PNG table
-  images, and the Markdown that quotes them. Patching the single Brier cell is not sufficient, because
-   `paper_table2_f1_operating_point.csv` and `paper_table3_confusion_counts.csv` carry the stale threshold and
-   confusion counts too. **[TODO-P4]**
+**[TODO-P4]** for PNG re-export of this run is **closed**. **[TODO-REPRO]** (commit OOF CSVs) remains.
 
 ### 12.3 [CRITICAL] Claims that ROC-AUC and F1 support clinical usefulness
 
 Statements to remove or heavily qualify:
 
-- "TabPFN dominates ranking (AP = 0.852, AUC = 0.990)" (Part 4 L52) — true as a ranking statement, but adjacent
-text must not slide into utility. There is no decision-curve analysis, no net-benefit analysis, no
-cost-weighted threshold, and no stated clinical action.
-- "TabPFN catches the most events (TP = 77, FN = 15)" (Part 4 L95) — at a threshold chosen on the evaluation
-labels. The honest nested figure is **TP = 66, FN = 26** (§7.3).
+- "TabPFN dominates ranking" — **false for this run.** LightGBM leads PR-AUC (0.6937 vs TabPFN local 0.6754).
+TabPFN (local) leads ROC-AUC (0.9845). Adjacent text must not slide into utility. There is no decision-curve
+analysis, no net-benefit analysis, no cost-weighted threshold, and no stated clinical action.
+- Pooled TabPFN (local) "catches the most events (TP = 76, FN = 16)" is the optimistic cut. The honest nested
+figure is **TP = 63, FN = 29** (§7.3). Historical thinking-high nested TP = 66 / PNG TP = 77 are not this run.
 - "Accuracy is uniformly high because negatives dominate and is not a useful ranking criterion here"
 (Part 4 L103) — this is correct and should be kept, but accuracy should then be **removed from the table**
 rather than reported alongside.
@@ -1488,27 +1454,27 @@ All three are labelled "Univariate OR". Three different estimators are in use (2
 class-weighted logistic, unweighted logistic) without any of the tables saying so. Pick one estimator, or label
 each column with its estimator.
 
-### 12.5 [DISCREPANCY] `Stent type-SES` encoding — **code unified; Part 2 stored run matches; Part 4/5 still old**
+### 12.5 [CLOSED for Part 4] `Stent type-SES` encoding — Part 2 and Part 4 use the 9-level encoder; Part 5 stored SHAP/PDP still mixed
 
-**[REV5]** `eda.ipynb` and `baseline_feature_selections.ipynb` have been re-run with
-`code/modeling/tools/stent_encoding.py`: canonicalize aliases, collapse n < 30 → `other` (**9 levels**).
-Part 2 scaled width is **88**. EDA χ²: 99 raw levels → 9 used, χ² = 44.90, df = 8, V = 0.093.
+**[REV6]** `baseline_plus_tabpfn.ipynb` was re-run with `code/modeling/tools/stent_encoding.py`
+(canonicalize aliases, collapse n < 30 → `other`, **9 levels**). Classics one-hot those 9 levels without
+`drop="first"` (~89). TabPFN (local) sees the 9-level column natively.
+
+**[REV5]** `eda.ipynb` and `baseline_feature_selections.ipynb` already used that encoder. Part 2 scaled width is
+**88** (drop-first). EDA χ²: 99 raw levels → 9 used, χ² = 44.90, df = 8, V = 0.093.
 `PES` / `ZES` / `EVS` stay as the drug-class partition.
 
-Part 4/5 stored figures and the nested-CV smoke matrices are still the **pre-unification**
-exports until those notebooks are re-run. After re-run, classics one-hot 9 brands (~8 dummies
-with `drop="first"`), not 106 raw strings.
+Part 5 stored SHAP/PDP figures remain mixed until that notebook is re-exported.
 
 
-| Notebook                                   | Code now                                                        | Stored width (until re-run) |
-| ------------------------------------------ | --------------------------------------------------------------- | --------------------------- |
-| `eda.ipynb`                                | Shared 9-level encoder at load                                  | 9 (already)                 |
-| `preprocessing.ipynb`                      | Same encoder; column name kept; then OHE                        | 88 if last run used `stent_brand` |
-| `baseline_feature_selections.ipynb`        | Shared encoder, then OHE the 9 levels                           | **88** (2026-08-31 run)     |
-| `baseline_plus_tabpfn.ipynb` (classic arm) | Shared encoder, then ColumnTransformer OHE                      | ~186 (old)                  |
-| `baseline_plus_tabpfn.ipynb` (TabPFN arm)  | Same 9-level column, native/categorical                         | 81 (old 106-level codes)    |
-| `tabpfn_interpretability.ipynb`            | 9-level codes; brand dropped from continuous PDP                | 81; Fig 1 still sweeps codes |
-
+| Notebook | Code now | Stored width |
+| --- | --- | --- |
+| `eda.ipynb` | Shared 9-level encoder at load | 9 |
+| `preprocessing.ipynb` | Same encoder; column name kept; then OHE | 88 if last run used `stent_brand` |
+| `baseline_feature_selections.ipynb` | Shared encoder, then OHE drop-first | **88** (2026-08-31 run) |
+| `baseline_plus_tabpfn.ipynb` (classic arm) | Shared encoder, then ColumnTransformer OHE (no drop-first) | **~89** (this Kaggle run) |
+| `baseline_plus_tabpfn.ipynb` (TabPFN local) | Same 9-level column, native | 81 columns, 9 brand levels |
+| `tabpfn_interpretability.ipynb` | 9-level codes; brand dropped from continuous PDP | 81; Fig 1 still sweeps codes |
 
 The `preprocessing.ipynb` artefacts (`X_train.npy`, `preprocessor.joblib`) are used only by the
 TSSI scout notebooks. Re-run preprocessing before those scouts if you want matching brand dummies.
@@ -1541,10 +1507,10 @@ story.
 ### 12.9 [RISK] Unquantified uncertainty everywhere
 
 - No confidence intervals on **any** PR-AUC, ROC-AUC, or Brier score.
-- No paired statistical comparison between models (no DeLong, no bootstrap difference test). "TabPFN dominates"
-and "CatBoost is next" are point-estimate orderings with no inference. Fold SDs (§7.1) show TabPFN's PR-AUC SD
-is 0.075 and CatBoost's is 0.068 across 5 folds of ~18 events each — the gap of 0.15 may or may not survive a
-paired test on 92 events, and no such test was run.
+- No paired statistical comparison between models (no DeLong, no bootstrap difference test). "LightGBM is first"
+and "TabPFN (local) is third on PR-AUC" are point-estimate orderings with no inference. Fold SDs (§7.1): LightGBM
+PR-AUC 0.6941 ± 0.0917 vs TabPFN (local) 0.6739 ± 0.0812; LightGBM is higher in 3 of 5 folds. That gap may or may
+not survive a paired test on 92 events, and no such test was run. Do not restore "TabPFN dominates" or "wins 5/5".
 - No confidence intervals on precision/recall/F1 at any operating point.
 - No calibration slope or intercept; only Brier and a visual reliability curve.
 - Univariate effect sizes in Table 1 and Table 2 carry no confidence intervals — only p and q.
@@ -1556,8 +1522,8 @@ paired test on 92 events, and no such test was run.
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `oof_predictions.csv` / `fold_thresholds.csv` not in repo (written to `/kaggle/working/`) | No reviewer can recompute Part 4 or add CIs                                                                                                                                   |
 | No `environment.yml` / lockfile; `requirements.txt` has no pins verified                  | TabPFN, shapiq, CatBoost versions unknown                                                                                                                                     |
-| TabPFN client version and server-side model version unrecorded                            | The headline result depends on a remote service that can change                                                                                                               |
-| TabPFN is non-deterministic across runs (§12.2) despite `random_state=42`                 | The headline number cannot be reproduced even locally                                                                                                                         |
+| Stored Part 4 TabPFN is a local checkpoint (`tabpfn-v3-classifier-v3_default.ckpt`)       | Pin `tabpfn` package version; the unused thinking-high client/server versions remain unrecorded                                                                               |
+| Unused client thinking-high arm is non-deterministic across runs (§12.2)                  | Do not quote client Brier 0.0060 / 0.0360 as this snapshot. Local TabPFN Brier is 0.0673                                                                                       |
 | No data-availability, ethics, or consent statement **in this repo**                       | Wang 2020 already has all three (NCT03491891, ethics 2013-256, written consent, figshare data statement). Cite them; still put a one-paragraph statement in *this* manuscript |
 | Notebooks explicitly excluded from the results pack (`paper_results/README.md`)           | The pack cannot be audited on its own                                                                                                                                         |
 
@@ -1575,7 +1541,7 @@ seven notebooks did execute against the same 92 events, so if a reviewer asks wh
 answer is "exploratory analyses that were abandoned and are not reported" — not "nothing".
 
 The stronger version of this concern, which does still bind, is not about notebook count at all: it is that no
-paired significance test separates TabPFN from CatBoost (§12.9), and the ML models have no external validation
+paired significance test separates LightGBM from TabPFN (local) (§12.9), and the ML models have no external validation
 (§6.6) even though Wang's Cox score does.
 
 ### 12.12 Terminology discipline for the manuscript
@@ -1605,14 +1571,14 @@ Groups B–E are execution work.
 
 | Was                                                        | Now                                                                                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| "Which TabPFN run is authoritative?" (old blocking item 4) | **Closed.** The notebook is internally consistent; the exports are stale. Use Brier 0.0060, t_F1 0.173, 5072/21/19/73 (§12.2). |
-| **C1–C16** false or mixed claims in reports                | **Closed in reports.** Captions/tables rewritten; stale PNGs still listed under B1 / §12.7.                                    |
+| "Which TabPFN run is authoritative?" (old blocking item 4) | **Closed for this snapshot.** Quote the Kaggle **local** TabPFN notebook: Brier **0.0673**, nested 5041/52/29/63, pooled t_F1 0.886. Thinking-high 0.0060 / 5072/21/19/73 is historical (§12.2). |
+| **C1–C16** false or mixed claims in reports                | **Closed in reports.** Part 4 PNGs match this local-TabPFN run. Part 5 SHAP/PDP still mixed.                                    |
 | "Declare the full analysis history" (old item 16)          | **Closed** by D1–D2 (§12.11).                                                                                                  |
 | "Fold-wise mean ± SD are not available"                    | **Closed.** They are in the notebook and are now tabulated in §7.1 and §7.4.                                                   |
 | **A2** How were controls sampled?                          | **Closed by Wang 2020.** Consecutive complete-follow-up cohort, not case-control. 1.77% is published incidence (§2.3, §4.2).   |
 | **A3** What does `Stent thrombosis = 1` mean?              | **Closed by Wang 2020.** ARC 2007 definite ST, angiographically confirmed, > 1 year (§2.3).                                    |
 | **A5** Recruitment frame, ethics, consent                  | **Closed by Wang 2020.** Jilin University, Jan 2014–Jun 2015, NCT03491891, ethics 2013-256 (§2.3).                             |
-| **B10** Wang integer score as comparator                   | **Closed.** Frozen Table 2 points on 5,185 rows: ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV TabPFN 0.9883 / 0.8534 (§5.10). Cox LP / DCA / Shantou still out (B11). |
+| **B10** Wang integer score as comparator                   | **Closed.** Frozen Table 2 points on 5,185 rows: ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV LightGBM 0.9681 / **0.6937** and TabPFN (local) 0.9845 / 0.6754 (§5.10). Cox LP / DCA / Shantou still out (B11). |
 
 
 ### A. Remaining author questions after Wang 2020
@@ -1629,30 +1595,30 @@ Groups B–E are execution work.
 
 | #                         | Task                                                                                                                                                                                                                                                                                         | Cost                                                                                                                                                            | Notes                                                                                                                                                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **B1** [TODO-P4]          | **Re-export all of Part 4** from the current notebook state: 3 figures, 4 CSVs, 4 table images.                                                                                                                                                                                              | Low, if the notebook state is intact — but TabPFN is non-deterministic, so a full re-run gives *different* numbers again. Prefer exporting from the stored run. | This is the highest-value single fix. Everything downstream quotes these files.                                                                                                                                               |
+| **B1** [TODO-P4 — closed] | **Re-export all of Part 4** from the Kaggle local-TabPFN notebook. Figures 1–3 and Tables 0–3 match `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`.                                                                                                                              | Done for this snapshot                                                                                                                                          | Do not re-enable thinking-high. OOF CSVs still missing (B2).                                                                                                                                                                  |
 | **B2** [TODO-REPRO]       | **Persist** `oof_predictions.csv`**,** `fold_thresholds.csv`**,** `fold_metrics.csv`**,** `model_comparison.csv`**,** `nested_cv_operating_point.csv` into the repo.                                                                                                                         | Low                                                                                                                                                             | Confirmed absent from `data/result/` entirely. Without OOF predictions nobody — including you — can add confidence intervals later without re-running TabPFN. Do this *at the same time as B1* while the run is reproducible. |
-| **B3** [TODO-CI]          | **Bootstrap CIs on PR-AUC / ROC-AUC / Brier, and a paired test** (bootstrap difference or DeLong for ROC) between TabPFN and CatBoost.                                                                                                                                                       | Low **once B2 exists** — pure post-processing of OOF probabilities, no model refits.                                                                            | Currently there is no interval on any metric and no test behind "TabPFN dominates" (§12.9). Interim fallback that costs nothing: TabPFN wins PR-AUC in **5 of 5 folds** (§7.4).                                               |
+| **B3** [TODO-CI]          | **Bootstrap CIs on PR-AUC / ROC-AUC / Brier, and a paired test** (bootstrap difference or DeLong for ROC) between LightGBM and TabPFN (local).                                                                                                                                                | Low **once B2 exists** — pure post-processing of OOF probabilities, no model refits.                                                                            | Currently there is no interval on any metric and no test behind "LightGBM is first" (§12.9). Interim fallback that costs nothing: LightGBM PR-AUC higher in **3 of 5** folds vs TabPFN (local) (§7.4).                         |
 | **B4** [TODO-T4]          | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; raise `N_BOOT` from 200 to ≥ 2,000.                                                                                                                                                                  | Low                                                                                                                                                             | As it stands the model is not identified: `1.1:1Post dilation` sits beside its exact complement, and `eGFR` beside `CKD5` and `CKD90` (§12.1). `CKD90`'s CI is 2.708–639.506. **This table cannot be published as written.**  |
 | **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `stats_vs_ml_comparison.ipynb`. Jaccard 5/28 asserted after the 2026-08-31 catalogues. | Done | Inputs are the §8.1 FDR set and §8.6 ML consensus. Re-run the notebook if either catalogue changes. |
 | **B8** [CLOSED]           | **Part 2 paper protocol re-run on Kaggle** (2026-08-31): full-cohort discovery, PR-AUC only, independent selectors, top-20 / SHAP 40 / LOCO 60 / FFS 24×12. Parts 2–3 figures replaced. Download `selector_summary_long.csv` when convenient (tables were reconstructed from notebook HTML). | Done | Part 2/3 still do not support a *predictive* claim — they are discovery catalogues on a val slice (§4.4, §9.5). |
 | **B6** [TODO-MI]          | **Re-run** `mutual_info_classif` and re-export Part 5 Table 1 to fill the blank `Fast-Glu` and `ZES` cells.                                                                                                                                                                                  | Seconds — pure sklearn, zero TabPFN calls                                                                                                                       | A published "top 15" with two empty cells is not acceptable (§12.6).                                                                                                                                                          |
 | **B7** [TODO-TABLE1]      | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3).                                                                                     | Low                                                                                                                                                             | A conventional Table 1 already exists in Wang 2020; the repo still needs a verified, ML-complete version.                                                                                                                     |
-| **B9**                    | **Optional but strengthens the comparison:** tune the five classic baselines, or confirm Part 4 one-hot matches the 9-level encoder after re-run.                                                                                                                                 | Medium                                                                                                                                                          | Right now it is untuned defaults vs high-effort TabPFN (§6.3) on non-identical representations until Part 4 is re-run (§6.4). Disclosure is the minimum; tuning is the fix.                                                                          |
-| **B10** [TODO-SCORE — closed] | **Wang 8-variable integer score scored** on the same 5,185 rows (`wang_vlst_score.ipynb`): ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV TabPFN 0.9883 / 0.8534. SES=`PES`; 4 points on `No postdilation`. Cox linear predictor, Dangas DCA, and Shantou remain out (B11). | Done (derivation integer score) | Post-dilation polarity was the trap (§3.3, §5.10). |
+| **B9** [encoding — closed for this run] | **Part 4 uses the shared 9-level encoder** (classics ~89 one-hot; TabPFN local native). Optional remaining work: tune the five classic baselines.                                                                                                                                    | Encoding done; tuning still optional                                                                                                                            | Untuned defaults vs local TabPFN is disclosed (§6.3). Not thinking-high.                                                                                                                                             |
+| **B10** [TODO-SCORE — closed] | **Wang 8-variable integer score scored** on the same 5,185 rows (`wang_vlst_score.ipynb`): ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV LightGBM 0.9681 / **0.6937** and TabPFN (local) 0.9845 / 0.6754. SES=`PES`; 4 points on `No postdilation`. Cox linear predictor, Dangas DCA, and Shantou remain out (B11). | Done (derivation integer score) | Post-dilation polarity was the trap (§3.3, §5.10). |
 | **B11** [TODO-EXT]        | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used.                                                                                                                                                                                         | Political, not computational                                                                                                                                    | Without it, state clearly that ML validation is derivation-cohort nested CV only.                                                                                                                                             |
 
 
 ### C. Rewrite or delete — claims that are now known to be wrong
 
-All sixteen items below are **closed in the paper-style reports** (both trees + `paper_results.md`). Remaining work is Part 4/5 PNG re-export (B1) and optional encoding unification on Part 4 (B9), not more Part 2/3 caption edits.
+All sixteen items below are **closed in the paper-style reports** (both trees + `paper_results.md`). Remaining work is Part 5 SHAP/PDP re-export and optional classic-model tuning, not Part 4 caption edits.
 
 
 | #       | Where                                                                                     | Action                                                                                                                                                                                                                                                         |
 | ------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **C1**  | Part 4 Table 1 / Figure 2 stale Brier story                                               | **[REV4/closed in reports]** Captions rewritten to notebook 0.0060. PNG/CSV re-export still **[TODO-P4]**.                                                                                                                                                     |
-| **C2**  | Part 4 "TabPFN catches the most events (TP = 77, FN = 15)"                                | **[closed in reports]** Caption and Table 3 markdown no longer quote 0.837 / TP = 77. PNG still stale (B1). Quote Table 2 nested 66/26, recall 0.7174.                                                                                                                                                       |
-| **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")  | **[closed in reports]** Footer now says the notebook *did* print fold-wise mean ± SD and nested operating points; CSVs uncommitted; PNGs mixed stale/current.                                                                                                              |
-| **C4**  | Part 4 Tables 2–3 operating point                                                         | **[closed in reports]** Table 2 = honest nested (all six models). Table 3 / Figure 3 = optimistic pooled, labelled as biased; TabPFN markdown row is notebook 0.7935 not PNG 0.8370.                                                                                                                         |
+| **C1**  | Part 4 Table 1 / Figure 2 stale Brier story                                               | **[REV6/closed]** Captions and PNGs match local TabPFN Brier **0.0673** (worst of six). Historical thinking-high 0.0060 is not this run.                                                                                                                  |
+| **C2**  | Part 4 "TabPFN catches the most events (TP = 77, FN = 15)"                                | **[REV6/closed]** Quote Table 2 nested TabPFN (local) 5041/52/29/63, recall **0.6848**. Pooled TP = 76 is Table 3 only. Historical 66/26 and PNG 77/15 are not this run.                                                                                   |
+| **C3**  | Part 4 provenance notes ("cells were not executed", "fold-wise mean ± SD not available")  | **[closed in reports]** Footer and Table 1 quote fold mean ± SD from this Kaggle dump. OOF CSVs still uncommitted (B2).                                                                                                                                   |
+| **C4**  | Part 4 Tables 2–3 operating point                                                         | **[REV6/closed]** Table 2 = honest nested (LightGBM F1 0.6667; TabPFN local recall 0.6848). Table 3 / Figure 3 = optimistic pooled (TabPFN local recall 0.8261), labelled as biased.                                                                      |
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
 | **C6**  | Every Part 5 SHAP caption (Figures 3, 5, 6, 7; Table 4)                                   | **Code fixed:** full-cohort SHAP. Reports marked **[STALE]** until re-run. Do not keep “15 VLST cases” as the protocol.                                                                                                                                          |
 | **C7**  | Every Part 5 PDP caption (Figures 1, 2; Table 3)                                          | **[REV4/closed in reports]** Methods note + Table 3: balanced-prior, not absolute risk.                                                                                                                                                                        |
@@ -1662,7 +1628,7 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
 | **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[REV4/closed in reports]** Labelled: Table 2 = 2×2/Fisher (**6.49**); Table 4 univariate column = unweighted logit (**6.46**); Table S4 joint-domain univariate (**6.73**). Do not pick one number without naming the estimator.                             |
-| **C14** | `Stent type-SES`                                                                          | **[REV5]** EDA and Part 2 use the shared 9-level encoder (Part 2 → 88 columns). Part 4/5 stored runs still need re-export. Wang binary SES flag remains a third encoding. Part 5 Fig 1: the SES PDP sweep is **not** a nominal brand contrast. |
+| **C14** | `Stent type-SES`                                                                          | **[REV6]** EDA, Part 2, and Part 4 use the shared 9-level encoder (Part 2 → 88 drop-first; Part 4 classics ~89). Wang binary SES flag remains a third encoding. Part 5 Fig 1: the SES PDP sweep is **not** a nominal brand contrast. |
 | **C15** | Any statement of the form "LOCO saturates the 40-feature cap"                             | **[REV5]** Replaced: LOCO unique count is 60 because 60 columns were scored, not because 60 were independently important.                                                                                                         |
 | **C16** | Part 1 Table S2                                                                           | **[REV4/closed in reports]** All **16** pairs from `domain_interaction_screen.csv` are shown; only LV×eGFR and Men×eGFR pass FDR.                                                                                                                              |
 
@@ -1674,7 +1640,7 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative.                                                           | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
 | **W2** [closed in reports]  | **Clinical motivation and citations.** Drafted in `paper_results/00_front_matter.md` (and concatenated `paper_results.md` Part 0): Wang 2020 definition/cohort/score; why TabPFN; what “personalised” does *not* mean; what this pack adds *beyond* Wang’s 8-variable Cox score. Frozen integer points are now scored (Part 4 S-Wang; B10 closed for that comparator). | Cite Wang; do not write as if no VLST score exists.                                       |
-| **W3** [closed in reports]  | **Limitations section** in the same Part 0 file: no ML external/temporal test (Wang’s score has Shantou); binary vs Cox; EPV ≈ 5.4; TabPFN client non-determinism; unrecorded remote version; post-baseline DAPT; WBC excluded by Wang; `LV` unnamed; no PR-AUC intervals.                                                                                                                              | §4.2, §6.6, §12.9, §12.10.                                                                |
+| **W3** [closed in reports]  | **Limitations section** in the same Part 0 file: no ML external/temporal test (Wang’s score has Shantou); binary vs Cox; EPV ≈ 5.4; local TabPFN Brier 0.0673 (worst); unused client arm; post-baseline DAPT; WBC excluded by Wang; `LV` unnamed; no PR-AUC intervals; LightGBM first on PR-AUC (3/5 folds vs TabPFN local). | §4.2, §6.6, §12.9, §12.10.                                                                |
 | **W4** [TODO-EPV — closed]  | **EPV stated explicitly** (92 / 17 ≈ **5.4**) in Part 0 and next to Part 1 Table 4 / Figure S4 adjusted ORs (both report trees + concat).                                                                                                                                                                                                                                                            | Was computed nowhere (§2.2).                                                              |
 | **W5** [closed in reports]  | **Terminology pass** enforcing §12.12 in Part 0 and part headers: association (Parts 1, 5 MI); prediction (Part 4 nested CV only); interpretation/attribution (Parts 2, 5). Banned words removed from captions (“risk factor”, “independent signal”). Wang’s score remains the only result called externally tested.                                                                                  |                                                                                           |
 
@@ -1694,9 +1660,9 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 
 ### Suggested order
 
-1. **A1/A4 (**`LV`**, WBC vs Wang's exclusion) in parallel with B1+B2.** Lab timing no longer gates the whole paper; `LV` still gates any claim that names it.
+1. **A1/A4 (**`LV`**, WBC vs Wang's exclusion) in parallel with B2 (commit OOF CSVs).** Lab timing no longer gates the whole paper; `LV` still gates any claim that names it. Part 4 PNG export (B1) is closed for this local-TabPFN snapshot.
 2. **B11** (Shantou file) as a data-access ask, not a compute task. B10 (Wang integer score on the derivation file) is closed.
 3. **B4, B6, B7** — all cheap, all independent. B7 is now "rebuild and verify against Wang Table 1," not "invent from nothing." (B5 / Part 3 notebook is done.)
-4. **C1–C16 report wording is done.** Remaining C-related work is PNG re-export: B1 (Part 4 TabPFN panels), optional C12 split-axis Figure 3. Part 4 encoding unification is B9.
-5. **W1–W5 are drafted** in `paper_results/00_front_matter.md` (Part 0 of `paper_results.md`) and Part 1 Table 4. Remaining B-list: B1/B2 Part 4 export, B11 Shantou file. B10 (Wang integer score) is closed.
+4. **C1–C16 report wording is done for Part 4.** Remaining C-related work is Part 5 SHAP/PDP re-export and optional C12 split-axis Figure 3. Part 4 encoding unification is closed (B9).
+5. **W1–W5 are drafted** in `paper_results/00_front_matter.md` (Part 0 of `paper_results.md`) and Part 1 Table 4. Remaining B-list: B2 OOF CSVs, B3 CIs once B2 exists, B11 Shantou file.
 

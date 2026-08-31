@@ -18,25 +18,17 @@ section references of the form "EM §7.1" point into it.
 
 ## 0. Two structural decisions before drafting
 
-### 0.1 Beat 5 cannot be written as stated until one number is resolved
+### 0.1 Beat 5 is now writeable (local TabPFN Brier is settled)
 
-The requested story says *"TabPFN provides stronger discrimination than the classical baselines but has weaker
-calibration."* The first half is solid. **The second half is the one finding in this repository that the
-repository contradicts itself on.**
+The requested story said *"TabPFN provides stronger discrimination than the classical baselines but has weaker
+calibration."* **This Kaggle snapshot does not support the first half on PR-AUC.** LightGBM is first
+(PR-AUC **0.6937**); TabPFN (local) is third (**0.6754**) and first on ROC-AUC (**0.9845**). The second half
+**is** true for this run: TabPFN (local) Brier **0.0673** is the **worst** of the six (XGBoost 0.0088 is best).
+Notebook, embedded figures, and `paper_figures/` agree (EM §12.2). Historical thinking-high client Brier 0.0060
+vs PNG 0.0360 is a different arm and must not be quoted here.
 
-| Source | TabPFN Brier |
-| --- | --- |
-| `paper_fig2_calibration_curves.png` panel title (= Part 4 Table 1, = Part 4 narrative) | **0.0360** — 5th of 6 |
-| `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L737, same notebook | **0.0060** — **1st of 6** |
-
-All five classic models agree to four decimals across both artefacts; only TabPFN differs, because the
-`tabpfn_client` thinking mode is not reproducible across runs (EM §12.2). If 0.0060 is correct, TabPFN is the
-**best**-calibrated model in the study and beat 5 inverts to *"stronger discrimination and better calibration,
-but the probabilities are not transportable because prevalence is a sampling artefact."*
-
-**Consequence for this outline.** Results §6 and the Discussion are written with two mutually exclusive drafting
-branches, **A** and **B**. Do not draft either until the notebook is re-run once and a single Brier value is
-fixed. Everything else in the paper is branch-independent.
+**Consequence for this outline.** Draft beat 5 as: *LightGBM leads rare-event ranking; local TabPFN leads ROC-AUC
+and is the worst-calibrated of the six.* Do not restore "TabPFN wins every fold" or "best Brier."
 
 ### 0.2 One beat should be added to the story
 
@@ -63,9 +55,9 @@ Rationale for each cut is in §6.
 | **Figure 1** | Figure | Cohort derivation and analysis flow | 1 | — | **MUST BE BUILT — does not exist** |
 | **Table 2** | Table | Univariate associations with VLST after FDR control | 2 | Part 1 Tables 1 + 2 + 3, merged | Rebuild (merge) |
 | **Figure 2** | Figure | Univariate vs multivariable-adjusted associations (forest) | 2 | Part 1 Figure 6 | **Rebuild — model must be respecified first** |
-| **Table 3** | Table | Nested cross-validation performance of six models | 3, 5 | Part 4 Table 1 + notebook §7.3/§7.4 | **Rebuild — current table is stale** |
+| **Table 3** | Table | Nested cross-validation performance of six models | 3, 5 | Part 4 Table 1 + notebook §7.3/§7.4 | **Current** — LightGBM PR-AUC 0.6937 |
 | **Figure 3** | Figure | Precision–recall and ROC curves, nested-CV out-of-fold | 3, 5 | Part 4 Figure 1 | Reuse as-is |
-| **Figure 4** | Figure | Calibration (reliability curves), nested-CV out-of-fold | 5 | Part 4 Figure 2 | **Conditional — see §0.1** |
+| **Figure 4** | Figure | Calibration (reliability curves), nested-CV out-of-fold | 5 | Part 4 Figure 2 | Current — TabPFN (local) Brier 0.0673 |
 | **Table 4** | Table | Feature membership across all four extraction methods | 4, 7 | Part 3 Table 1 + Part 2 Table 2 + Part 5 Table 5 | Rebuild (merge) |
 | **Figure 5** | Figure | TabPFN interpretability: partial dependence + selection stability (2 panels) | 6 | Part 5 Figure 1 + Part 5 Table 2 | Rebuild (merge) |
 
@@ -363,25 +355,21 @@ figures. Correct Part 2 Table 0 if it still says CatBoost used "Ordered boosting
 
 **Purpose.** Specify the foundation model and the reproducibility caveat.
 
-**Evidence.** `tabpfn_client.TabPFNClassifier(thinking_mode=True, thinking_effort="high",
-thinking_metric="average_precision", random_state=42)`, evaluated in the identical nested-CV loop as the five
-baselines — 25 fits total (5 outer × [4 inner + 1 outer]); the first inner fit took 24 min 38 s
-(`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L235–241, L327–330).
+**Evidence.** Local TabPFN: `from tabpfn import TabPFNClassifier`, `n_estimators="auto"`,
+`balance_probabilities=True`, Kaggle Tesla T4, checkpoint `tabpfn-v3-classifier-v3_default.ckpt`. Evaluated in
+the identical nested-CV loop as the five baselines. Shared 9-level stent encoder before the split. The client
+thinking-high constructor remains in the notebook (`RUN_MODELS["TabPFN"]=False`) and was not fit
+(`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`).
 
 **Cites.** Table 3, Figure 3, Figure 4.
 
-**Safe claims.** The configuration; that TabPFN used the same folds and the same pooled out-of-fold evaluation as
-every baseline.
+**Safe claims.** The configuration; that TabPFN (local) used the same folds and the same pooled out-of-fold
+evaluation as every baseline; that it is **not** thinking-high.
 
-**Requires confirmation — blocking (EM CONFIRM #4, #18).**
-- **TabPFN is not reproducible here despite `random_state=42`.** Two runs of the same notebook produced
-  Brier 0.0360 vs 0.0060, F1 threshold 0.901 vs 0.173, and confusion counts 5066/27/15/77 vs 5072/21/19/73. Fix
-  one run and report it.
-- Record the `tabpfn_client` package version **and** the server-side model version. The headline result depends
-  on a remote service that can change.
-- `oof_predictions.csv` and `fold_thresholds.csv` were written to `/kaggle/working/` and never committed. They
-  must be regenerated and deposited, or no reviewer can recompute a single Part 4 number or add a confidence
-  interval.
+**Requires confirmation.**
+- Record the local `tabpfn` package / checkpoint version (partially done: `tabpfn-v3-classifier-v3_default.ckpt`).
+- `oof_predictions.csv` and `fold_thresholds.csv` were written to `/kaggle/working/` and never committed (EM B2).
+- Do not quote historical thinking-high Brier 0.0060 vs 0.0360 as this run.
 
 ### 2.8 Interpretability
 
@@ -440,11 +428,11 @@ point is the honest nested one.
 **Safe claims.** All of the above.
 
 **Requires confirmation — important (EM CONFIRM #7, #10).**
-1. **Report the nested operating point, not the pooled one.** **[closed in Part 4 reports]** Table 2 is the honest nested print (TabPFN recall **0.7174**, F1 0.7719, TP 66). Figure 3 / Table 3 are the pooled cut, labelled as optimistically biased; do not quote PNG recall 0.837.
-2. **No confidence intervals exist on any metric, and no paired model comparison was run.** "TabPFN dominates,
-   CatBoost is next" is a point-estimate ordering. Fold SDs are large relative to some gaps (TabPFN PR-AUC
-   0.850 ± 0.075; CatBoost 0.701 ± 0.068). Add bootstrap CIs on PR-AUC/ROC-AUC/Brier and a paired test
-   (DeLong for ROC-AUC, bootstrap for PR-AUC) before any superiority language.
+1. **Report the nested operating point, not the pooled one.** **[closed in Part 4 reports]** Table 2 is the honest nested print (LightGBM recall **0.6630**, F1 0.6667, TP 61; TabPFN local recall **0.6848**, TP 63). Figure 3 / Table 3 are the pooled cut, labelled as optimistically biased; do not quote TabPFN local pooled recall 0.8261 as nested.
+2. **No confidence intervals exist on any metric, and no paired model comparison was run.** "LightGBM is first,
+   TabPFN (local) is third on PR-AUC" is a point-estimate ordering. Fold SDs: LightGBM PR-AUC 0.6941 ± 0.0917;
+   TabPFN (local) 0.6739 ± 0.0812; LightGBM higher in 3 of 5 folds. Add bootstrap CIs and a paired test
+   before any superiority language.
 3. State that there is **no external, temporal, or geographic validation** (EM §6.6).
 
 ### 2.10 [PROPOSED — new] Leakage assessment and sensitivity analysis
@@ -613,70 +601,68 @@ section use `class_weight="balanced"` — an internal inconsistency to disclose 
 
 **Purpose.** Establish what conventional methods achieve, as the reference against which TabPFN is judged.
 
-**Published clinical baseline (frozen Wang 2020 integer score).** Same 5,185 rows, published Table 2 points, not re-fit. Full-cohort ROC-AUC **0.8013** (Wang published c = 0.80), PR-AUC **0.1032**; fold-mean ROC-AUC 0.8005 ± 0.0607 on the Part 4 outer folds (evaluation only). Source: `wang_vlst_score.ipynb` / Part 4 Table S-Wang. This is the missing comparator: TabPFN vs the score already published on these patients. Encoding traps (SES → `PES`; 4 points on `No postdilation`) are disclosed there. Not Shantou, not a Cox linear predictor.
+**Published clinical baseline (frozen Wang 2020 integer score).** Same 5,185 rows, published Table 2 points, not re-fit. Full-cohort ROC-AUC **0.8013** (Wang published c = 0.80), PR-AUC **0.1032**; fold-mean ROC-AUC 0.8005 ± 0.0607 on the Part 4 outer folds (evaluation only). Source: `wang_vlst_score.ipynb` / Part 4 Table S-Wang. This is the missing comparator: nested-CV models vs the score already published on these patients. Encoding traps (SES → `PES`; 4 points on `No postdilation`) are disclosed there. Not Shantou, not a Cox linear predictor.
 
 **Evidence** (pooled nested-CV out-of-fold, n = 5,185, 92 events; EM §7.1, §7.4):
 
 | Model | PR-AUC (pooled) | PR-AUC (fold mean ± SD) | ROC-AUC (pooled) | ROC-AUC (fold mean ± SD) |
 | --- | --- | --- | --- | --- |
-| CatBoost | 0.6967 | 0.7007 ± 0.0684 | 0.9704 | 0.9712 ± 0.0117 |
-| LightGBM | 0.6770 | 0.6841 ± 0.0937 | 0.9613 | 0.9633 ± 0.0198 |
-| XGBoost | 0.6647 | 0.6792 ± 0.0883 | 0.9493 | 0.9492 ± 0.0343 |
-| Random forest | 0.4563 | 0.4740 ± 0.0319 | 0.9313 | 0.9304 ± 0.0186 |
-| Logistic regression | 0.3418 | 0.3568 ± 0.1153 | 0.9246 | 0.9256 ± 0.0225 |
+| LightGBM | **0.6937** | 0.6941 ± 0.0917 | 0.9681 | 0.9695 ± 0.0164 |
+| XGBoost | 0.6815 | 0.6928 ± 0.1288 | 0.9439 | 0.9431 ± 0.0418 |
+| CatBoost | 0.6172 | 0.6353 ± 0.0540 | 0.9594 | 0.9612 ± 0.0137 |
+| Random forest | 0.4865 | 0.5034 ± 0.0793 | 0.9209 | 0.9206 ± 0.0423 |
+| Logistic regression | 0.3326 | 0.3451 ± 0.1213 | 0.9224 | 0.9235 ± 0.0251 |
 
 Prevalence reference for PR-AUC: **0.0177**.
 
-**Source.** `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L974–990, L1030–1060 — **not** Part 4
-Table 1, which is stale.
+**Source.** `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1071–1086, L1122–1153 — and Part 4
+Table 1, which matches that dump.
 
 **Cites.** **Table 1**, **Figure 1**.
 
 **Safe claims.**
-- Gradient boosting (0.66–0.70 PR-AUC) clearly outperforms bagging (0.46) and the linear model (0.34).
-- **The key rhetorical point of this subsection:** all five models exceed ROC-AUC 0.92, yet PR-AUC ranges from
-  0.34 to 0.70. ROC-AUC is nearly uninformative here; PR-AUC separates the models. Part 4 L52 makes this point
-  and it should be elevated to a headline methodological observation.
+- LightGBM (0.69 PR-AUC) and XGBoost (0.68) outperform bagging (0.49) and the linear model (0.33). CatBoost is fourth on this 9-level-encoder run (0.62), not second.
+- **The key rhetorical point of this subsection:** all five classic models exceed ROC-AUC 0.92, yet PR-AUC ranges from
+  0.33 to 0.69. ROC-AUC is nearly uninformative here; PR-AUC separates the models.
 
 **Requires confirmation.**
 - Baselines are untuned (§2.5).
-- No CIs, no paired tests (§2.9 item 2). Note that logistic regression's fold SD is 0.115 — its 0.34 point
-  estimate is unstable.
+- No CIs, no paired tests (§2.9 item 2). LightGBM fold SD is 0.092 — the 0.69 point estimate is noisy.
 - Do **not** claim clinical usefulness from any ROC-AUC (EM §12.3).
 
 ### 3.4 TabPFN versus baselines — *beats 3 and 5 (discrimination half)*
 
-**Purpose.** The paper's headline result.
+**Purpose.** The paper's nested-CV comparison. On this run TabPFN (local) does **not** lead PR-AUC.
 
 **Evidence.**
 
-| Metric | TabPFN | Best classical (CatBoost) | Wang 2020 integer score (frozen) |
+| Metric | LightGBM (best PR-AUC) | TabPFN (local) | Wang 2020 integer score (frozen) |
 | --- | --- | --- | --- |
-| PR-AUC pooled | **0.8534** | 0.6967 | 0.1032 |
-| PR-AUC fold mean ± SD | **0.8503 ± 0.0746** | 0.7007 ± 0.0684 | 0.1134 ± 0.0518 |
-| ROC-AUC pooled | **0.9883** | 0.9704 | 0.8013 |
-| ROC-AUC fold mean ± SD | 0.9884 ± 0.0061 | 0.9712 ± 0.0117 | 0.8005 ± 0.0607 |
-| Per-fold PR-AUC | 0.824, 0.778, 0.793, 0.948, 0.909 | 0.699, 0.675, 0.609, 0.795, 0.726 | TabPFN higher than CatBoost in **5/5 folds** |
+| PR-AUC pooled | **0.6937** | 0.6754 | 0.1032 |
+| PR-AUC fold mean ± SD | 0.6941 ± 0.0917 | 0.6739 ± 0.0812 | 0.1134 ± 0.0518 |
+| ROC-AUC pooled | 0.9681 | **0.9845** | 0.8013 |
+| ROC-AUC fold mean ± SD | 0.9695 ± 0.0164 | 0.9846 ± 0.0030 | 0.8005 ± 0.0607 |
+| Per-fold PR-AUC | 0.753, 0.714, 0.540, 0.772, 0.692 | 0.638, 0.635, 0.583, 0.727, 0.786 | LightGBM higher than TabPFN local in **3/5** folds |
 
-**Honest nested operating point** (EM §7.3): TabPFN precision 0.8354, recall 0.7174, specificity 0.9974,
-F1 0.7719, F2 0.7383, TN/FP/FN/TP = 5080/13/26/66, threshold 0.297 ± 0.053. CatBoost: precision 0.6211,
-recall 0.6413, F1 0.6310, 5057/36/33/59.
+**Honest nested operating point** (EM §7.3): LightGBM precision 0.6703, recall 0.6630, F1 0.6667,
+TN/FP/FN/TP = 5063/30/31/61, threshold 0.121 ± 0.085. TabPFN (local): precision 0.5478, recall **0.6848**,
+F1 0.6087, 5041/52/29/63, threshold 0.915 ± 0.012.
 
 **Cites.** **Table 2** (honest nested operating point), **Figure 1** (ranking), **Supplementary Table S-Wang**.
 
 **Safe claims.**
-- TabPFN ranked highest on PR-AUC in **every one of the five outer folds** versus the five classic models — this is the strongest statement available without a formal test, and it should be made explicitly.
-- On the same derivation rows, nested-CV TabPFN PR-AUC **0.8534** versus the frozen published Wang integer score **0.1032** (ROC-AUC 0.9883 vs 0.8013). That is not Shantou and not a Cox re-fit.
-- At the nested operating point TabPFN identified 66 of 92 events with 13 false positives, versus CatBoost's 59
-  events with 36 false positives.
+- LightGBM ranked highest on pooled PR-AUC; higher than TabPFN (local) in **3 of 5** outer folds. Do not write
+  "TabPFN wins every fold."
+- TabPFN (local) ranked highest on ROC-AUC (0.9845) and worst on Brier (0.0673).
+- On the same derivation rows, nested-CV LightGBM PR-AUC **0.6937** versus the frozen published Wang integer score **0.1032** (TabPFN local PR-AUC 0.6754; ROC-AUC 0.9845 vs Wang 0.8013). That is not Shantou and not a Cox re-fit.
+- At the nested operating point LightGBM identified 61 of 92 events with 30 false positives; TabPFN (local)
+  identified 63 events with 52 false positives.
 
 **Requires confirmation.**
 - Add a paired test before the word "superior" (EM CONFIRM #10).
-- Disclose unequal tuning (§2.5) and unequal feature representation (§2.2) in the same paragraph, not buried in
-  Limitations.
-- Do not report accuracy (0.99 for every model; it is prevalence, not skill). Part 4 L103 already says this —
-  act on it by removing the column rather than printing it with a caveat.
-- Nested vs pooled operating points are now labelled in Part 4; quote Table 2 (recall 0.7174), not Figure 3 / 0.837.
+- Disclose untuned classics (§2.5) and that this TabPFN is **local, not thinking-high**.
+- Do not report accuracy (0.99 for every model; it is prevalence, not skill).
+- Nested vs pooled operating points are labelled in Part 4; quote Table 2 (LightGBM recall 0.6630 / TabPFN local 0.6848), not Figure 3 pooled TabPFN recall 0.8261.
 
 ### 3.5 Statistical versus ML feature-set comparison — *beats 4 and 7*
 
@@ -790,30 +776,17 @@ rather than losing it in translation to the manuscript.
 
 **Purpose.** Separate ranking skill from probability quality.
 
-**Evidence — undisputed (all five classical models agree across both runs):** Brier — CatBoost 0.0090,
-XGBoost 0.0093, LightGBM 0.0096, random forest 0.0147, logistic regression 0.0543.
+**Evidence (this Kaggle local-TabPFN run; notebook and figures agree):** Brier — XGBoost **0.0088**, LightGBM 0.0093,
+CatBoost 0.0101, random forest 0.0143, logistic regression 0.0563, TabPFN (local) **0.0673** (worst of six).
 
-**Evidence — disputed:** TabPFN Brier is **0.0360** in the stored figures and **0.0060** in the stored notebook
-text (§0.1).
+**Cites.** **Figure 4**.
 
-**Cites.** **Figure 4** — conditional.
+Beat 5: TabPFN (local) does **not** lead PR-AUC and **is** the worst-calibrated of the six. Historical
+thinking-high Brier 0.0060 is not this run. Absolute probabilities remain non-transportable because prevalence
+is a property of this derivation cohort (§2.1), regardless of Brier.
 
-> **DRAFTING BRANCH A — if Brier = 0.0360 is confirmed.**
-> Beat 5 stands as requested. Safe claims: TabPFN ranks best but calibrates worse than the tree ensembles;
-> logistic regression is worst on both counts; ranking skill and probability quality come apart. Recommend
-> reporting a post-hoc recalibration (Platt or isotonic on inner folds) as an obvious remedy.
-
-> **DRAFTING BRANCH B — if Brier = 0.0060 is confirmed.**
-> Beat 5 **inverts**. TabPFN is best on discrimination *and* on Brier. The paper's calibration message becomes:
-> apparent calibration is excellent, but because control sampling makes the 1.77% prevalence a design artefact
-> (§2.1), the absolute probabilities are **not transportable** to a real PCI population regardless of the Brier
-> score. That is a more interesting and more honest message than Branch A. Part 4's current narrative sentences
-> ("overestimate event probability", "not a well-calibrated risk engine", "worse than the tree ensembles") must
-> be **deleted**.
-
-**Requires confirmation — blocking (EM CONFIRM #4, #21).** Resolve the Brier value. Do not draft either branch
-before then. In both branches, add calibration slope and intercept — the repository reports only Brier and a
-visual reliability curve.
+**Requires confirmation.** Add calibration slope and intercept — the repository reports only Brier and a
+visual reliability curve. Do not draft the old Branch A/B (0.0360 vs 0.0060) against this snapshot.
 
 ---
 
@@ -869,10 +842,10 @@ sample: Wang 2020 establishes a consecutive complete-follow-up cohort; 1.77% is 
 | 1 | **No external or temporal test of the ML models.** Wang’s Cox score was tested on Shantou; those rows are not here. | EM §6.6 |
 | 2 | **Binary classification vs published Cox analysis.** Follow-up time is the Cox axis; as a covariate it leaks (Part 4 S-TSSI). | EM §4.1–4.2 |
 | 3 | **EPV ≈ 5.4** on the 17-covariate logit; collinear blocks remain. | EM §2.2, W4 |
-| 4 | **TabPFN client non-determinism** despite `random_state=42`; remote version unrecorded. Quote notebook Brier 0.0060 (D4). | EM §12.2, §12.10 |
-| 5 | **Classical baselines untuned**; TabPFN thinking-high. Unequal search budget. | EM §6.3 |
-| 6 | **Unequal feature views** (classics scaled one-hot vs TabPFN raw 81). | EM §6.4 |
-| 7 | **No CIs and no paired test** of TabPFN vs CatBoost. | EM §12.9 |
+| 4 | **Unused client thinking-high arm** is non-deterministic; this snapshot is local TabPFN Brier **0.0673**. | EM §12.2, §12.10 |
+| 5 | **Classical baselines untuned**; TabPFN is local (no thinking). Unequal model class, not thinking-high vs defaults. | EM §6.3 |
+| 6 | **Classics still one-hot** the 9-level brand column (~89); TabPFN (local) sees it natively. | EM §6.4 |
+| 7 | **No CIs and no paired test** of LightGBM vs TabPFN (local). LightGBM PR-AUC higher in 3/5 folds. | EM §12.9 |
 | 8 | **Part 2 catalogues are discovery on an 18-event val slice**, not a Part 4 mask. | EM §4.4 |
 | 9 | **DAPT columns are post-baseline**; **WBC** was excluded by Wang; **`LV` unnamed**. | EM §3, A1 |
 | 10 | **Observational design:** no causal / “protective” language for post-dilation or clopidogrel. | EM §12.12 |
@@ -884,9 +857,9 @@ sample: Wang 2020 establishes a consecutive complete-follow-up cohort; 1.77% is 
 Three sentences, no more.
 
 **Safe template.**
-> In a dataset of 5,185 patients with 92 very late stent thromboses (1.77%), a tabular foundation model achieved
-> higher out-of-fold precision–recall performance than five conventional classifiers in every cross-validation
-> fold (PR-AUC 0.85 vs 0.34–0.70), while all models exceeded ROC-AUC 0.92 — showing that ROC-AUC is
+> In a dataset of 5,185 patients with 92 very late stent thromboses (1.77%), nested cross-validation of six
+> classifiers found LightGBM first on precision–recall (PR-AUC 0.69) and local TabPFN first on ROC-AUC (0.98)
+> but worst on Brier (0.067); all models exceeded ROC-AUC 0.92 — showing that ROC-AUC is
 > uninformative at this event rate. Leukocyte count, estimated glomerular filtration rate and left-ventricular
 > dimension were recovered independently by marginal hypothesis testing, by model-based feature selection and by
 > foundation-model interpretability, whereas the remaining feature sets diverged for identifiable structural
@@ -943,8 +916,8 @@ add any sentence proposing clinical use.
 ## 6. Drafting order
 
 1. **Answer EM CONFIRM #1 (measurement timing) and #2 (control sampling).** Nothing else is worth writing first.
-2. **Re-run `baseline_plus_tabpfn.ipynb` once**, commit the OOF predictions, and fix the TabPFN Brier — this
-   selects Branch A or B for §3.7 and D1.
+2. **Part 4 nested CV is the Kaggle local-TabPFN run** (LightGBM PR-AUC 0.6937; TabPFN local Brier 0.0673).
+   Commit OOF predictions (EM B2) so CIs can be added; do not re-enable thinking-high.
 3. **Respecify the multivariable model** (§2.4). Table 2 and Figure 2 depend on it.
 4. **Add bootstrap CIs and a paired model test** to Table 3.
 5. **Build Table 1 and Figure 1.**
