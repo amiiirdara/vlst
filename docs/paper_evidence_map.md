@@ -980,7 +980,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 | Is Part 2 comparable with Part 4?                               | **No.** Part 2 is a full-cohort fit/val discovery split, **88** encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
 | Is Part 5 comparable with Part 4?                               | **No.** Part 5 is full-cohort attribution; Part 4 is nested-CV prediction. Both currently use local TabPFN with `balance_probabilities=True`, but they are different notebooks and different claims. Historical thinking-high Part 4 is not this snapshot.                                                                                      |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
-| Are univariate ORs consistent across tables?                    | **No.** See §12.4.                                                                                                                                                                                                                                                                                                                            |
+| Are univariate ORs consistent across tables?                    | **They are three named estimators, not one OR.** Table 2 = 2×2/Fisher; Table 4 = unweighted logit; Table S4 = joint-domain univariate (§12.4, C13).                                                                                                                                                                                            |
 
 
 ---
@@ -1143,7 +1143,7 @@ same intersection and Jaccard.
 
 
 **[REV5]** `Fiberinogen` and `Previous PCI` left the intersection when F1/F2 were dropped. `Previous PCI` is
-still frequently selected. Three Previous-PCI OR estimators remain (§12.4).
+still frequently selected. The three Previous-PCI ORs are named estimators, not a conflict (§12.4).
 
 ### 9.3 Statistics-only (15) — the repository's own explanations, audited
 
@@ -1438,21 +1438,25 @@ What is *not* in the repository and would be needed for any usefulness claim: de
 number-needed-to-screen, an explicitly costed FP:FN ratio, a defined clinical action triggered by a positive
 prediction, and any external validation.
 
-### 12.4 [DISCREPANCY] The same odds ratio is reported with three different values
+### 12.4 [CLOSED in reports] Three Previous-PCI ORs are three estimators, now named
+
+The three numbers are still in the file. They are **not** a single OR printed three times. Part 1 captions now
+name the estimator (C13).
 
 
-| Feature                 | Table 2 (2×2 test) | Table 4 (single-feature weighted logistic) | Joint domain model (single-feature logistic) |
-| ----------------------- | ------------------ | ------------------------------------------ | -------------------------------------------- |
-| Previous PCI            | 6.485              | 6.465                                      | 6.733                                        |
-| 1.1:1Post dilation      | 0.187              | 0.187                                      | 0.192                                        |
-| Diabetes                | 1.889              | 1.889                                      | 1.898                                        |
-| Men                     | 1.303              | —                                          | 1.286                                        |
-| No.of stents per lesion | —                  | 1.379                                      | 1.379                                        |
+| Feature | Table 2 (2×2 / Fisher) | Table 4 univariate column (unweighted logit) | Figure S4 / Table S4 (joint-domain univariate logit) |
+| --- | ---: | ---: | ---: |
+| Previous PCI | **6.49** (6.485) | **6.46** (6.465) | **6.73** (6.733) |
+| 1.1:1Post dilation | 0.187 | 0.187 | 0.192 |
+| Diabetes | 1.889 | 1.889 | 1.898 |
 
 
-All three are labelled "Univariate OR". Three different estimators are in use (2×2 cross-product,
-class-weighted logistic, unweighted logistic) without any of the tables saying so. Pick one estimator, or label
-each column with its estimator.
+**Quote rule.** Name the table when you quote Previous PCI. Table 2 = 2×2 cross-product (Fisher when the
+notebook chose Fisher). Table 4 “Univariate OR” = unweighted `statsmodels.Logit`, one covariate. Figure S4 /
+Table S4 = univariate column of the joint-domain specification. Do not collapse them to one headline OR.
+
+The old wording that Table 4’s univariate column was class-weighted is **wrong for the current reports**:
+Table 4 is unweighted MLE (`class_weight="balanced"` is not used there).
 
 ### 12.5 [CLOSED for Part 4] `Stent type-SES` encoding — Part 2 and Part 4 use the 9-level encoder; Part 5 stored SHAP/PDP still mixed
 
@@ -1627,7 +1631,7 @@ All sixteen items below are **closed in the paper-style reports** (both trees + 
 | **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (OR 0.144), `Clopidogrel` (OR 0.464) | **[REV4/closed in reports]** Word removed from paper-style reports (Parts 1, 3, 5 and the concatenated bundle). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). Audit text below still names the banned word.          |
 | **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
-| **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[REV4/closed in reports]** Labelled: Table 2 = 2×2/Fisher (**6.49**); Table 4 univariate column = unweighted logit (**6.46**); Table S4 joint-domain univariate (**6.73**). Do not pick one number without naming the estimator.                             |
+| **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[CLOSED]** Reports name the estimator. Evidence-map §12.4 no longer treats this as an unlabeled discrepancy. Table 2 = 2×2/Fisher (**6.49**); Table 4 = unweighted logit (**6.46**); Table S4 = joint-domain univariate (**6.73**).                             |
 | **C14** | `Stent type-SES`                                                                          | **[REV6]** EDA, Part 2, and Part 4 use the shared 9-level encoder (Part 2 → 88 drop-first; Part 4 classics ~89). Wang binary SES flag remains a third encoding. Part 5 Fig 1: the SES PDP sweep is **not** a nominal brand contrast. |
 | **C15** | Any statement of the form "LOCO saturates the 40-feature cap"                             | **[REV5]** Replaced: LOCO unique count is 60 because 60 columns were scored, not because 60 were independently important.                                                                                                         |
 | **C16** | Part 1 Table S2                                                                           | **[REV4/closed in reports]** All **16** pairs from `domain_interaction_screen.csv` are shown; only LV×eGFR and Men×eGFR pass FDR.                                                                                                                              |
