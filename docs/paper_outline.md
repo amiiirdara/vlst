@@ -7,6 +7,7 @@ section references of the form "EM §7.1" point into it.
 
 | Short name | Path |
 | --- | --- |
+| Part 0 | `paper_results/00_front_matter.md` (W2–W5: motivation, EPV, limitations, terminology) |
 | Part 1 | `paper_results/01_eda/EDA_paper_figures_and_tables.md` |
 | Part 2 | `paper_results/02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md` |
 | Part 3 | `paper_results/03_stats_vs_ml/feature_extraction_comparison.md` |
@@ -133,17 +134,16 @@ operating-point numbers are the nested ones.
 
 ## INTRODUCTION
 
-Four paragraphs. **The repository supplies almost nothing here** — the entire motivation content is two lines of
-`README.md` and there are zero citations anywhere (EM §1). Everything below must be written from external
-literature.
+Drafted in `paper_results/00_front_matter.md` (W2). Four beats: VLST as ARC definite ST > 1 year (Wang 2020);
+why prediction is hard (1.77%, EPV ≈ 5.4); why TabPFN is in the comparison (with the unequal-tuning disclosure);
+objectives as association / nested-CV prediction / catalogue comparison — not implementation. Do not write as if
+no VLST score exists; Wang’s 8-variable Cox score is the published baseline this pack does not yet re-fit (B10).
+The README word “Personalized” is disallowed as a result claim (single global model).
 
 ### Paragraph 1 — Clinical problem
 **Purpose.** Establish that VLST is rare, late, and consequential.
-**Evidence.** External only: ARC definitions, reported VLST incidence, associated mortality and reinfarction.
-**Source.** **[GAP]** Nothing in the repository.
-**Requires confirmation.** The ARC category used in *this* dataset (definite / probable / possible) and the
-timing threshold that makes an event "very late" — neither is documented anywhere (EM §2.3). The introduction
-cannot define the outcome until the author supplies this.
+**Evidence.** Wang 2020 (ARC 2007 definite ST > 1 year; incidence 1.77% on this cohort; Dangas LST c = 0.66 vs Wang Cox c = 0.80 / 0.82).
+**Source.** `paper_results/00_front_matter.md`. The old “[GAP] nothing in the repository” is closed.
 
 ### Paragraph 2 — Why prediction is hard here
 **Purpose.** Motivate the methodological choices: 1.77% prevalence, 92 events against 81 candidate features
@@ -861,27 +861,22 @@ and against prior TabPFN evaluations on clinical tabular data.
 
 ## LIMITATIONS
 
-Ordered by severity. Each is a confirmed defect from the evidence map, not a boilerplate hedge.
+Drafted in `paper_results/00_front_matter.md` (W3). Do **not** restore the withdrawn selective-reporting item
+(`failed_hypothesis/` and `tabpfn_playground.ipynb` are out of scope: D1–D2). Do **not** call this a case-control
+sample: Wang 2020 establishes a consecutive complete-follow-up cohort; 1.77% is published incidence (EM §2.3, §4.2).
 
 | # | Limitation | Evidence-map reference |
 | --- | --- | --- |
-| 1 | **Measurement timing of laboratory and echocardiographic variables is undocumented.** If any are event-time values for cases, the study describes presentation rather than prediction. | EM §4.3 |
-| 2 | **Control sampling implies a case-control frame**; the 1.77% prevalence is not an incidence, and prevalence-dependent metrics are not transportable. | EM §4.2 |
-| 3 | **No external, temporal, or geographic validation.** Every number comes from the same 5,185 rows. | EM §6.6 |
-| 4 | **TabPFN is not reproducible** across runs despite a fixed seed, and depends on a remote service whose version is unrecorded. | EM §12.2, §12.10 |
-| 5 | **Classical baselines were untuned**; TabPFN ran at high effort. The comparison is unmatched. | EM §6.3 |
-| 6 | **Models did not receive identical feature representations.** | EM §6.4 |
-| 7 | **No confidence intervals and no paired model comparisons.** | EM §12.9 |
-| 8 | **Feature-selection results are exploratory:** test-set scoring, an arbitrary 40-column candidate pool, and a coalition value function computed on an 87.5%-positive sample. | EM §4.4, §5.7 |
-| 9 | **SHAP covers 15 VLST cases and no controls; k-SII covers one patient.** | EM §5.9 |
-| 10 | **Low events-per-variable** (≈ 5.4 for the multivariable model), so adjusted estimates are unstable. | EM §2.2 |
-| 11 | **Observational design:** confounding by indication precludes causal or protective language for `1.1:1Post dilation`, `Clopidogrel`, and every procedural variable. | EM §12.12 |
-| 12 | **Selective reporting risk:** nineteen notebooks exist, five analyses are reported. | EM §12.11 |
-
-**Requires confirmation (EM CONFIRM #16).** Item 12 obliges a declaration of the unreported work — the
-`failed_hypothesis/` directory (blending, oversampling, synthesis, false-positive mining, anomaly detection,
-LLM-tabular), the causal analysis, and the TabPFN playground. Without it, the TabPFN result cannot be
-distinguished from selection over many attempts.
+| 1 | **No external or temporal test of the ML models.** Wang’s Cox score was tested on Shantou; those rows are not here. | EM §6.6 |
+| 2 | **Binary classification vs published Cox analysis.** Follow-up time is the Cox axis; as a covariate it leaks (Part 4 S-TSSI). | EM §4.1–4.2 |
+| 3 | **EPV ≈ 5.4** on the 17-covariate logit; collinear blocks remain. | EM §2.2, W4 |
+| 4 | **TabPFN client non-determinism** despite `random_state=42`; remote version unrecorded. Quote notebook Brier 0.0060 (D4). | EM §12.2, §12.10 |
+| 5 | **Classical baselines untuned**; TabPFN thinking-high. Unequal search budget. | EM §6.3 |
+| 6 | **Unequal feature views** (classics scaled one-hot vs TabPFN raw 81). | EM §6.4 |
+| 7 | **No CIs and no paired test** of TabPFN vs CatBoost. | EM §12.9 |
+| 8 | **Part 2 catalogues are discovery on an 18-event val slice**, not a Part 4 mask. | EM §4.4 |
+| 9 | **DAPT columns are post-baseline**; **WBC** was excluded by Wang; **`LV` unnamed**. | EM §3, A1 |
+| 10 | **Observational design:** no causal / “protective” language for post-dilation or clopidogrel. | EM §12.12 |
 
 ---
 

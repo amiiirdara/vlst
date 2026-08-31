@@ -1,22 +1,8 @@
 model,metric,n_common,features
-lr,pr_auc,4,Cre; Men; Min-stent diameter; TG
-lr,f1,2,Cre; Men
-lr,f2,5,Fast-Glu; LV; Men; WBC; eGFR
-rf,pr_auc,3,LVEF; WBC; eGFR
-rf,f1,4,LV; Previous PCI; WBC; eGFR
-rf,f2,3,Cre; Fiberinogen; Platelet
-rf_b,pr_auc,3,CaI; LVEF; WBC
-rf_b,f1,1,eGFR
-rf_b,f2,4,HL; LV; LVEF; STEMI
-cat,pr_auc,3,LV; WBC; eGFR
-cat,f1,6,HGB; HL; LV; Platelet; WBC; eGFR
-cat,f2,4,Hypertension; LV; WBC; eGFR
-xgb,pr_auc,3,Cre; LV; TCL
-xgb,f1,4,LV; LVEF; WBC; eGFR
-xgb,f2,3,LV; WBC; eGFR
-xgb_b,pr_auc,4,Cre; HGB; LV; WBC
-xgb_b,f1,2,WBC; eGFR
-xgb_b,f2,3,LV; WBC; eGFR
-lgb,pr_auc,2,Cre; HL
-lgb,f1,3,Current drinking; HL; WBC
-lgb,f2,3,History of HF; Men; WBC
+cat,pr_auc,3,1.1:1Post dilation; HGB; WBC
+lgb,pr_auc,2,HbA1c; LV
+lr,pr_auc,6,Cre; LV; Men; UA; WBC; eGFR
+rf,pr_auc,6,HGB; LDL; LVEF; Men; WBC; eGFR
+rf_b,pr_auc,4,CaI; HGB; LVEF; WBC
+xgb,pr_auc,7,1.1:1Post dilation; Aneurysm; Cre; HGB; LV; WBC; eGFR
+xgb_b,pr_auc,5,1.1:1Post dilation; LV; LVEF; WBC; eGFR

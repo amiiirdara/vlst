@@ -1,47 +1,37 @@
 Feature,Stats FDR,Stats multivariable,ML consensus,ML frequent,Set
-Fiberinogen,Yes,No,Yes,Yes,Both (FDR ∩ ML consensus)
+1.1:1Post dilation,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
+HbA1c,Yes,No,Yes,Yes,Both (FDR ∩ ML consensus)
 LV,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
-Previous PCI,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
 WBC,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
 eGFR,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
+Aneurysm,No,No,Yes,Yes,ML consensus only
 CaI,No,No,Yes,Yes,ML consensus only
 Cre,No,No,Yes,Yes,ML consensus only
-Current drinking,No,No,Yes,Yes,ML consensus only
-Fast-Glu,No,No,Yes,Yes,ML consensus only
 HGB,No,No,Yes,Yes,ML consensus only
-HL,No,No,Yes,Yes,ML consensus only
-History of HF,No,No,Yes,Yes,ML consensus only
-Hypertension,No,No,Yes,Yes,ML consensus only
+LDL,No,No,Yes,Yes,ML consensus only
 LVEF,No,No,Yes,Yes,ML consensus only
 Men,No,No,Yes,Yes,ML consensus only
-Min-stent diameter,No,No,Yes,Yes,ML consensus only
-Platelet,No,No,Yes,Yes,ML consensus only
-STEMI,No,No,Yes,Yes,ML consensus only
-TCL,No,No,Yes,Yes,ML consensus only
-TG,No,No,Yes,Yes,ML consensus only
-Chronic renal insufficiency,No,No,No,Yes,ML frequent only
-HDL,No,No,No,Yes,ML frequent only
-History of peripheral vascular disease,No,No,No,Yes,ML frequent only
-Initial diagnosis-AMI,No,No,No,Yes,ML frequent only
-LDL,No,No,No,Yes,ML frequent only
-NSTEMI,No,No,No,Yes,ML frequent only
-Previous CABG,No,No,No,Yes,ML frequent only
-Previous MI,No,No,No,Yes,ML frequent only
-Stroke/TIA,No,No,No,Yes,ML frequent only
-UA,No,No,No,Yes,ML frequent only
-1.1:1Post dilation,Yes,Yes,No,No,Stats FDR only
+UA,No,No,Yes,Yes,ML consensus only
+Age,No,No,No,Yes,ML frequent only
+Max-stent diameter,No,No,No,Yes,ML frequent only
+Platelet,No,No,No,Yes,ML frequent only
+STEMI,No,No,No,Yes,ML frequent only
+TCL,No,No,No,Yes,ML frequent only
+TG,No,No,No,Yes,ML frequent only
+stent overlap,No,No,No,Yes,ML frequent only
 3-vessel disease,Yes,No,No,No,Stats FDR only
-CKD5,Yes,Yes,No,No,Stats FDR only
+CKD5,Yes,Yes,No,Yes,Stats FDR only
 CKD90,Yes,Yes,No,No,Stats FDR only
-Clopidogrel,Yes,Yes,No,No,Stats FDR only
+Clopidogrel,Yes,Yes,No,Yes,Stats FDR only
 Diabetes,Yes,No,No,No,Stats FDR only
-HbA1c,Yes,No,No,No,Stats FDR only
+Fiberinogen,Yes,No,No,No,Stats FDR only
 Multi-vessel CAD,Yes,No,No,No,Stats FDR only
 NO.of vessels,Yes,No,No,No,Stats FDR only
-No postdilation,Yes,No,No,No,Stats FDR only
+No postdilation,Yes,No,No,Yes,Stats FDR only
 No.of stents per lesion,Yes,No,No,No,Stats FDR only
 PES,Yes,No,No,No,Stats FDR only
+Previous PCI,Yes,Yes,No,Yes,Stats FDR only
 Single-vessel disease,Yes,No,No,No,Stats FDR only
 Stent type-SES,Yes,No,No,No,Stats FDR only
-Total stent length,Yes,No,No,No,Stats FDR only
+Total stent length,Yes,No,No,Yes,Stats FDR only
 Time since stent implantation,Yes,structural,No,No,Structural (dropped from ML)

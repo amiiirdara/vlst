@@ -1,0 +1,83 @@
+Feature,P-value,Test,Family,p_bonferroni,p_holm,p_fdr_bh,Sig Bonferroni (p_adj<0.05),Sig Holm (p_adj<0.05),Sig FDR (q<0.05),Multiplicity family
+Time since stent implantation,1.6979128236682988e-34,Mann-Whitney U,continuous,1.392288515408005e-32,1.392288515408005e-32,1.392288515408005e-32,Yes,Yes,Yes,all_association_tests
+WBC,7.902144282841582e-21,Mann-Whitney U,continuous,6.479758311930098e-19,6.400736869101682e-19,3.239879155965049e-19,Yes,Yes,Yes,all_association_tests
+eGFR,4.6430610786181575e-20,Welch t-test,continuous,3.807310084466889e-18,3.714448862894526e-18,1.269103361488963e-18,Yes,Yes,Yes,all_association_tests
+LV,5.4383309460018465e-17,Welch t-test,continuous,4.459431375721514e-15,4.2962814473414585e-15,1.1148578439303785e-15,Yes,Yes,Yes,all_association_tests
+CKD5,1.1864369030549834e-05,Mann-Whitney U,continuous,0.0009728782605050864,0.0008779633082606876,0.00010254328646121962,Yes,Yes,Yes,all_association_tests
+No.of stents per lesion,0.00014121979786497457,Mann-Whitney U,continuous,0.011580023424927916,0.010167825446278169,0.0010527294022661742,Yes,Yes,Yes,all_association_tests
+HbA1c,0.0001975000249745339,Mann-Whitney U,continuous,0.01619500204791178,0.013825001748217372,0.001245769388300906,Yes,Yes,Yes,all_association_tests
+NO.of vessels,0.0004766856673643825,Welch t-test,continuous,0.039088224723879364,0.03289131104814239,0.002792016051705669,Yes,Yes,Yes,all_association_tests
+Total stent length,0.0011222634842722242,Mann-Whitney U,continuous,0.09202560571032238,0.07631391693051125,0.0061350403806881585,No,No,Yes,all_association_tests
+Fiberinogen,0.011910976196995151,Mann-Whitney U,continuous,0.9767000481536025,0.7265695480167043,0.04439545673425466,No,No,Yes,all_association_tests
+Fast-Glu,0.02458279422964183,Mann-Whitney U,continuous,1.0,1.0,0.07753035103194732,No,No,No,all_association_tests
+LVEF,0.03330140576588231,Mann-Whitney U,continuous,1.0,1.0,0.09752554545722676,No,No,No,all_association_tests
+HGB,0.038765041300497856,Welch t-test,continuous,1.0,1.0,0.1096114960910629,No,No,No,all_association_tests
+CaI,0.050713641980663055,Mann-Whitney U,continuous,1.0,1.0,0.13861728808047902,No,No,No,all_association_tests
+Min-stent diameter,0.10584011246770593,Welch t-test,continuous,1.0,1.0,0.24796826349576817,No,No,No,all_association_tests
+LDL,0.32742239625050396,Mann-Whitney U,continuous,1.0,1.0,0.6101962839213937,No,No,No,all_association_tests
+TCL,0.3807222453766603,Welch t-test,continuous,1.0,1.0,0.693760536019692,No,No,No,all_association_tests
+Age,0.4633458211201912,Welch t-test,continuous,1.0,1.0,0.7759467307290165,No,No,No,all_association_tests
+TG,0.5582882325538095,Mann-Whitney U,continuous,1.0,1.0,0.8570923964523113,No,No,No,all_association_tests
+Platelet,0.8159502280273638,Mann-Whitney U,continuous,1.0,1.0,1.0,No,No,No,all_association_tests
+Cre,0.8785448928231391,Mann-Whitney U,continuous,1.0,1.0,1.0,No,No,No,all_association_tests
+Max-stent diameter,0.8854726672269677,Welch t-test,continuous,1.0,1.0,1.0,No,No,No,all_association_tests
+HDL,0.8993117604945001,Welch t-test,continuous,1.0,1.0,1.0,No,No,No,all_association_tests
+Stent release pressure,0.9486375470511298,Welch t-test,continuous,1.0,1.0,1.0,No,No,No,all_association_tests
+1.1:1Post dilation,1.2951772451909664e-10,Chi-square,binary,1.0620453410565924e-08,1.0102382512489538e-08,1.770075568427654e-09,Yes,Yes,Yes,all_association_tests
+No postdilation,1.2951772451909664e-10,Chi-square,binary,1.0620453410565924e-08,1.0102382512489538e-08,1.770075568427654e-09,Yes,Yes,Yes,all_association_tests
+CKD90,6.550244235288351e-06,Chi-square,binary,0.0005371200272936448,0.0004912683176466263,6.71400034117056e-05,Yes,Yes,Yes,all_association_tests
+Previous PCI,1.25052788367341e-05,Fisher exact,binary,0.0010254328646121962,0.0009128853550815893,0.00010254328646121962,Yes,Yes,Yes,all_association_tests
+3-vessel disease,0.0001807138876244862,Chi-square,binary,0.014818538785207868,0.012830686021338519,0.0012348782321006558,Yes,Yes,Yes,all_association_tests
+Clopidogrel,0.002196624637642745,Chi-square,binary,0.18012322028670508,0.1471738507220639,0.011257701267919067,No,No,Yes,all_association_tests
+Diabetes,0.002769502309228314,Chi-square,binary,0.22709918935672174,0.18278715240906873,0.013358775844513044,No,No,Yes,all_association_tests
+PES,0.004421005519799075,Chi-square,binary,0.3625224526235241,0.28736535878693986,0.02014013625686245,No,No,Yes,all_association_tests
+Multi-vessel CAD,0.006160274021242302,Chi-square,binary,0.5051424697418687,0.3942575373595073,0.025257123487093434,No,No,Yes,all_association_tests
+Single-vessel disease,0.006160274021242302,Chi-square,binary,0.5051424697418687,0.3942575373595073,0.025257123487093434,No,No,Yes,all_association_tests
+Aspirin,0.0117144605337541,Chi-square,binary,0.9605857637678361,0.7262965530927542,0.04439545673425466,No,No,Yes,all_association_tests
+stent overlap,0.012546205280342889,Chi-square,binary,1.0,0.7527723168205733,0.04472994926035291,No,No,Yes,all_association_tests
+TIMI-0,0.016884411481108683,Chi-square,binary,1.0,0.9961802773854123,0.05768840589378799,No,No,No,all_association_tests
+Pre-TIMI flow-3,0.02182609526343254,Chi-square,binary,1.0,1.0,0.07158959246405873,No,No,No,all_association_tests
+Stroke/TIA,0.03301329283908383,Chi-square,binary,1.0,1.0,0.09752554545722676,No,No,No,all_association_tests
+ZES,0.05391994141823923,Chi-square,binary,1.0,1.0,0.13877136644858717,No,No,No,all_association_tests
+Initial diagnosis-AMI,0.054154679589692556,Chi-square,binary,1.0,1.0,0.13877136644858717,No,No,No,all_association_tests
+Bifurcation,0.06893784593319656,Chi-square,binary,1.0,1.0,0.17130010201582174,No,No,No,all_association_tests
+EVS,0.08754072119413052,Chi-square,binary,1.0,1.0,0.21112762170349125,No,No,No,all_association_tests
+Previous MI,0.12778791286616617,Chi-square,binary,1.0,1.0,0.28888463992859287,No,No,No,all_association_tests
+NSTEMI,0.13035038630924312,Chi-square,binary,1.0,1.0,0.28888463992859287,No,No,No,all_association_tests
+UA,0.16769090278821963,Chi-square,binary,1.0,1.0,0.36185931654300024,No,No,No,all_association_tests
+DAPT,0.22562445375589293,Chi-square,binary,1.0,1.0,0.4743898771277749,No,No,No,all_association_tests
+Men,0.2680570836658024,Chi-square,binary,1.0,1.0,0.5495170215148949,No,No,No,all_association_tests
+Vessel dialation,0.2816797041351217,Fisher exact,binary,1.0,1.0,0.5633594082702434,No,No,No,all_association_tests
+Chronic renal insufficiency,0.31467899090474816,Fisher exact,binary,1.0,1.0,0.6101962839213937,No,No,No,all_association_tests
+Previous CABG,0.3251434623364961,Fisher exact,binary,1.0,1.0,0.6101962839213937,No,No,No,all_association_tests
+Aneurysm,0.3950441849044032,Fisher exact,binary,1.0,1.0,0.7042091991774144,No,No,No,all_association_tests
+Cardiogenic shock,0.45396657979084043,Fisher exact,binary,1.0,1.0,0.7759467307290165,No,No,No,all_association_tests
+2-vessel disease,0.46367548543563186,Chi-square,binary,1.0,1.0,0.7759467307290165,No,No,No,all_association_tests
+Ulceration,0.5038135388096225,Fisher exact,binary,1.0,1.0,0.8262542036477809,No,No,No,all_association_tests
+No reflow,0.5466257847383544,Fisher exact,binary,1.0,1.0,0.8570923964523113,No,No,No,all_association_tests
+CKD60,0.5548593229811211,Fisher exact,binary,1.0,1.0,0.8570923964523113,No,No,No,all_association_tests
+Hypertension,0.5666751649351782,Chi-square,binary,1.0,1.0,0.8570923964523113,No,No,No,all_association_tests
+Thrombus aspiration,0.5748790464009405,Chi-square,binary,1.0,1.0,0.8570923964523113,No,No,No,all_association_tests
+Dissection,0.614680274396358,Fisher exact,binary,1.0,1.0,0.9000675446518098,No,No,No,all_association_tests
+Current smoker,0.6264718289130093,Chi-square,binary,1.0,1.0,0.9012401749274871,No,No,No,all_association_tests
+History of peripheral vascualr disease,0.6698481728455976,Fisher exact,binary,1.0,1.0,0.9470267271265346,No,No,No,all_association_tests
+P-LM,0.7101289645075537,Fisher exact,binary,1.0,1.0,0.984377252862833,No,No,No,all_association_tests
+STEMI,0.7202760386801217,Chi-square,binary,1.0,1.0,0.984377252862833,No,No,No,all_association_tests
+P-RCA,0.7437283460384675,Chi-square,binary,1.0,1.0,0.9950540612239804,No,No,No,all_association_tests
+P-LCX,0.7591727489367808,Chi-square,binary,1.0,1.0,0.9950540612239804,No,No,No,all_association_tests
+P-LAD,0.7644927543550093,Chi-square,binary,1.0,1.0,0.9950540612239804,No,No,No,all_association_tests
+TIMI-1,0.7837747666510047,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+HL,0.8036093917908292,Chi-square,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Visual thrombus,0.8406285259031926,Chi-square,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Current drinking,0.868929809834284,Chi-square,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Staged PCI,0.927859712023575,Chi-square,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Proximal,0.9788762756724867,Chi-square,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Lesion location-Ostial,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Chronic total occlusion,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Moderate/severe calcification,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+History of HF,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Moderate/severe tortuosity,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Slow flow,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+TIMI-2,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Ticagrelor,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
+Stent type-SES,3.8480486221745815e-07,Chi-square,categorical,3.155399870183157e-05,2.924516952852682e-05,4.507714100261653e-06,Yes,Yes,Yes,all_association_tests
