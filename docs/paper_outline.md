@@ -137,7 +137,7 @@ operating-point numbers are the nested ones.
 Drafted in `paper_results/00_front_matter.md` (W2). Four beats: VLST as ARC definite ST > 1 year (Wang 2020);
 why prediction is hard (1.77%, EPV ≈ 5.4); why TabPFN is in the comparison (with the unequal-tuning disclosure);
 objectives as association / nested-CV prediction / catalogue comparison — not implementation. Do not write as if
-no VLST score exists; Wang’s 8-variable Cox score is the published baseline this pack does not yet re-fit (B10).
+no VLST score exists; Wang’s 8-variable integer points are now scored frozen on these rows (Part 4 S-Wang; ROC-AUC 0.8013, PR-AUC 0.1032). The Cox linear predictor, Dangas DCA, and Shantou file remain absent (B11).
 The README word “Personalized” is disallowed as a result claim (single global model).
 
 ### Paragraph 1 — Clinical problem
@@ -440,10 +440,7 @@ point is the honest nested one.
 **Safe claims.** All of the above.
 
 **Requires confirmation — important (EM CONFIRM #7, #10).**
-1. **Report the nested operating point, not the pooled one.** Part 4 Tables 2–3 threshold at
-   `best_fbeta_threshold(y_true_oof, probs)` — a grid search maximising F1 **against the same labels being
-   scored** (L831). The honest nested numbers exist in the same notebook (L1010–1026) and are lower:
-   TabPFN recall **0.717** not 0.837, F1 **0.772** not 0.786, TP 66 not 77.
+1. **Report the nested operating point, not the pooled one.** **[closed in Part 4 reports]** Table 2 is the honest nested print (TabPFN recall **0.7174**, F1 0.7719, TP 66). Figure 3 / Table 3 are the pooled cut, labelled as optimistically biased; do not quote PNG recall 0.837.
 2. **No confidence intervals exist on any metric, and no paired model comparison was run.** "TabPFN dominates,
    CatBoost is next" is a point-estimate ordering. Fold SDs are large relative to some gaps (TabPFN PR-AUC
    0.850 ± 0.075; CatBoost 0.701 ± 0.068). Add bootstrap CIs on PR-AUC/ROC-AUC/Brier and a paired test
@@ -616,6 +613,8 @@ section use `class_weight="balanced"` — an internal inconsistency to disclose 
 
 **Purpose.** Establish what conventional methods achieve, as the reference against which TabPFN is judged.
 
+**Published clinical baseline (frozen Wang 2020 integer score).** Same 5,185 rows, published Table 2 points, not re-fit. Full-cohort ROC-AUC **0.8013** (Wang published c = 0.80), PR-AUC **0.1032**; fold-mean ROC-AUC 0.8005 ± 0.0607 on the Part 4 outer folds (evaluation only). Source: `wang_vlst_score.ipynb` / Part 4 Table S-Wang. This is the missing comparator: TabPFN vs the score already published on these patients. Encoding traps (SES → `PES`; 4 points on `No postdilation`) are disclosed there. Not Shantou, not a Cox linear predictor.
+
 **Evidence** (pooled nested-CV out-of-fold, n = 5,185, 92 events; EM §7.1, §7.4):
 
 | Model | PR-AUC (pooled) | PR-AUC (fold mean ± SD) | ROC-AUC (pooled) | ROC-AUC (fold mean ± SD) |
@@ -631,7 +630,7 @@ Prevalence reference for PR-AUC: **0.0177**.
 **Source.** `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L974–990, L1030–1060 — **not** Part 4
 Table 1, which is stale.
 
-**Cites.** **Table 3**, **Figure 3**.
+**Cites.** **Table 1**, **Figure 1**.
 
 **Safe claims.**
 - Gradient boosting (0.66–0.70 PR-AUC) clearly outperforms bagging (0.46) and the linear model (0.34).
@@ -651,33 +650,33 @@ Table 1, which is stale.
 
 **Evidence.**
 
-| Metric | TabPFN | Best classical (CatBoost) | Margin |
+| Metric | TabPFN | Best classical (CatBoost) | Wang 2020 integer score (frozen) |
 | --- | --- | --- | --- |
-| PR-AUC pooled | **0.8534** | 0.6967 | +0.157 |
-| PR-AUC fold mean ± SD | **0.8503 ± 0.0746** | 0.7007 ± 0.0684 | — |
-| ROC-AUC pooled | **0.9883** | 0.9704 | +0.018 |
-| ROC-AUC fold mean ± SD | 0.9884 ± 0.0061 | 0.9712 ± 0.0117 | — |
-| Per-fold PR-AUC | 0.824, 0.778, 0.793, 0.948, 0.909 | 0.699, 0.675, 0.609, 0.795, 0.726 | TabPFN higher in **5/5 folds** |
+| PR-AUC pooled | **0.8534** | 0.6967 | 0.1032 |
+| PR-AUC fold mean ± SD | **0.8503 ± 0.0746** | 0.7007 ± 0.0684 | 0.1134 ± 0.0518 |
+| ROC-AUC pooled | **0.9883** | 0.9704 | 0.8013 |
+| ROC-AUC fold mean ± SD | 0.9884 ± 0.0061 | 0.9712 ± 0.0117 | 0.8005 ± 0.0607 |
+| Per-fold PR-AUC | 0.824, 0.778, 0.793, 0.948, 0.909 | 0.699, 0.675, 0.609, 0.795, 0.726 | TabPFN higher than CatBoost in **5/5 folds** |
 
 **Honest nested operating point** (EM §7.3): TabPFN precision 0.8354, recall 0.7174, specificity 0.9974,
 F1 0.7719, F2 0.7383, TN/FP/FN/TP = 5080/13/26/66, threshold 0.297 ± 0.053. CatBoost: precision 0.6211,
 recall 0.6413, F1 0.6310, 5057/36/33/59.
 
-**Cites.** **Table 3**, **Figure 3**.
+**Cites.** **Table 2** (honest nested operating point), **Figure 1** (ranking), **Supplementary Table S-Wang**.
 
 **Safe claims.**
-- TabPFN ranked highest on PR-AUC in **every one of the five outer folds** — this is the strongest statement
-  available without a formal test, and it should be made explicitly.
+- TabPFN ranked highest on PR-AUC in **every one of the five outer folds** versus the five classic models — this is the strongest statement available without a formal test, and it should be made explicitly.
+- On the same derivation rows, nested-CV TabPFN PR-AUC **0.8534** versus the frozen published Wang integer score **0.1032** (ROC-AUC 0.9883 vs 0.8013). That is not Shantou and not a Cox re-fit.
 - At the nested operating point TabPFN identified 66 of 92 events with 13 false positives, versus CatBoost's 59
   events with 36 false positives.
 
 **Requires confirmation.**
-- Report the nested operating point, not the pooled one (EM CONFIRM #7).
 - Add a paired test before the word "superior" (EM CONFIRM #10).
 - Disclose unequal tuning (§2.5) and unequal feature representation (§2.2) in the same paragraph, not buried in
   Limitations.
 - Do not report accuracy (0.99 for every model; it is prevalence, not skill). Part 4 L103 already says this —
   act on it by removing the column rather than printing it with a caveat.
+- Nested vs pooled operating points are now labelled in Part 4; quote Table 2 (recall 0.7174), not Figure 3 / 0.837.
 
 ### 3.5 Statistical versus ML feature-set comparison — *beats 4 and 7*
 

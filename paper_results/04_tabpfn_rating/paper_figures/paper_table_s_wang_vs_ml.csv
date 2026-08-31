@@ -1,0 +1,5 @@
+Model,ROC-AUC,PR-AUC,ROC fold mean ± SD,PR fold mean ± SD,Protocol
+Wang 2020 integer score (frozen),0.8013,0.1032,0.8005 ± 0.0607,0.1134 ± 0.0518,"Published points on all 5,185 rows; folds are evaluation only"
+TabPFN client thinking-high,0.9883,0.8534,0.9884 ± 0.0061,0.8503 ± 0.0746,Part 4 nested 5×4 CV OOF (notebook)
+CatBoost (untuned nested CV),0.9704,0.6967,0.9712 ± 0.0117,0.7007 ± 0.0684,Part 4 nested 5×4 CV OOF (notebook)
+Logistic regression (untuned nested CV),0.9246,0.3418,0.9256 ± 0.0225,0.3568 ± 0.1153,Part 4 nested 5×4 CV OOF (notebook)
