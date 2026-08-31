@@ -4,9 +4,9 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 **Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline predictor). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” Text columns are coded as integer categoricals (no scaling / one-hot). That is the TabPFN-native representation; `Stent type-SES` is treated as a numeric code, so a PDP sweep across brand integers is not a meaningful nominal contrast. Feature ranking, PDP, and SHAP are **interpretability on the full pool** — not a locked-in feature mask for Part 4.
 
-**Methods note — selection vs explanation.** Mutual information and stability (repeated forward SFS) use the **full cohort** (`X_all`, `y_all`): 92 events and 5,093 controls. They are not restricted to VLST = 1. SHAP is different (below).
+**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and SHAP all use the **full cohort** (`X_all`, `y_all`): 92 events and 5,093 controls. There is no `SHAP_N_EXPLAIN` cap and no case-only slice. k-SII / SHAP-IQ force and network plots remain **one illustrative row** (row 0 of that same cohort), not a VLST = 1 pick.
 
-**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ were intended to use tabpfn-client with thinking (`effort=high`, `metric=average_precision`); the stored run’s client calls failed (`Fitted train set is not ready`), so both fell back to local TabPFN + KV cache. SHAP explains **15 rows** (budget = 256). The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. Those 15 rows are built as `concat(positives, negatives)[:15]` on a stratified 30% test split (28 events) — so they are **15 VLST cases and zero controls**, by construction, not by chance. k-SII / SHAP-IQ pairwise interactions are `X_explain[0]`: **one** of those cases.
+**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ try tabpfn-client with thinking (`effort=high`, `metric=average_precision`) and fall back to local TabPFN + KV cache. The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. **[STALE]** The PNGs and Table 4 numbers below are still the old 15-case run until this notebook is re-executed.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -31,15 +31,15 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 0](paper_figures/paper_table0_methods.png)
 
-**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples) and is computed on the **full cohort**. SHAP is local attribution magnitude on **15 VLST cases** (no controls). Pairwise k-SII is a one-row interaction view, not a global interaction ranking.
+**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). MI, SFS, and SHAP use the **full cohort**. Pairwise k-SII is a one-row interaction view (row 0), not a global interaction ranking.
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
 | mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median fill is inert (no NaNs) |
 | Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring |
 | PDP | Average predicted risk | local TabPFN | Continuous grid + binary 0 vs 1 bars |
-| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | 15 VLST cases, 0 controls; budget=256 |
-| k-SII / SHAP-IQ | Pairwise interactions | local TabPFN (client fallback) | One positive-class row, budget=256 |
+| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | Full cohort (same as FFS/MI); budget=256 |
+| k-SII / SHAP-IQ | Pairwise interactions | local TabPFN (client fallback) | One illustrative row (row 0 of the full cohort); budget=256 |
 | Consensus (Borda) | Mean of normalized ranks | aggregate | MI + stability frequency + mean(\|SHAP\|) |
 
 **Source files:** [paper_figures/paper_table0_methods.png](paper_figures/paper_table0_methods.png), [paper_figures/paper_table0_methods.csv](paper_figures/paper_table0_methods.csv)
@@ -152,13 +152,13 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ## 4. SHAP attributions
 
-Global-looking SHAP plots below are still **local**: they summarise **15 VLST cases and no controls**. Directional statements (high `LV` / `WBC` raise predicted risk; high `eGFR` lowers it) are attributions on events only — close to circular if read as “what distinguishes cases from controls.” They are not cohort-wide causal effects and not a population mean |SHAP|.
+**Code now:** SHAP fits and explains the **full cohort** (same `X_all`, `y_all` as FFS/MI). **[STALE]** The PNGs and numbers in this section are still the previous 15-case run. Do not read them as the current protocol. Re-run `tabpfn_interpretability.ipynb` [3/5] before using these figures.
 
-### Figure 3. SHAP summary (15 rows)
+### Figure 3. SHAP summary
 
 ![Figure 3](paper_figures/paper_fig3_shap_summary.png)
 
-**Figure 3.** Beeswarm of SHAP values for P[Stent thrombosis] on **15 VLST cases** (colour = feature value; pink = high, blue = low). `LV` and `WBC` dominate: high values push predicted risk up. `eGFR` runs the other way (low filtration → positive SHAP). `LDL` is next among labs. Post-dilation and SES appear with smaller, more mixed attributions.
+**Figure 3.** **[STALE PNG]** Stored beeswarm is from the deleted 15-case slice. After re-run this is a full-cohort beeswarm (colour = feature value).
 
 **Source file:** [paper_figures/paper_fig3_shap_summary.png](paper_figures/paper_fig3_shap_summary.png)
 
@@ -166,7 +166,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 4](paper_figures/paper_fig4_shap_scatter_age.png)
 
-**Figure 4.** Age versus its SHAP contribution on the **15 VLST cases**, with a background histogram of Age. Almost all points sit at SHAP = 0; one younger outlier (~age 46) has a small positive attribution (~0.03). This matches the flat Age PDP in Figure 1: Age is stable in SFS (9/10) but is not a strong *attribution* driver on this all-case sample.
+**Figure 4.** **[STALE PNG]** Age versus SHAP from the old 15-case slice. Re-run before citing.
 
 **Source file:** [paper_figures/paper_fig4_shap_scatter_age.png](paper_figures/paper_fig4_shap_scatter_age.png)
 
@@ -174,7 +174,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 5](paper_figures/paper_fig5_shap_bar.png)
 
-**Figure 5.** Mean(|SHAP|) over the **15 VLST cases**. This is not a population importance measure. Individual leaders: `LV` (1.24), `WBC` (1.16), `LDL` (0.64), `eGFR` (0.47). The bundled remainder (“sum of 72 other features”, 1.41) is large, so importance is not concentrated in the top four names alone.
+**Figure 5.** **[STALE PNG / numbers]** Mean(|SHAP|) from the old 15-case slice (`LV` 1.24, `WBC` 1.16, …). After re-run this is mean(|SHAP|) on the full cohort.
 
 **Source file:** [paper_figures/paper_fig5_shap_bar.png](paper_figures/paper_fig5_shap_bar.png)
 
@@ -182,7 +182,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 6](paper_figures/paper_fig6_shap_beeswarm.png)
 
-**Figure 6.** Same **15 VLST-case** attributions as Figure 3, restricted to the top-9 features plus the residual bundle. High `LV` / `WBC` increase output; high `eGFR` decreases it. `1.1:1Post dilation` shows a strong negative attribution on at least one high-value row.
+**Figure 6.** **[STALE PNG]** Compact beeswarm from the old 15-case slice.
 
 **Source file:** [paper_figures/paper_fig6_shap_beeswarm.png](paper_figures/paper_fig6_shap_beeswarm.png)
 
@@ -190,7 +190,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Figure 7](paper_figures/paper_fig7_shap_waterfall.png)
 
-**Figure 7.** Additive breakdown for **one VLST case**, from base value E[f(X)] ≈ −5.39 to f(x) ≈ −3.09 (model output scale). This row is pushed up mainly by `LV` = 55 (+2.32) and `WBC` = 17.16 (+1.70), and pulled down by `1.1:1Post dilation` = 1 (−1.07) and `eGFR` = 132 (−0.67). Local explanation for one patient, not a global ranking and not a treatment effect.
+**Figure 7.** **[STALE PNG]** Old waterfall for one VLST case. Code now uses row 0 of the full cohort (not a case-enriched pick). Local explanation for one patient, not a global ranking.
 
 **Source file:** [paper_figures/paper_fig7_shap_waterfall.png](paper_figures/paper_fig7_shap_waterfall.png)
 
@@ -198,7 +198,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ![Table 4](paper_figures/paper_table4_shap_mean_abs.png)
 
-**Table 4.** Mean absolute SHAP over **15 VLST cases** (notebook CSV / consensus join). Used as one of the three consensus signals in Table 5. Not a full-cohort ranking.
+**Table 4.** **[STALE]** Mean absolute SHAP from the old 15-case slice. After re-run this is the full-cohort ranking used in Table 5.
 
 | Rank | Feature | mean(\|SHAP\|) |
 | ---: | --- | ---: |
@@ -224,7 +224,7 @@ Global-looking SHAP plots below are still **local**: they summarise **15 VLST ca
 
 ## 5. Pairwise interactions — k-SII
 
-k-SII plots use the **same one positive-class row** as the waterfall (budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are not a cohort interaction screen.
+k-SII plots use **one illustrative row** (row 0 of the full cohort; budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are not a cohort interaction screen. **[STALE]** Stored figures 8–12 are still the old VLST-case row.
 
 ### Figure 8. k-SII network (SHAP section)
 

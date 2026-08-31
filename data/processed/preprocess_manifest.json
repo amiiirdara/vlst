@@ -1,5 +1,5 @@
 {
-  "raw_path": "../data/raw/VLST.csv",
+  "raw_path": "/home/fadia/Documents/vlst/data/raw/VLST.csv",
   "n_rows_after_clean": 5185,
   "test_size": 0.3,
   "random_state": 42,
@@ -11,7 +11,7 @@
     "Time since stent implantation"
   ],
   "n_duplicate_rows_dropped": 0,
-  "stent_brand_col": "stent_brand",
+  "stent_brand_col": "Stent type-SES",
   "stent_brand_min_count": 30,
   "stent_type_flag_cols": [
     "PES",
