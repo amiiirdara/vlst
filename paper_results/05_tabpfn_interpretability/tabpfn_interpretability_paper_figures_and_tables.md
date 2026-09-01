@@ -2,11 +2,11 @@
 
 This document gathers publication-oriented figures and tables from the TabPFN interpretability notebook `tabpfn_interpretability.ipynb`.
 
-**Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline covariate). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” Text columns are coded as integer categoricals (no scaling / one-hot). That is the TabPFN-native representation; `Stent type-SES` is treated as a numeric code, so a PDP sweep across brand integers is not a meaningful nominal contrast. Feature ranking, PDP, and SHAP are **interpretation / attribution** on the full pool — not prediction, not external validation, and not a locked-in feature mask for Part 4.
+**Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline covariate). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” `Stent type-SES` is collapsed with the **shared 9-level encoder** (106 raw brand strings → 9 levels, min_count=30), then coded as integer categoricals with the other text columns (no scaling / one-hot). That is the TabPFN-native representation: 9 brand codes, not 106 strings and not the Part 2/4 one-hot. A PDP sweep across those integers is still not a meaningful nominal contrast, so continuous PDP drops the brand column. Feature ranking, PDP, and SHAP are **interpretation / attribution** — not prediction, not external validation, and not a locked-in feature mask for Part 4.
 
-**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and SHAP all use the **full cohort** (`X_all`, `y_all`): 92 events and 5,093 controls. There is no `SHAP_N_EXPLAIN` cap and no case-only slice. k-SII / SHAP-IQ force and network plots remain **one illustrative row** (row 0 of that same cohort), not a VLST = 1 pick.
+**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and PDP use the **full cohort**. SHAP explains **15 VLST=1 + 15 VLST=0** (`SHAP_N_PER_CLASS`, seed 42); the model is still fit on all 5,185 rows. k-SII / SHAP-IQ force and network plots remain **one illustrative VLST=1 row** from that slice.
 
-**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ try tabpfn-client with thinking (`effort=high`, `metric=average_precision`) and fall back to local TabPFN + KV cache. The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. **[STALE]** The PNGs and Table 4 numbers below are still the old 15-case run until this notebook is re-executed.
+**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ try tabpfn-client with thinking (`effort=high`, `metric=average_precision`) and fall back to local TabPFN + KV cache. Ranking / SHAP / stability use `balance_probabilities=True` so a 1.8% outcome is visible on the attribution scale. **PDP only** uses `balance_probabilities=False` (empirical prior; y-axis near prevalence; **not Part 4 nested-CV risk**). PDP fit and average are on the **full cohort**, not a 70/30 test slice. The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. **[STALE]** Stored SHAP PNGs / Table 4 are the old 15-case-only run (all VLST=1). Code now explains 15 cases + 15 controls. Stored PDP PNGs / Table 3 are the old balanced-prior + test-slice run. Re-run `[2/5]` and `[3/5]` before quoting new numbers.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -31,15 +31,15 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 0](paper_figures/paper_table0_methods.png)
 
-**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). MI, SFS, and SHAP use the **full cohort**. Pairwise k-SII is a one-row interaction view (row 0), not a global interaction ranking.
+**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). MI and SFS use the **full cohort**. SHAP uses **15 VLST=1 + 15 VLST=0**. Pairwise k-SII is a one-row interaction view (a VLST=1 patient from that slice), not a global interaction ranking.
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
 | mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median fill is inert (no NaNs) |
 | Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring |
-| PDP | Average predicted risk | local TabPFN | Continuous grid + binary 0 vs 1 bars |
-| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | Full cohort (same as FFS/MI); budget=256 |
-| k-SII / SHAP-IQ | Pairwise interactions | local TabPFN (client fallback) | One illustrative row (row 0 of the full cohort); budget=256 |
+| PDP | Average predicted probability (empirical prior) | local TabPFN | Full cohort; `balance_probabilities=False`; y-axis labeled “empirical prior / not Part 4 risk”. Ranking / SHAP stay True |
+| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | 15 VLST=1 + 15 VLST=0; fit/background = full cohort; budget=256 |
+| k-SII / SHAP-IQ | Pairwise interactions | local TabPFN (client fallback) | One VLST=1 row from that 15+15 slice; budget=256 |
 | Consensus (Borda) | Mean of normalized ranks | aggregate | MI + stability frequency + mean(\|SHAP\|) |
 
 **Source files:** [paper_figures/paper_table0_methods.png](paper_figures/paper_table0_methods.png), [paper_figures/paper_table0_methods.csv](paper_figures/paper_table0_methods.csv)
@@ -111,15 +111,15 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ## 3. Partial dependence
 
-PDP candidates were taken from the stability / MI screens. Continuous PDP uses grid resolution 30. Binary PDP forces each flag to 0 vs 1 and reports the change in average predicted P[Stent thrombosis].
+PDP candidates were taken from the stability / MI screens. Continuous PDP uses grid resolution 30. Binary PDP forces each flag to 0 vs 1 and reports the change in average predicted P[Stent thrombosis]. Fit and average are on the **full cohort**.
 
-**Methods note — these are not absolute risks.** Every TabPFN fit in this notebook uses `balance_probabilities=True`, which rescales outputs toward a uniform class prior. True prevalence is 0.0177. Table 3 baselines around 0.13–0.26 and Figure 1’s LV curve “toward ~0.6” are **balanced-prior model output**, not predicted event probabilities a clinician can read as 24% or 60% risk.
+**Methods note — PDP is empirical prior, not Part 4 risk.** PDP uses `balance_probabilities=False`. The y-axis should sit near prevalence 0.0177 after re-run. Do **not** quote the stored Table 3 values 0.13–0.26 or Figure 1’s “toward ~0.6” as clinical risk — those are the **old balanced-prior / test-slice** export. Ranking / SHAP / stability still use `balance_probabilities=True` on a separate fit. Neither scale is the Part 4 nested-CV client.
 
 ### Figure 1. Continuous partial dependence
 
 ![Figure 1](paper_figures/paper_fig1_pdp_continuous.png)
 
-**Figure 1.** Average TabPFN **balanced-prior** output while sweeping one feature (rug = empirical distribution). `LV`: output stays low until the mid-40s then rises toward ~0.6 on that scale, **not** a 60% absolute risk. `eGFR`: high output at low filtration. `Stent type-SES` is integer-coded here; a sweep across brand codes is **not** a nominal brand contrast (EDA uses 9 collapsed levels; Part 4 one-hots 106 strings). `Age` is essentially flat (~0.14). The LV × SES contour is dominated by vertical (LV) bands.
+**Figure 1.** **[STALE PNG]** Stored image is the old balanced-prior / 70% train / test-slice PDP and still sweeps integer `Stent type-SES`. Code now: `balance_probabilities=False`, full cohort (n = 5,185), y-axis labeled **empirical prior / not Part 4 risk**, dashed prevalence line, nominal stent brand dropped from continuous curves. Do not quote ~0.6 as clinical risk. Re-run `[2/5]` before describing shapes numerically.
 
 **Source file:** [paper_figures/paper_fig1_pdp_continuous.png](paper_figures/paper_fig1_pdp_continuous.png)
 
@@ -127,7 +127,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 2](paper_figures/paper_fig2_pdp_binary.png)
 
-**Figure 2.** Average balanced-prior P[Stent thrombosis] when each binary feature is forced to absent (0, blue) vs present (1, orange). The largest shift is `1.1:1Post dilation` (ΔP = −0.086): the flag is associated with **lower model output**, not a proven treatment effect. `No postdilation` also lowers output (ΔP = −0.036) from a higher baseline. `STEMI`, `Staged PCI`, `CKD60`, and `EVS` have small average effects (|ΔP| ≤ 0.013).
+**Figure 2.** **[STALE PNG / ΔP]** Stored bars are old balanced-prior averages on the test slice. Code now averages over the **full cohort** on the empirical-prior scale (same axis as Figure 1; not mixed with ranking/SHAP). Do not quote 0.24 as clinical risk. Re-run `[2/5]`.
 
 **Source file:** [paper_figures/paper_fig2_pdp_binary.png](paper_figures/paper_fig2_pdp_binary.png)
 
@@ -135,7 +135,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Table 3](paper_figures/paper_table3_pdp_binary.png)
 
-**Table 3.** Printed PDP probabilities from the notebook. ΔP = P(y=1 | feature=1) − P(y=1 | feature=0). These are **balanced-prior** model-average effects, not absolute risks and not causal estimates.
+**Table 3.** **[STALE]** Stored numbers are the old balanced-prior / test-slice export. They are **not** clinical risk and **not** the new empirical-prior protocol. Keep the table only as a record of the previous PNG until `[2/5]` is re-run. Do not quote 0.24 or 0.6 as clinical risk.
 
 | Feature | P(y=1 \| 0) | P(y=1 \| 1) | ΔP |
 | --- | ---: | ---: | ---: |
@@ -152,13 +152,13 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ## 4. SHAP attributions
 
-**Code now:** SHAP fits and explains the **full cohort** (same `X_all`, `y_all` as FFS/MI). **[STALE]** The PNGs and numbers in this section are still the previous 15-case run. Do not read them as the current protocol. Re-run `tabpfn_interpretability.ipynb` [3/5] before using these figures.
+**Code now:** Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0**. **[STALE]** The PNGs and numbers in this section are still the previous 15-case-only run. Re-run `tabpfn_interpretability.ipynb` [3/5] before using these figures.
 
 ### Figure 3. SHAP summary
 
 ![Figure 3](paper_figures/paper_fig3_shap_summary.png)
 
-**Figure 3.** **[STALE PNG]** Stored beeswarm is from the deleted 15-case slice. After re-run this is a full-cohort beeswarm (colour = feature value).
+**Figure 3.** **[STALE PNG]** Stored beeswarm is from the old 15-case-only slice. After re-run this is 15 VLST=1 + 15 VLST=0 (colour = feature value).
 
 **Source file:** [paper_figures/paper_fig3_shap_summary.png](paper_figures/paper_fig3_shap_summary.png)
 
@@ -174,7 +174,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 5](paper_figures/paper_fig5_shap_bar.png)
 
-**Figure 5.** **[STALE PNG / numbers]** Mean(|SHAP|) from the old 15-case slice (`LV` 1.24, `WBC` 1.16, …). After re-run this is mean(|SHAP|) on the full cohort.
+**Figure 5.** **[STALE PNG / numbers]** Mean(|SHAP|) from the old 15-case-only slice (`LV` 1.24, `WBC` 1.16, …). After re-run this is mean(|SHAP|) on 15 VLST=1 + 15 VLST=0.
 
 **Source file:** [paper_figures/paper_fig5_shap_bar.png](paper_figures/paper_fig5_shap_bar.png)
 
@@ -190,7 +190,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 7](paper_figures/paper_fig7_shap_waterfall.png)
 
-**Figure 7.** **[STALE PNG]** Old waterfall for one VLST case. Code now uses row 0 of the full cohort (not a case-enriched pick). Local explanation for one patient, not a global ranking.
+**Figure 7.** **[STALE PNG]** Old waterfall for one VLST case. Code now uses the first VLST=1 patient from the 15+15 slice. Local explanation for one patient, not a global ranking.
 
 **Source file:** [paper_figures/paper_fig7_shap_waterfall.png](paper_figures/paper_fig7_shap_waterfall.png)
 
@@ -198,7 +198,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Table 4](paper_figures/paper_table4_shap_mean_abs.png)
 
-**Table 4.** **[STALE]** Mean absolute SHAP from the old 15-case slice. After re-run this is the full-cohort ranking used in Table 5.
+**Table 4.** **[STALE]** Mean absolute SHAP from the old 15-case-only slice. After re-run this is the 15+15 ranking used in Table 5.
 
 | Rank | Feature | mean(\|SHAP\|) |
 | ---: | --- | ---: |
@@ -224,7 +224,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ## 5. Pairwise interactions — k-SII
 
-k-SII plots use **one illustrative row** (row 0 of the full cohort; budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are not a cohort interaction screen. **[STALE]** Stored figures 8–12 are still the old VLST-case row.
+k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are not a cohort interaction screen. **[STALE]** Stored figures 8–12 are still the old VLST-case row.
 
 ### Figure 8. k-SII network (SHAP section)
 
@@ -340,4 +340,4 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ---
 
-*Figures are the executed PNG outputs stored in `tabpfn_interpretability.ipynb`. Tables are reconstructed from those plots and the notebook’s printed CSVs. SHAP / SHAP-IQ used local TabPFN after the client thinking backend failed. MI and stability use the full cohort; SHAP uses 15 cases only. Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*
+*Figures are the executed PNG outputs stored in `tabpfn_interpretability.ipynb`. Tables are reconstructed from those plots and the notebook’s printed CSVs. SHAP / SHAP-IQ used local TabPFN after the client thinking backend failed. MI, stability, and PDP **code** use the full cohort; SHAP **code** explains 15 VLST=1 + 15 VLST=0. Stored SHAP PNGs are still 15 cases only and stored PDP PNGs are still the old balanced-prior test-slice until re-run. Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*

@@ -80,6 +80,8 @@ Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement
 
 10. **`LV` (and `CaI`) are not in Wang Table 1.** Until the column is named, timed, and unit-defined, do not treat `LV` as a novel echo marker.
 
+11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk). Do not mix those scales on one axis, and do not quote stored PDP 0.24 / ~0.6 as clinical risk. Stored SHAP/PDP PNGs are stale until the notebook is re-run (PDP full cohort; SHAP 15+15).
+
 ---
 
 ## Sources for this note

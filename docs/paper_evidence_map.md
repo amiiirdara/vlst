@@ -36,8 +36,8 @@ winners are not imported. (The ~186-column / thinking-high description in that r
 Revision 6.) Part 5 now states MI/SFS/SHAP = full cohort (the 15-row all-case SHAP slice is removed), shapiq `imputer` ≠
 NaN fill, and `balance_probabilities=True` (not absolute risk). Part 2/3 now distinguish the **prior reduced export**
 (column-order LOCO pool; 87.5% SHAP sample) from the **paper-protocol selector code** (full-cohort fit/val;
-independent cheap-importance pools; PR-AUC only; no unused outer test; no smoke switch). Part 3 no longer says the LVEF adjusted OR “persists.” Exported Part 4 PNGs remain **[STALE]** for
-TabPFN Brier / confusion counts; captions now quote the notebook. Section C wording (C1–C16) is rewritten in
+independent cheap-importance pools; PR-AUC only; no unused outer test; no smoke switch). Part 3 no longer says the LVEF adjusted OR “persists.” Revision 4’s “Part 4 PNGs are STALE for Brier / confusion” note is
+**superseded by Revision 6**: Figures 1–3 and Tables 0–3 match the local-TabPFN dump. Section C wording (C1–C16) is rewritten in
 the reports: no “protective” claims; CatBoost is GPU Plain + PRAUC; mixed d/r, three Previous-PCI ORs, and
 three SES encodings are labelled rather than silently mixed; Table S2 lists all 16 pairs. PNG re-exports that
 would split Figure 3 or unify SES encoding remain on the B list.
@@ -606,27 +606,29 @@ third on PR-AUC (0.6754), first on ROC-AUC (0.9845), worst Brier (0.0673).
 | ------------------- | ------------------------------------------------------------------------------------ | --------------------------------- | ----------------------------------------------- |
 | Mutual information  | `mutual_info_classif` on the median-imputed 81-column matrix, **full cohort**        | sklearn, 0 TabPFN calls           | Part 5 Table 0                                  |
 | Stability selection | Forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, **full cohort**   | local TabPFN, ~8.6 h              | `.nbdump/…tabpfn_interpretability.txt` L604–626 |
-| PDP                 | 4 continuous (grid 30) + 6 binary (0 vs 1); fit on 70% train, evaluated on the frame | local TabPFN                      | L755–797                                        |
-| SHAP (shapiq SV)    | **Full cohort** (`X_all`, `y_all`), budget 256, baseline imputer — same pool as FFS  | local / client; **not yet re-run** | `tabpfn_interpretability.ipynb` [3/5]           |
-| k-SII / SHAP-IQ     | **one** illustrative row (`X_all[0]`), budget 256 — not a VLST=1 pick                | local / client; **not yet re-run** | `tabpfn_interpretability.ipynb` [3/5] and [4/5] |
+| PDP                 | 4 continuous (grid 30) + 6 binary (0 vs 1); **full cohort** fit and average; `balance_probabilities=False` (empirical prior; not Part 4 risk). Ranking / SHAP stay `True`. Nominal `Stent type-SES` excluded from continuous curves | local TabPFN                      | `tabpfn_interpretability.ipynb` [2/5]           |
+| SHAP (shapiq SV)    | **15 VLST=1 + 15 VLST=0**; fit/background = full cohort; budget 256                   | local / client; **not yet re-run** | `tabpfn_interpretability.ipynb` [3/5]           |
+| k-SII / SHAP-IQ     | **one** VLST=1 row from that 15+15 slice, budget 256                                 | local / client; **not yet re-run** | `tabpfn_interpretability.ipynb` [3/5] and [4/5] |
 | Consensus           | Borda mean of normalised ranks over MI + stability + mean                            | SHAP                              |                                                 |
 
 
-**[FIXED in code]** `SHAP_N_EXPLAIN` and the positive-first `[:15]` slice are removed. SHAP now fits and
-explains the same full cohort as MI / stability SFS. Stored Part 5 SHAP PNGs / Table 4 remain the **old 15-case
-run** until [3/5] is re-executed. k-SII is still one row (row 0 of `X_all`), not a case-enriched pick.
+**[FIXED in code]** SHAP explains **15 VLST=1 + 15 VLST=0** (`SHAP_N_PER_CLASS`, seed 42). Fit and the
+shapiq background stay on the full cohort. This is **not** the old 15-case-only slice. Stored Part 5 SHAP
+PNGs / Table 4 remain that old all-case run until [3/5] is re-executed. k-SII is one VLST=1 row from the
+15+15 slice.
 
-**[CRITICAL — PDP values are on a balanced-prior scale, not absolute risk]** Every TabPFN instantiation in Part 5
-uses `balance_probabilities=True` (L610, L774, L1067, L1087, L1107, L1415…). That rescales outputs to a uniform
-class prior. It is why the binary PDP table reports baseline "P(y=1 | 0)" values of **0.24, 0.14, 0.13** against a
-true prevalence of **0.0177**, and why Figure 1's LV curve is described as rising "toward ~0.6". These are
-**not** predicted absolute risks.
+**[FIXED in code — PDP scale split]** Ranking / SHAP / stability use `BALANCE_PROBABILITIES_RANKING=True` so a
+1.8% outcome is visible on attributions. **PDP only** uses `BALANCE_PROBABILITIES_PDP=False` (empirical prior;
+y-axis near prevalence; titles say **empirical prior / not Part 4 risk**). Fit and average are on the **full
+cohort**, not a 70/30 test slice. Do **not** mix True and False on one axis. Do **not** quote stored Table 3
+0.24 / Figure 1 ~0.6 as clinical risk — those PNGs are the **old balanced-prior / test-slice** export until
+[2/5] is re-run. Neither scale is the Part 4 nested-CV client.
 
-**[REV4]** Part 5 now has a Methods note and Table 3 caption saying so. Re-export is not required for the
-wording; **[TODO-PDP]** remains only if a paper draft still quotes 0.24 as absolute risk.
+**[STALE stored assets]** SHAP PNGs / Table 4 = 15-case run. PDP PNGs / Table 3 = balanced-prior test-slice
+(and Figure 1 still sweeps integer SES). Re-export `[2/5]` and `[3/5]` before quoting new numbers.
 
-Verified: `balance_probabilities=True` appears at L610, L774, L1067, L1087, L1107, L1415, L1433 and L1453 — every
-TabPFN instantiation in the notebook, with no exceptions.
+**[TODO-MI, code now]** MI CSV will store all 81 scores (not a truncated top-15) so `Fast-Glu` / `ZES` are not
+blank and `Cre` is not a fill-zero. Consensus no longer `fillna(0)` on MI. Pending sklearn re-run of `[1a]`.
 
 ### 5.10 The published clinical baseline — integer score now scored **[CLOSED]**
 
@@ -663,7 +665,7 @@ does not add (3135+1837+473 = 5445 ≠ 5185); low and high n match this file.
 
 | Scheme                             | Where                                                 | Details                                                                                                                                              |
 | ---------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A. 70/30 stratified hold-out**   | `preprocessing.ipynb`, Part 5 (stored Part 2 figures) | `train_test_split(test_size=0.3, stratify=y, random_state=42)` → train 3,629 (64 events) / test 1,556 (28 events)                                    |
+| **A. 70/30 stratified hold-out**   | `preprocessing.ipynb`, **stored** Part 2 / old Part 5 PDP (code no longer) | `train_test_split(test_size=0.3, stratify=y, random_state=42)` → train 3,629 (64 events) / test 1,556 (28 events). Current Part 5 PDP is full-cohort. |
 | **B. Nested 5×4 stratified CV**    | Part 4                                                | Outer `StratifiedKFold(5, shuffle=True, random_state=42)`; inner `StratifiedKFold(4, shuffle=True, random_state=10_000 + outer_fold)`                |
 | **C. Single 70/30 + GridSearchCV** | `baseline_tssi_leakage`, `baseline_without_tssi`      | Not reported in any Markdown                                                                                                                         |
 | **D. Full-cohort fit / val**       | Part 2 **current code**                               | One stratified split of all 5,185 rows (`INNER_VAL_SIZE=0.2`, `random_state=42`) → ~4,148 fit / ~1,037 val (~74 / ~18 events). No unused outer test. |
@@ -772,9 +774,13 @@ threshold-independent**. Source: executed Kaggle notebook
 | — | Wang 2020 integer score (frozen) | 0.1032 | 0.1134 ± 0.0518 | 0.8013 | 0.8005 ± 0.0607 | — | Full cohort + same 5 folds; not a nested-CV fit (§5.10) |
 
 
-**Prevalence baseline for PR-AUC: 0.0177.** Quote PR-AUC at this event rate. LightGBM is first on PR-AUC;
-TabPFN (local) is first on ROC-AUC and **worst** on Brier (0.0673). Historical thinking-high TabPFN
-(PR-AUC 0.8534 / Brier 0.0060) is **not** this notebook.
+**Prevalence baseline for PR-AUC: 0.0177.** Every PR-AUC above should be reported against this reference.
+
+**Notebook.** `code/modeling/rating/baseline_plus_tabpfn.ipynb` (dump `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`). Same file as Part 4 throughout; the old L976–982 / L11 citations were an earlier dump of this notebook, not a different one.
+
+**D4 for this snapshot — invert the old Brier paragraph.** The audit sentence “TabPFN's Brier is 0.0060, which is the best of the six models, not 0.0360” applied to a **client thinking-high** execution of this notebook. That arm is off (`RUN_MODELS["TabPFN"]=False`). Here TabPFN (local) Brier is **0.0673**, the **worst** of the six; XGBoost **0.0088** is best (dump L826–831 and ranking table L1071–1086). Sentences of the form “TabPFN's Brier is worse than the tree ensembles” or “TabPFN is not a well-calibrated risk engine” are **true for this run** and must stay. The opposite instruction (delete those sentences; treat calibration as a supporting result; **[TODO-P4]**) is historical and must not be restored. PNG re-export of this run is done (§12.2).
+
+**Fold mean ± SD.** Printed for every model in the ranking super-table (dump L1071–1086; old dump lines L976–982 no longer apply). Part 4 Table 1 quotes them. The old provenance line that claimed they were unavailable (former Part 4 L11) is gone; C3 is closed in reports.
 
 ### 7.2 Part 4 — optimistic pooled operating-point metrics (Table 3; do not quote instead of §7.3)
 
@@ -978,7 +984,7 @@ on 15 case rows. Full tables in `paper_results/05_tabpfn_interpretability/paper_
 | Are they compared on identical feature representations?         | **Closer than before.** Shared 9-level encoder; classics still one-hot (~89) while TabPFN (local) sees the 9-level frame natively.                                                                                                                                                                                                              |
 | Are the Part 4 operating-point metrics unbiased?                | **Table 2 (nested) is the honest protocol.** Figure 3 / Table 3 pooled F1 is optimistically biased (§6.5, §7.3).                                                                                                                                                                                                                                                           |
 | Is Part 2 comparable with Part 4?                               | **No.** Part 2 is a full-cohort fit/val discovery split, **88** encoded columns, seven models, PR-AUC only. It still does not feed Part 4.                                                                                                                                |
-| Is Part 5 comparable with Part 4?                               | **No.** Part 5 is full-cohort attribution; Part 4 is nested-CV prediction. Both currently use local TabPFN with `balance_probabilities=True`, but they are different notebooks and different claims. Historical thinking-high Part 4 is not this snapshot.                                                                                      |
+| Is Part 5 comparable with Part 4?                               | **No.** Part 5 is full-cohort attribution; Part 4 is nested-CV prediction. Ranking/SHAP in Part 5 use `balance_probabilities=True`; PDP uses `False` (empirical prior). Part 4 local TabPFN uses `True`. Different notebooks, different claims. Historical thinking-high Part 4 is not this snapshot. |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
 | Are univariate ORs consistent across tables?                    | **They are three named estimators, not one OR.** Table 2 = 2×2/Fisher; Table 4 = unweighted logit; Table S4 = joint-domain univariate (§12.4, C13).                                                                                                                                                                                            |
 
@@ -1406,6 +1412,9 @@ EPV, or drop the multivariable analysis and present univariate associations only
 
 ### 12.2 [CLOSED for this snapshot] Part 4 figures match the local-TabPFN notebook
 
+**Notebook.** `code/modeling/rating/baseline_plus_tabpfn.ipynb`. The 0.0060-vs-0.0360 Brier fight, **[TODO-P4]**, and
+“fold mean ± SD not available (L11)” notes were about **earlier dumps of this same notebook**, not a different file.
+
 The earlier conflict (thinking-high notebook Brier 0.0060 vs exported PNG 0.0360 / t_F1 0.173 vs 0.901) applied
 to a **client thinking-high** run. That run is **not** the current Part 4 snapshot.
 
@@ -1478,7 +1487,7 @@ Part 5 stored SHAP/PDP figures remain mixed until that notebook is re-exported.
 | `baseline_feature_selections.ipynb` | Shared encoder, then OHE drop-first | **88** (2026-08-31 run) |
 | `baseline_plus_tabpfn.ipynb` (classic arm) | Shared encoder, then ColumnTransformer OHE (no drop-first) | **~89** (this Kaggle run) |
 | `baseline_plus_tabpfn.ipynb` (TabPFN local) | Same 9-level column, native | 81 columns, 9 brand levels |
-| `tabpfn_interpretability.ipynb` | 9-level codes; brand dropped from continuous PDP | 81; Fig 1 still sweeps codes |
+| `tabpfn_interpretability.ipynb` | 9-level codes; brand dropped from continuous PDP | 81; **stored** Fig 1 still sweeps codes |
 
 The `preprocessing.ipynb` artefacts (`X_train.npy`, `preprocessor.joblib`) are used only by the
 TSSI scout notebooks. Re-run preprocessing before those scouts if you want matching brand dummies.
@@ -1488,11 +1497,11 @@ TSSI scout notebooks. Re-run preprocessing before those scouts if you want match
 
 | Claim                                                                             | Actual basis                                                                                                                                                                                                                    | Required restatement                                                                                                                                                                           |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance            | **Code:** full cohort. **Stored PNGs:** old 15-case run (§5.9)                                                                                                                                                                  | Re-run [3/5]; until then captions are marked **[STALE]**.                                                                                                                                     |
+| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance            | **Code:** 15 VLST=1 + 15 VLST=0. **Stored PNGs:** old 15-case-only run (§5.9)                                                                                                              | Re-run [3/5]; until then captions are marked **[STALE]**.                                                                                                                                     |
 | Part 5 Figures 8, 9, 11, 12 — "dominant pairwise terms" among LV/WBC/eGFR/LDL     | **One** positive-class patient, budget 256                                                                                                                                                                                      | Already flagged in the text (L223) — keep and strengthen. These are **not** cohort interactions. The only cohort-level interaction evidence in the repository is the 16-pair LR screen (§7.6). |
-| Part 5 Figure 1: "predicted risk … rises steeply toward ~0.6"; Table 3: "P(y=1    | 0) = 0.2430"                                                                                                                                                                                                                    | `balance_probabilities=True` — a **uniform-prior** rescaling; true prevalence is 0.0177                                                                                                        |
-| Part 5 Table 5: `Cre` and `No.of stents per lesion` with `mutual_info = 0.000000` | Imputed zeros for features outside the MI top-15                                                                                                                                                                                | **[REV4]** Table 5 caption now says these are fill zeros, not measured zeros.                                                                                                                  |
-| Part 5 Table 1: `Fast-Glu` and `ZES` shown as "—"                                 | Confirmed: `paper_table1_mutual_info.csv` rows 11 and 14 have an empty `mutual_info` field. The notebook printed only the ranked **names** (L679), never the values, so the numbers are not recoverable from the stored output. | Re-run `mutual_info_classif` — it is pure sklearn, seconds, zero TabPFN calls (L566) — and re-export. Do not publish a "top 15" with two blanks. **[TODO-MI]**                                 |
+| Part 5 Figure 1: "predicted risk … rises steeply toward ~0.6"; Table 3: "P(y=1 \| 0) = 0.2430" | **Stored PNGs:** old balanced-prior / test-slice. **Code now:** PDP `balance_probabilities=False`, full cohort, labeled empirical prior / not Part 4 risk. Ranking/SHAP stay True on a separate fit. | Do not quote 0.24 or 0.6 as clinical risk. Re-run [2/5]; captions marked **[STALE]**. |
+| Part 5 Table 5: `Cre` and `No.of stents per lesion` with `mutual_info = 0.000000` | Imputed zeros in the **stored** export (truncated MI top-15 CSV). **Code now:** write all 81 MI scores; do not `fillna(0)`. | Re-run `[1a]` then `[5/5]`. Caption still warns until then. |
+| Part 5 Table 1: `Fast-Glu` and `ZES` shown as "—"                                 | Stored top-15 CSV omitted values. **Code now:** full 81-row MI CSV. | Re-run `mutual_info_classif` (sklearn, seconds). **[TODO-MI]** until re-export. |
 | Part 5 Table 2 caption: "8.6 h" wall time                                         | Verified in the notebook                                                                                                                                                                                                        | Fine; keep as a reproducibility note.                                                                                                                                                          |
 
 
