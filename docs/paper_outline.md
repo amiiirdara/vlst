@@ -379,34 +379,30 @@ evaluation as every baseline; that it is **not** thinking-high.
 
 | Signal | Sample | Backend | Note |
 | --- | --- | --- | --- |
-| Mutual information | full cohort, 5,185 | sklearn, 0 TabPFN calls | screening only |
-| Stability selection | full cohort; forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, ~8.6 h | local TabPFN | **the most defensible signal here** |
-| PDP | fit on 70% train; 4 continuous + 6 binary | local TabPFN | `balance_probabilities=True` |
-| SHAP (shapiq SV) | **15 rows, all VLST cases, zero controls** | local TabPFN after client failure | budget 256 |
-| k-SII / SHAP-IQ | **one** positive-class patient | local TabPFN after client failure | budget 256 |
+| Mutual information | full cohort, 5,185 | sklearn, 0 TabPFN calls | screening only; CSV will store all 81 scores on next `[1a]` |
+| Stability selection | full cohort; forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, ~8.6 h | local TabPFN | **the most defensible signal here**; `balance_probabilities=True` |
+| PDP | **full cohort** fit and average; 4 continuous + 6 binary | local TabPFN | **`balance_probabilities=False`** (empirical prior / not Part 4 risk). Stored PNGs still the old True + 70/30 run |
+| SHAP (shapiq SV) | **15 VLST=1 + 15 VLST=0** in code; stored PNGs are 15 VLST cases only | local TabPFN after client failure | budget 256; ranking scale `True` |
+| k-SII / SHAP-IQ | **one** VLST=1 row from that 15+15 slice | local TabPFN after client failure | budget 256 |
 
 **Cites.** Figure 5; SHAP and k-SII to **Supplementary Figures S6–S8**.
 
 **Safe claims.** Mutual information and stability selection as full-cohort screens; PDP as a model-average
-response shape.
+response shape on the empirical-prior scale after re-run.
 
-**Requires confirmation — critical (EM CONFIRM #11).** Four disclosures are mandatory and none currently
-appears:
-1. **All 15 SHAP rows are VLST cases.** The explained set is
-   `np.concatenate([_pos_idx, _neg_idx])[:15]` on a stratified 30% split holding 28 positives (L1056–1060). The
-   statement "high `LV`/`WBC` raise predicted risk" derived from an all-case sample is close to circular. Part 5
-   says "15 explained rows" (L151) but never that they are all cases.
-2. **k-SII is one patient.** Part 5 already says this (L223) — keep it and strengthen it. It is **not** a cohort
+**Requires confirmation — critical (EM CONFIRM #11).** Disclosures for the **stored** figures, and what **code now** does:
+
+1. **Stored SHAP PNGs are 15 VLST cases only.** Code now samples 15 VLST=1 + 15 VLST=0. Re-run `[3/5]`. Until then captions are **[STALE]**.
+2. **k-SII is one patient** (a VLST=1 row from the 15+15 slice). Part 5 already says this — keep it. It is **not** a cohort
    interaction screen. The only cohort-level interaction evidence in the study is the 16-pair LR screen (§2.4).
-3. **Every TabPFN call in Part 5 uses `balance_probabilities=True`** (L610, L774, L1067, …), a uniform-prior
-   rescaling. That is why the binary PDP table shows baseline "P(y=1 | 0)" of 0.24 against a true prevalence of
-   0.0177, and why Figure 1 is described as rising "toward ~0.6". **These are not absolute risks** and must be
-   relabelled everywhere.
-4. **The zeros in Part 5 Table 5's mutual-information column are imputed**, not measured — `Cre` and
-   `No.of stents per lesion` simply fell outside the MI top-15. Also, `Fast-Glu` and `ZES` appear in Part 5
-   Table 1 with blank values; recover them or drop the rows.
+3. **PDP vs ranking scales are split.** Ranking / SHAP / stability keep `balance_probabilities=True` so a 1.8%
+   outcome is visible. PDP only uses `False` (empirical prior; y-axis near ~2%; labeled **not Part 4 risk**).
+   Do not mix True and False on one axis. Do **not** quote stored Table 3 0.24 or Figure 1 ~0.6 as clinical risk.
+4. **The zeros in Part 5 Table 5's mutual-information column are imputed** in the stored export — `Cre` and
+   `No.of stents per lesion` fell outside the MI top-15. Code now writes all 81 MI scores and does not `fillna(0)`.
+   `Fast-Glu` and `ZES` blanks close on the next `[1a]` sklearn re-run.
 
-Also: the Part 5 PDP treats `Stent type-SES` as a numeric axis over an arbitrary brand ordering. Drop that panel.
+Also: stored Figure 1 still sweeps `Stent type-SES` as a numeric axis. Code now drops that panel.
 
 ### 2.9 Validation and evaluation metrics
 
@@ -730,10 +726,10 @@ flat despite being selected in 9/10 stability runs.
 **Safe claims.** The **shape** of the model's average response — that `LV` shows a threshold-like rise rather
 than a linear trend, and that `Age`'s flat PDP contrasts with its high selection frequency.
 
-**Requires confirmation — critical.** The y-axis is a **balanced-prior model output, not absolute risk**
-(§2.8 item 3). "Rises toward ~0.6" against a true prevalence of 0.0177 will be read as a 60% event probability.
-Relabel the axis and every caption. Drop the `Stent type-SES` PDP panel (numeric sweep over an arbitrary brand
-ordering).
+**Requires confirmation — critical.** The **stored** y-axis is a **balanced-prior model output, not absolute risk**.
+Code now uses `balance_probabilities=False` on PDP only, labeled **empirical prior / not Part 4 risk**. Do not
+quote "rises toward ~0.6" as a 60% event probability. Relabel after re-run. Drop the `Stent type-SES` PDP panel
+(already dropped in code; stored Figure 1 still has it).
 
 #### 3.6.2 Recurring variables
 
