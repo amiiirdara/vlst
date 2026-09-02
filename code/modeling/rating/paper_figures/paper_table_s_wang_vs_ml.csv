@@ -1,5 +1,6 @@
 Model,ROC-AUC,PR-AUC,ROC fold mean ± SD,PR fold mean ± SD,Protocol
 Wang 2020 integer score (frozen),0.8013,0.1032,0.8005 ± 0.0607,0.1134 ± 0.0518,"Published points on all 5,185 rows; folds are evaluation only"
-LightGBM (untuned nested CV),0.9681,0.6937,0.9695 ± 0.0164,0.6941 ± 0.0917,Part 4 nested 5×4 CV OOF (this notebook)
+TabPFN (thinking-high),0.9905,0.8553,0.9906 ± 0.0070,0.8488 ± 0.0861,Part 4 nested 5×4 CV OOF (this notebook)
+LightGBM (untuned nested CV),0.968,0.6926,0.9694 ± 0.0165,0.6936 ± 0.0915,Part 4 nested 5×4 CV OOF (this notebook)
 TabPFN (local),0.9845,0.6754,0.9846 ± 0.0030,0.6739 ± 0.0812,Part 4 nested 5×4 CV OOF (this notebook)
 Logistic regression (untuned nested CV),0.9224,0.3326,0.9235 ± 0.0251,0.3451 ± 0.1213,Part 4 nested 5×4 CV OOF (this notebook)

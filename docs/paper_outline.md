@@ -18,17 +18,18 @@ section references of the form "EM §7.1" point into it.
 
 ## 0. Two structural decisions before drafting
 
-### 0.1 Beat 5 is now writeable (local TabPFN Brier is settled)
+### 0.1 Beat 5 is now writeable (both TabPFN arms ran)
 
 The requested story said *"TabPFN provides stronger discrimination than the classical baselines but has weaker
-calibration."* **This Kaggle snapshot does not support the first half on PR-AUC.** LightGBM is first
-(PR-AUC **0.6937**); TabPFN (local) is third (**0.6754**) and first on ROC-AUC (**0.9845**). The second half
-**is** true for this run: TabPFN (local) Brier **0.0673** is the **worst** of the six (XGBoost 0.0088 is best).
-Notebook, embedded figures, and `paper_figures/` agree (EM §12.2). Historical thinking-high client Brier 0.0060
-vs PNG 0.0360 is a different arm and must not be quoted here.
+calibration."* Split the arms. **TabPFN (thinking-high)** supports the first half on PR-AUC (**0.8553** vs
+LightGBM **0.6926**; higher in **5/5** folds) and **refutes** the second half (Brier **0.0064**, best of seven).
+**TabPFN (local)** does **not** support the first half (PR-AUC **0.6754**, fourth of seven) and **does** support
+the second (Brier **0.0673**, worst of seven). Name both Briers. Do not write “TabPFN is poorly calibrated”
+without naming the arm. Historical client Brier 0.0060 vs 0.0360 is a different dump.
 
-**Consequence for this outline.** Draft beat 5 as: *LightGBM leads rare-event ranking; local TabPFN leads ROC-AUC
-and is the worst-calibrated of the six.* Do not restore "TabPFN wins every fold" or "best Brier."
+**Consequence for this outline.** Draft beat 5 as: *Thinking-high TabPFN leads rare-event ranking and Brier;
+local TabPFN leads ROC-AUC among the non-client arms and is the worst-calibrated of the seven.* Do not restore
+"local TabPFN wins every fold" or collapse the two arms.
 
 ### 0.2 One beat should be added to the story
 
@@ -55,9 +56,9 @@ Rationale for each cut is in §6.
 | **Figure 1** | Figure | Cohort derivation and analysis flow | 1 | — | **MUST BE BUILT — does not exist** |
 | **Table 2** | Table | Univariate associations with VLST after FDR control | 2 | Part 1 Tables 1 + 2 + 3, merged | Rebuild (merge) |
 | **Figure 2** | Figure | Univariate vs multivariable-adjusted associations (forest) | 2 | Part 1 Figure 6 | **Rebuild — model must be respecified first** |
-| **Table 3** | Table | Nested cross-validation performance of six models | 3, 5 | Part 4 Table 1 + notebook §7.3/§7.4 | **Current** — LightGBM PR-AUC 0.6937 |
+| **Table 3** | Table | Nested cross-validation performance of seven models | 3, 5 | Part 4 Table 1 + notebook §7.3/§7.4 | **Current** — thinking-high PR-AUC 0.8553 |
 | **Figure 3** | Figure | Precision–recall and ROC curves, nested-CV out-of-fold | 3, 5 | Part 4 Figure 1 | Reuse as-is |
-| **Figure 4** | Figure | Calibration (reliability curves), nested-CV out-of-fold | 5 | Part 4 Figure 2 | Current — TabPFN (local) Brier 0.0673 |
+| **Figure 4** | Figure | Calibration (reliability curves), nested-CV out-of-fold | 5 | Part 4 Figure 2 | Current — thinking-high Brier 0.0064; local 0.0673 |
 | **Table 4** | Table | Feature membership across all four extraction methods | 4, 7 | Part 3 Table 1 + Part 2 Table 2 + Part 5 Table 5 | Rebuild (merge) |
 | **Figure 5** | Figure | TabPFN interpretability: partial dependence + selection stability (2 panels) | 6 | Part 5 Figure 1 + Part 5 Table 2 | Rebuild (merge) |
 
@@ -105,10 +106,10 @@ most costly.
 | Sample | n = 5,185; 92 VLST events; prevalence 1.77% | EM §2.1 |
 | Design | 5 outer × 4 inner stratified nested CV; inner loop selects the decision threshold only | EM §6.1–6.2 |
 | Primary metric | PR-AUC (average precision), prevalence reference 0.0177 | Part 4 L5, L52 |
-| Best model | TabPFN, PR-AUC 0.853 (fold mean 0.850 ± 0.075), ROC-AUC 0.988 (0.988 ± 0.006) | EM §7.1 |
-| Best classical | CatBoost, PR-AUC 0.697 (0.701 ± 0.068), ROC-AUC 0.970 | EM §7.1 |
-| Weakest | Logistic regression, PR-AUC 0.342 (0.357 ± 0.115) | EM §7.1 |
-| Operating point | Use the **honest nested** figures: TabPFN precision 0.835, recall 0.717, F1 0.772 | EM §7.3 |
+| Best model | TabPFN (thinking-high), PR-AUC 0.8553 (fold mean 0.8488 ± 0.0861), ROC-AUC 0.9905 (0.9906 ± 0.0070) | EM §7.1 |
+| Best classical | LightGBM, PR-AUC 0.6926 (0.6936 ± 0.0915), ROC-AUC 0.9680 | EM §7.1 |
+| Weakest | Logistic regression, PR-AUC 0.3326 (0.3451 ± 0.1213) | EM §7.1 |
+| Operating point | Use the **honest nested** figures: thinking-high precision 0.7927, recall 0.7065, F1 0.7471, 5076/17/27/65 | EM §7.3 |
 | Feature overlap | 5 of 20 statistical and 5 of 20 ML-consensus names shared; Jaccard 0.14 | Part 3 L55, L61 |
 | Recurring across all methods | `WBC`, `eGFR`, `LV` | EM §8.8 |
 
@@ -156,7 +157,7 @@ comparison is unmatched. Frame it neutrally.
 **Purpose.** State the three aims that the evidence actually supports.
 **Proposed wording of aims:**
 1. Characterise marginal and mutually adjusted associations between baseline variables and VLST.
-2. Compare the discrimination and calibration of five classical models and one tabular foundation model under a
+2. Compare the discrimination and calibration of five classical models and **two** TabPFN arms under a
    single nested cross-validation protocol.
 3. Compare the feature sets recovered by statistical hypothesis testing against those recovered by
    model-based selection and by TabPFN interpretability, and characterise why they differ.
@@ -379,30 +380,29 @@ evaluation as every baseline; that it is **not** thinking-high.
 
 | Signal | Sample | Backend | Note |
 | --- | --- | --- | --- |
-| Mutual information | full cohort, 5,185 | sklearn, 0 TabPFN calls | screening only; CSV will store all 81 scores on next `[1a]` |
-| Stability selection | full cohort; forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, ~8.6 h | local TabPFN | **the most defensible signal here**; `balance_probabilities=True` |
-| PDP | **full cohort** fit and average; 4 continuous + 6 binary | local TabPFN | **`balance_probabilities=False`** (empirical prior / not Part 4 risk). Stored PNGs still the old True + 70/30 run |
-| SHAP (shapiq SV) | **15 VLST=1 + 15 VLST=0** in code; stored PNGs are 15 VLST cases only | local TabPFN after client failure | budget 256; ranking scale `True` |
-| k-SII / SHAP-IQ | **one** VLST=1 row from that 15+15 slice | local TabPFN after client failure | budget 256 |
+| Mutual information | full cohort, 5,185; all 81 scores stored | sklearn, 0 TabPFN calls | screening only; Fast-Glu / ZES in top 15; Cre 25th 0.0023 |
+| Stability selection | full cohort; forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, ~8.6 h | local TabPFN | **the most defensible signal here**; `balance_probabilities=True`; WBC 10/10 |
+| PDP | **full cohort** fit and average | local TabPFN | **`balance_probabilities=False`** (empirical prior / not Part 4 risk) |
+| SHAP (shapiq SV) | **15 VLST=1 + 15 VLST=0** | **tabpfn-client + thinking** (succeeded) | budget 256; ranking scale `True`; Cre leads mean(\|SHAP\|) |
+| k-SII / SHAP-IQ | **one** VLST=1 row (5099) from that 15+15 slice | **tabpfn-client + thinking** (succeeded) | budget 256; illustration only |
 
 **Cites.** Figure 5; SHAP and k-SII to **Supplementary Figures S6–S8**.
 
 **Safe claims.** Mutual information and stability selection as full-cohort screens; PDP as a model-average
-response shape on the empirical-prior scale after re-run.
+response shape on the empirical-prior scale; SHAP as a 30-row attribution.
 
-**Requires confirmation — critical (EM CONFIRM #11).** Disclosures for the **stored** figures, and what **code now** does:
+**Requires confirmation — critical (EM CONFIRM #11).** Disclosures that still bind:
 
-1. **Stored SHAP PNGs are 15 VLST cases only.** Code now samples 15 VLST=1 + 15 VLST=0. Re-run `[3/5]`. Until then captions are **[STALE]**.
-2. **k-SII is one patient** (a VLST=1 row from the 15+15 slice). Part 5 already says this — keep it. It is **not** a cohort
+1. **SHAP is 15 VLST=1 + 15 VLST=0**, not global SHAP on 5,185 rows. Captions now match that protocol.
+2. **k-SII is one patient** (row 5099). Part 5 already says this — keep it. It is **not** a cohort
    interaction screen. The only cohort-level interaction evidence in the study is the 16-pair LR screen (§2.4).
 3. **PDP vs ranking scales are split.** Ranking / SHAP / stability keep `balance_probabilities=True` so a 1.8%
    outcome is visible. PDP only uses `False` (empirical prior; y-axis near ~2%; labeled **not Part 4 risk**).
-   Do not mix True and False on one axis. Do **not** quote stored Table 3 0.24 or Figure 1 ~0.6 as clinical risk.
-4. **The zeros in Part 5 Table 5's mutual-information column are imputed** in the stored export — `Cre` and
-   `No.of stents per lesion` fell outside the MI top-15. Code now writes all 81 MI scores and does not `fillna(0)`.
-   `Fast-Glu` and `ZES` blanks close on the next `[1a]` sklearn re-run.
+   Do not mix True and False on one axis. Binary P(y=1) ≈ 0.017–0.023 on this run; do not quote 0.24 / ~0.6.
+4. **MI fill-zeros are closed.** Table 5 stores `Cre` MI 0.002281 from the 81-row ranking. `Fast-Glu` and `ZES`
+   are in the MI top 15.
 
-Also: stored Figure 1 still sweeps `Stent type-SES` as a numeric axis. Code now drops that panel.
+Continuous PDP drops `Stent type-SES` (integer brand codes are not a meaningful grid).
 
 ### 2.9 Validation and evaluation metrics
 
@@ -603,8 +603,10 @@ section use `class_weight="balanced"` — an internal inconsistency to disclose 
 
 | Model | PR-AUC (pooled) | PR-AUC (fold mean ± SD) | ROC-AUC (pooled) | ROC-AUC (fold mean ± SD) |
 | --- | --- | --- | --- | --- |
-| LightGBM | **0.6937** | 0.6941 ± 0.0917 | 0.9681 | 0.9695 ± 0.0164 |
+| TabPFN (thinking-high) | **0.8553** | 0.8488 ± 0.0861 | **0.9905** | 0.9906 ± 0.0070 |
+| LightGBM | 0.6926 | 0.6936 ± 0.0915 | 0.9680 | 0.9694 ± 0.0165 |
 | XGBoost | 0.6815 | 0.6928 ± 0.1288 | 0.9439 | 0.9431 ± 0.0418 |
+| TabPFN (local) | 0.6754 | 0.6739 ± 0.0812 | 0.9845 | 0.9846 ± 0.0030 |
 | CatBoost | 0.6172 | 0.6353 ± 0.0540 | 0.9594 | 0.9612 ± 0.0137 |
 | Random forest | 0.4865 | 0.5034 ± 0.0793 | 0.9209 | 0.9206 ± 0.0423 |
 | Logistic regression | 0.3326 | 0.3451 ± 0.1213 | 0.9224 | 0.9235 ± 0.0251 |
@@ -617,9 +619,9 @@ Table 1, which matches that dump.
 **Cites.** **Table 1**, **Figure 1**.
 
 **Safe claims.**
-- LightGBM (0.69 PR-AUC) and XGBoost (0.68) outperform bagging (0.49) and the linear model (0.33). CatBoost is fourth on this 9-level-encoder run (0.62), not second.
-- **The key rhetorical point of this subsection:** all five classic models exceed ROC-AUC 0.92, yet PR-AUC ranges from
-  0.33 to 0.69. ROC-AUC is nearly uninformative here; PR-AUC separates the models.
+- Thinking-high (0.86 PR-AUC) leads the scoreboard. LightGBM (0.69) and XGBoost (0.68) outperform bagging (0.49) and the linear model (0.33). CatBoost is fifth on this 9-level-encoder run (0.62).
+- **The key rhetorical point of this subsection:** all seven models exceed ROC-AUC 0.92, yet PR-AUC ranges from
+  0.33 to 0.86. ROC-AUC is nearly uninformative here; PR-AUC separates the models.
 
 **Requires confirmation.**
 - Baselines are untuned (§2.5).
@@ -628,37 +630,38 @@ Table 1, which matches that dump.
 
 ### 3.4 TabPFN versus baselines — *beats 3 and 5 (discrimination half)*
 
-**Purpose.** The paper's nested-CV comparison. On this run TabPFN (local) does **not** lead PR-AUC.
+**Purpose.** The paper's nested-CV comparison. **TabPFN (thinking-high) leads PR-AUC.** TabPFN (local) does **not**.
 
 **Evidence.**
 
-| Metric | LightGBM (best PR-AUC) | TabPFN (local) | Wang 2020 integer score (frozen) |
-| --- | --- | --- | --- |
-| PR-AUC pooled | **0.6937** | 0.6754 | 0.1032 |
-| PR-AUC fold mean ± SD | 0.6941 ± 0.0917 | 0.6739 ± 0.0812 | 0.1134 ± 0.0518 |
-| ROC-AUC pooled | 0.9681 | **0.9845** | 0.8013 |
-| ROC-AUC fold mean ± SD | 0.9695 ± 0.0164 | 0.9846 ± 0.0030 | 0.8005 ± 0.0607 |
-| Per-fold PR-AUC | 0.753, 0.714, 0.540, 0.772, 0.692 | 0.638, 0.635, 0.583, 0.727, 0.786 | LightGBM higher than TabPFN local in **3/5** folds |
+| Metric | TabPFN (thinking-high) | LightGBM | TabPFN (local) | Wang 2020 integer score (frozen) |
+| --- | --- | --- | --- | --- |
+| PR-AUC pooled | **0.8553** | 0.6926 | 0.6754 | 0.1032 |
+| PR-AUC fold mean ± SD | 0.8488 ± 0.0861 | 0.6936 ± 0.0915 | 0.6739 ± 0.0812 | 0.1134 ± 0.0518 |
+| ROC-AUC pooled | **0.9905** | 0.9680 | 0.9845 | 0.8013 |
+| ROC-AUC fold mean ± SD | 0.9906 ± 0.0070 | 0.9694 ± 0.0165 | 0.9846 ± 0.0030 | 0.8005 ± 0.0607 |
+| Per-fold PR-AUC | 0.864, 0.784, 0.741, 0.950, 0.906 | 0.751, 0.713, 0.540, 0.773, 0.692 | 0.638, 0.635, 0.583, 0.727, 0.786 | Thinking-high higher than LightGBM in **5/5** folds |
 
-**Honest nested operating point** (EM §7.3): LightGBM precision 0.6703, recall 0.6630, F1 0.6667,
-TN/FP/FN/TP = 5063/30/31/61, threshold 0.121 ± 0.085. TabPFN (local): precision 0.5478, recall **0.6848**,
+**Honest nested operating point** (EM §7.3): thinking-high precision 0.7927, recall **0.7065**, F1 **0.7471**,
+TN/FP/FN/TP = **5076/17/27/65**, threshold 0.271 ± 0.067. LightGBM: precision 0.6630, recall 0.6630, F1 0.6630,
+5062/31/31/61, threshold 0.117 ± 0.087. TabPFN (local): precision 0.5478, recall **0.6848**,
 F1 0.6087, 5041/52/29/63, threshold 0.915 ± 0.012.
 
 **Cites.** **Table 2** (honest nested operating point), **Figure 1** (ranking), **Supplementary Table S-Wang**.
 
 **Safe claims.**
-- LightGBM ranked highest on pooled PR-AUC; higher than TabPFN (local) in **3 of 5** outer folds. Do not write
-  "TabPFN wins every fold."
-- TabPFN (local) ranked highest on ROC-AUC (0.9845) and worst on Brier (0.0673).
-- On the same derivation rows, nested-CV LightGBM PR-AUC **0.6937** versus the frozen published Wang integer score **0.1032** (TabPFN local PR-AUC 0.6754; ROC-AUC 0.9845 vs Wang 0.8013). That is not Shantou and not a Cox re-fit.
-- At the nested operating point LightGBM identified 61 of 92 events with 30 false positives; TabPFN (local)
-  identified 63 events with 52 false positives.
+- Thinking-high ranked highest on pooled PR-AUC; higher than LightGBM in **5 of 5** outer folds. Do not write
+  that the *local* arm wins every fold.
+- TabPFN (local) ranked second on ROC-AUC (0.9845) and worst on Brier (0.0673). Thinking-high Brier **0.0064** is best.
+- On the same derivation rows, nested-CV thinking-high PR-AUC **0.8553** versus the frozen published Wang integer score **0.1032** (LightGBM 0.6926; local 0.6754; ROC-AUC 0.9905 / 0.9680 / 0.9845 vs Wang 0.8013). That is not Shantou and not a Cox re-fit.
+- At the nested operating point thinking-high identified 65 of 92 events with 17 false positives; LightGBM
+  identified 61 events with 31 false positives; local identified 63 events with 52 false positives.
 
 **Requires confirmation.**
 - Add a paired test before the word "superior" (EM CONFIRM #10).
-- Disclose untuned classics (§2.5) and that this TabPFN is **local, not thinking-high**.
+- Disclose untuned classics (§2.5) and that the two TabPFN arms are different objects (client thinking-high vs local).
 - Do not report accuracy (0.99 for every model; it is prevalence, not skill).
-- Nested vs pooled operating points are labelled in Part 4; quote Table 2 (LightGBM recall 0.6630 / TabPFN local 0.6848), not Figure 3 pooled TabPFN recall 0.8261.
+- Nested vs pooled operating points are labelled in Part 4; quote Table 2 (thinking-high recall 0.7065 / LightGBM 0.6630 / local 0.6848), not Figure 3 pooled recalls 0.8152 / 0.8261.
 
 ### 3.5 Statistical versus ML feature-set comparison — *beats 4 and 7*
 
@@ -674,7 +677,7 @@ this is **complementarity, not contradiction**.
 | Intersection | **5**: `WBC`, `eGFR`, `LV`, `Fiberinogen`, `Previous PCI` | Part 3 L61 |
 | Jaccard | 5/35 ≈ **0.14** | Part 3 L55 |
 | Strictest ML intersection (7 models × 3 selectors) | `WBC`, `eGFR` | Part 2 Table 4 |
-| TabPFN consensus at 3/3 signals | `LV`, `WBC`, `eGFR`, `Stent type-SES`, `No postdilation`, `HbA1c` | Part 5 Table 5 |
+| TabPFN consensus at 3/3 signals | `WBC`, `LV`, `eGFR` | Part 5 Table 5 |
 | **Recovered by all four routes** | **`WBC`, `eGFR`, `LV`** | EM §8.8 |
 
 **The mechanisms behind the disagreement**, which are the actual scientific content of this subsection:
@@ -772,8 +775,9 @@ rather than losing it in translation to the manuscript.
 
 **Purpose.** Separate ranking skill from probability quality.
 
-**Evidence (this Kaggle local-TabPFN run; notebook and figures agree):** Brier — XGBoost **0.0088**, LightGBM 0.0093,
-CatBoost 0.0101, random forest 0.0143, logistic regression 0.0563, TabPFN (local) **0.0673** (worst of six).
+**Evidence (this Kaggle 7-arm run; notebook and figures agree):** Brier — TabPFN (thinking-high) **0.0064** (best of seven), XGBoost 0.0088, LightGBM 0.0093,
+CatBoost 0.0101, random forest 0.0143, logistic regression 0.0563, TabPFN (local) **0.0673** (worst of seven).
+Name both TabPFN Briers. Do not write “TabPFN is poorly calibrated” without naming the arm.
 
 **Cites.** **Figure 4**.
 
@@ -838,10 +842,10 @@ sample: Wang 2020 establishes a consecutive complete-follow-up cohort; 1.77% is 
 | 1 | **No external or temporal test of the ML models.** Wang’s Cox score was tested on Shantou; those rows are not here. | EM §6.6 |
 | 2 | **Binary classification vs published Cox analysis.** Follow-up time is the Cox axis; as a covariate it leaks (Part 4 S-TSSI). | EM §4.1–4.2 |
 | 3 | **EPV ≈ 5.4** on the 17-covariate logit; collinear blocks remain. | EM §2.2, W4 |
-| 4 | **Unused client thinking-high arm** is non-deterministic; this snapshot is local TabPFN Brier **0.0673**. | EM §12.2, §12.10 |
-| 5 | **Classical baselines untuned**; TabPFN is local (no thinking). Unequal model class, not thinking-high vs defaults. | EM §6.3 |
-| 6 | **Classics still one-hot** the 9-level brand column (~89); TabPFN (local) sees it natively. | EM §6.4 |
-| 7 | **No CIs and no paired test** of LightGBM vs TabPFN (local). LightGBM PR-AUC higher in 3/5 folds. | EM §12.9 |
+| 4 | **Two TabPFN calibrations.** Thinking-high Brier **0.0064** (best); local **0.0673** (worst). Client non-deterministic across dumps. | EM §12.2, §12.10 |
+| 5 | **Classical baselines untuned**; local TabPFN has no thinking; client arm is thinking-high. Unequal model class. | EM §6.3 |
+| 6 | **Classics still one-hot** the 9-level brand column (~89); both TabPFN arms see it natively. | EM §6.4 |
+| 7 | **No CIs and no paired test** of thinking-high vs LightGBM. Thinking-high PR-AUC higher in 5/5 folds. | EM §12.9 |
 | 8 | **Part 2 catalogues are discovery on an 18-event val slice**, not a Part 4 mask. | EM §4.4 |
 | 9 | **DAPT columns are post-baseline**; **WBC** was excluded by Wang; **`LV` unnamed**. | EM §3, A1 |
 | 10 | **Observational design:** no causal / “protective” language for post-dilation or clopidogrel. | EM §12.12 |
@@ -881,7 +885,7 @@ add any sentence proposing clinical use.
 | S10 | Mutual information top 15 | Part 5 Table 1 |
 | S11 | Mean \|SHAP\|, 15 cases | Part 5 Table 4 |
 | S12 | Per-fold performance metrics | EM §7.4 |
-| S13 | Nested-CV operating points, all six models | EM §7.3 |
+| S13 | Nested-CV operating points, all seven models | EM §7.3 |
 | S14 | Feature-selection detail: LOCO/SHAP/FFS by model and metric | Part 2 Tables 1–4 |
 | S15 | Venn, presence heatmap, reason buckets, domain counts | Part 3 Figs 1–4 |
 | S16 | Correlation clustermaps | Part 1 Figs S2a–d |
@@ -912,8 +916,8 @@ add any sentence proposing clinical use.
 ## 6. Drafting order
 
 1. **Answer EM CONFIRM #1 (measurement timing) and #2 (control sampling).** Nothing else is worth writing first.
-2. **Part 4 nested CV is the Kaggle local-TabPFN run** (LightGBM PR-AUC 0.6937; TabPFN local Brier 0.0673).
-   Commit OOF predictions (EM B2) so CIs can be added; do not re-enable thinking-high.
+2. **Part 4 nested CV is the Kaggle 7-arm run** (thinking-high PR-AUC 0.8553 / Brier 0.0064; local Brier 0.0673).
+   Commit OOF predictions (EM B2) so CIs can be added. Do not change the thinking-high constructor.
 3. **Respecify the multivariable model** (§2.4). Table 2 and Figure 2 depend on it.
 4. **Add bootstrap CIs and a paired model test** to Table 3.
 5. **Build Table 1 and Figure 1.**

@@ -14,6 +14,7 @@ Self-contained bundle of the paper-style markdown reports (front matter, statist
 Notebooks are not included in this pack.
 
 ---
+
 # Part 0. Scope, motivation, terminology, and limitations
 
 This note is the manuscript front matter that Parts 1–5 previously lacked. It is written so it does **not** clash with the three scope decisions: `code/failed_hypothesis/` is unused (D1); TabPFN numbers come only from `baseline_plus_tabpfn.ipynb` and `tabpfn_interpretability.ipynb` (D2); where a report and a notebook disagree, the notebook is authoritative (D4).
@@ -46,13 +47,13 @@ An adjusted OR < 1 (`1.1:1Post dilation` 0.144; `Clopidogrel` 0.464) or a negati
 
 **What “personalised” does *not* mean.** The repository README says “Personalized Risk prediction.” Nothing here is an individual-level model, a patient-specific fine-tune, or a decision-curve analysis. The artefact is a **single global classifier** (or a single global logit for association). Nested-CV probabilities are not portable personalised risks: prevalence, calibration, and PPV are properties of this derivation cohort. We do not use “personalised” as a result claim.
 
-**Why TabPFN is in the comparison.** VLST here is a small-n, mixed-type tabular problem (92 events, 81 raw columns). TabPFN is a tabular foundation model that does in-context learning, handles categoricals natively, and does not run a per-dataset hyperparameter grid. The **stored Part 4 arm** is **local** TabPFN (`from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, no thinking; Kaggle Tesla T4, checkpoint `tabpfn-v3-classifier-v3_default.ckpt`). The client thinking-high constructor remains in `baseline_plus_tabpfn.ipynb` (`RUN_MODELS["TabPFN"]=False`) and is **not** in this six-model table. Classics in the same nested CV use **library defaults** plus class weighting. On this run LightGBM is first on PR-AUC (**0.6937**); TabPFN (local) is third on PR-AUC (**0.6754**) and first on ROC-AUC (**0.9845**).
+**Why TabPFN is in the comparison.** VLST here is a small-n, mixed-type tabular problem (92 events, 81 raw columns). TabPFN is a tabular foundation model that does in-context learning, handles categoricals natively, and does not run a per-dataset hyperparameter grid. Part 4 now reports **both** arms from the same nested CV (Kaggle Tesla T4, `de46f92`): **TabPFN (thinking-high)** (`tabpfn_client.TabPFNClassifier`, constructor unchanged) and **TabPFN (local)** (`from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, no thinking; checkpoint `tabpfn-v3-classifier-v3_default.ckpt`). Classics in the same nested CV use **library defaults** plus class weighting. On this run thinking-high is first on PR-AUC (**0.8553**), ROC-AUC (**0.9905**), and Brier (**0.0064**). LightGBM is second on PR-AUC (**0.6926**). TabPFN (local) is fourth on PR-AUC (**0.6754**), second on ROC-AUC (**0.9845**), and worst on Brier (**0.0673**). Name the two TabPFN Briers separately.
 
 **What this pack adds on the *same* derivation cohort, beyond Wang’s score:**
 
 1. **Association catalogue** (Part 1) — FDR-controlled univariate tests and an exploratory 17-covariate logit (not a Cox model; not Wang’s eight variables).
 2. **Interpretation catalogues** (Parts 2–3, 5) — classic-model LOCO / SHAP / FFS versus FDR names; TabPFN attributions. These do not feed the predictor.
-3. **Prediction comparison** (Part 4) — nested 5×4 stratified CV of five classic classifiers and **local** TabPFN after dropping the leaky follow-up-time column (W1), plus the frozen Wang integer score on the same rows (Table S-Wang).
+3. **Prediction comparison** (Part 4) — nested 5×4 stratified CV of five classic classifiers and **both** TabPFN arms after dropping the leaky follow-up-time column (W1), plus the frozen Wang integer score on the same rows (Table S-Wang).
 4. **Leakage control** (Part 4 supplement) — with-TSSI vs without-TSSI on a 70/30 split, showing why binary-ified survival time must not be a covariate.
 
 It does **not** add: external or temporal testing of the ML models; a re-fit of Wang’s Cox linear predictor or a Dangas decision curve; a statement that TabPFN is ready for clinical use.
@@ -78,25 +79,25 @@ Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement
 
 1. **No external or temporal test of the ML models.** Every Part 4 number is nested CV on the 5,185 derivation rows. Wang’s Cox score **was** tested on Shantou (n = 2,058, 1.70% VLST); those rows are not here. Nested CV is not a substitute.
 
-2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV LightGBM PR-AUC **0.6937** (TabPFN local **0.6754**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
+2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV TabPFN (thinking-high) PR-AUC **0.8553** (LightGBM **0.6926**; TabPFN local **0.6754**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
 
 3. **EPV ≈ 5.4** on the 17-covariate logit (W4). Collinear blocks remain (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`). `CKD90`’s Wald interval is extremely wide. Do not read Table 4 as an identified clinical model.
 
-4. **Local TabPFN calibration on this run.** Nested-CV TabPFN (local) Brier is **0.0673**, the **worst** of the six (XGBoost 0.0088 is best). Prior thinking-high client numbers (Brier 0.0060 / PR-AUC 0.8534) are **not** this notebook.
+4. **Two TabPFN calibrations.** Nested-CV TabPFN (thinking-high) Brier is **0.0064**, the **best** of the seven. TabPFN (local) Brier is **0.0673**, the **worst**. Client thinking-high is non-deterministic across dumps (historical Brier 0.0060 / 0.0360 vs this dump 0.0064). Do not collapse the arms.
 
-5. **This Part 4 TabPFN is a local checkpoint, not the client.** The stored arm is `tabpfn` on Kaggle T4 (`tabpfn-v3-classifier-v3_default.ckpt`). The unused thinking-high client constructor is still in the notebook. Client and server-side versions remain unrecorded for that unused arm.
+5. **Unequal TabPFN objects.** Thinking-high is the client API; local is `tabpfn` on Kaggle T4 (`tabpfn-v3-classifier-v3_default.ckpt`). Client and server-side versions remain unrecorded. Classics are untuned defaults.
 
 6. **DAPT columns are post-baseline.** All patients had DAPT for ≥ 1 year; continuation after year 1 was at the treating physician’s discretion. Wang Table 1 “DAPT” is persistence during follow-up, not a discharge prescription. `Aspirin`, `Clopidogrel`, `Ticagrelor`, `DAPT` must not be described as index-PCI covariates without that caveat.
 
 7. **WBC was excluded by the original investigators.** Wang dropped WBC from the Cox score because infection could not be ruled out. Our FDR screen and several selectors rank `WBC` at the top. That is a discrepancy to report, not a new “validated” inflammatory marker.
 
-8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). TabPFN (local) sees the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
+8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high; the client arm is thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
 
-9. **No interval on PR-AUC, ROC-AUC, or Brier; no paired test** of LightGBM vs TabPFN (local). LightGBM is first on PR-AUC as a point estimate (higher in **3 of 5** outer folds vs TabPFN local). OOF CSVs were not committed.
+9. **No interval on PR-AUC, ROC-AUC, or Brier; no paired test** of thinking-high vs LightGBM (or local vs LightGBM). Thinking-high is first on PR-AUC as a point estimate (higher in **5 of 5** outer folds). Local is higher than LightGBM in **2 of 5**. OOF CSVs were written on Kaggle but **not committed** (B2).
 
 10. **`LV` (and `CaI`) are not in Wang Table 1.** Until the column is named, timed, and unit-defined, do not treat `LV` as a novel echo marker.
 
-11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk). Do not mix those scales on one axis, and do not quote stored PDP 0.24 / ~0.6 as clinical risk. Stored SHAP/PDP PNGs are stale until the notebook is re-run (PDP full cohort; SHAP 15+15).
+11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk; binary P(y=1) ≈ 0.017–0.023). Do not mix those scales on one axis. SHAP is **15 VLST=1 + 15 VLST=0** with client thinking; k-SII is one VLST=1 row (5099). Do not treat k-SII as cohort interactions.
 
 ---
 
@@ -1009,32 +1010,33 @@ Statistics therefore still “owns” **anatomy coding and most stent-technique 
 *Statistical names: univariate FDR q < 0.05 from* `eda.ipynb` *(time-since-stent excluded from the overlap count). ML names: LOCO ∩ SHAP ∩ FFS top-20, PR-AUC only, 2026-08-31 paper-protocol run of* `baseline_feature_selections.ipynb` *(seven classic models; 9-level stent encoder; fit/val 4148/1037). Figures and CSVs regenerated by* `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`.
 
 ---
-
 # Part 4. Nested-CV baselines plus TabPFN
+
+### Nested-CV baselines plus TabPFN — paper figures and tables
 
 This document gathers publication-oriented figures and tables from the nested cross-validation comparison in `baseline_plus_tabpfn.ipynb`.
 
 **Cohort / protocol.** Full VLST cohort, n = 5,185 (92 events; prevalence = 0.0177). Target = `Stent thrombosis`. Identifiers (`NO.`, `Name`) and `Time since stent implantation` are dropped; the latter is treated as a time-at-risk / follow-up column, not a baseline covariate. **No Part 2 / Part 5 feature mask is applied.** Evaluation is nested stratified CV: **5 outer folds / 4 inner folds** (outer `random_state=42`). Ranking metrics (PR-AUC, ROC-AUC, Brier) use pooled outer out-of-fold probabilities and are threshold-independent. For precision / recall / F1 / F2, **quote the nested inner-fold thresholds** (Table 2): each outer fold’s cut is chosen on inner OOF scores and applied once to that fold’s unseen cases. Figure 3 / Table 3 additionally show a single pooled F1 cut; that cut is **optimistically biased** (methods note below). These nested-CV metrics are this pack’s only **prediction** results.
 
-**This run (D4).** Kaggle nested CV, Tesla T4. `RUN_MODELS["TabPFN"]=False` (client thinking-high constructor is still in the notebook, unused). The TabPFN arm is **`TabPFN (local)`** (`from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, no thinking). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns, not the old ~186). TabPFN (local) sees the same 9-level frame natively.
+**This run (D4).** Kaggle nested CV, Tesla T4, notebook commit `de46f92` (Version 5). **Both TabPFN arms finished:** `RUN_MODELS["TabPFN"]=True` and `TabPFN (local)=True`. The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively.
 
-**Methods note — feature views.** Classics sit in an sklearn `Pipeline` with a `ColumnTransformer` **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; the encoded `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. TabPFN (local) is **not** in that pipeline.
+**Methods note — feature views.** Classics sit in an sklearn `Pipeline` with a `ColumnTransformer` **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; the encoded `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. Neither TabPFN arm is in that pipeline.
 
 **Methods note — GridSearch is a different notebook.** `baseline_without_tssi.ipynb` / `baseline_tssi_leakage.ipynb` tune hyperparameters on a single 70/30 split. Those `best_params_` are **not** imported here. Classics use library defaults plus class weighting. The inner loop tunes only the F1 **threshold**.
 
 **Methods note — why the follow-up-time column is dropped.** Wang 2020 analysed this cohort with Cox regression, in which follow-up duration is the *time axis*, not a covariate. Recoded as a binary classifier, the same column (`Time since stent implantation`) mixes two definitions: time-to-event for the 92 VLST cases (min 380 days) and event-free follow-up length for the 5,093 non-events (min 1,241 days). A rule “time < 1,241 → event” has zero false positives among controls. `baseline_tssi_leakage.ipynb` (same 70/30 split, GridSearchCV) shows the resulting inflation; `baseline_without_tssi.ipynb` is the identical protocol with the column removed. Nested-CV results in this document use the without-TSSI feature view. See Supplementary Table S-TSSI.
 
-**Models.** Logistic regression, random forest, XGBoost, LightGBM, CatBoost, and TabPFN (local). Average precision (PR-AUC) is the common ranking metric. On this run **LightGBM is first** (PR-AUC **0.6937**). TabPFN (local) is third on PR-AUC (**0.6754**) and first on ROC-AUC (**0.9845**). Quote PR-AUC at 1.77% prevalence. The prior thinking-high client numbers (PR-AUC 0.8534 / Brier 0.0060) are **not** this notebook.
+**Models.** Logistic regression, random forest, XGBoost, LightGBM, CatBoost, **TabPFN (thinking-high)**, and **TabPFN (local)**. Average precision (PR-AUC) is the common ranking metric. On this run **TabPFN (thinking-high) is first** (PR-AUC **0.8553**, ROC-AUC **0.9905**, Brier **0.0064** — best of seven). LightGBM is second on PR-AUC (**0.6926**). TabPFN (local) is fourth on PR-AUC (**0.6754**), second on ROC-AUC (**0.9845**), and **worst** on Brier (**0.0673**). Quote PR-AUC at 1.77% prevalence. Name the two TabPFN Briers separately; do not collapse the arms. Historical client prints (Brier 0.0060 / 0.0360) are other dumps, not this one.
 
-**Methods note — published clinical baseline.** Wang 2020’s 8-variable integer score is scored as a **frozen** comparator in `code/modeling/rating/wang_vlst_score.ipynb` (published Table 2 points; weights not re-fit). It is not a seventh nested-CV arm. See Supplementary Table S-Wang.
+**Methods note — published clinical baseline.** Wang 2020’s 8-variable integer score is scored as a **frozen** comparator in `code/modeling/rating/wang_vlst_score.ipynb` (published Table 2 points; weights not re-fit). It is not an eighth nested-CV arm. See Supplementary Table S-Wang.
 
-**Methods note — two F1 operating points.** Ranking metrics do not use a threshold. Precision, recall, F1, and F2 do. The executed notebook prints both. **Honest nested** (Table 2): inner-CV OOF F1 threshold applied once to the unseen outer fold. **Optimistic pooled** (Figure 3, Table 3): one F1-maximising cut on the concatenated OOF labels that are then scored. Reusing the evaluation labels to pick the cut **optimistically biases** precision, recall, F1, and F2. Quote Table 2. LightGBM nested recall **0.6630** vs pooled **0.6739**. TabPFN (local) nested recall **0.6848** vs pooled **0.8261**.
+**Methods note — two F1 operating points.** Ranking metrics do not use a threshold. Precision, recall, F1, and F2 do. The executed notebook prints both. **Honest nested** (Table 2): inner-CV OOF F1 threshold applied once to the unseen outer fold. **Optimistic pooled** (Figure 3, Table 3): one F1-maximising cut on the concatenated OOF labels that are then scored. Reusing the evaluation labels to pick the cut **optimistically biases** precision, recall, F1, and F2. Quote Table 2. Thinking-high nested recall **0.7065** vs pooled **0.8152**. LightGBM nested **0.6630** vs pooled **0.6739**. TabPFN (local) nested **0.6848** vs pooled **0.8261**.
 
-**Methods note — imbalance, SMOTE, and tuning.** Prevalence is 1.77%. Class weighting (`class_weight="balanced"`, `scale_pos_weight`, `auto_class_weights="Balanced"`) is used for *prediction* so the 92 events are not ignored. SMOTE is **not** used. The five classic models use library defaults plus class weighting. TabPFN (local) is not thinking-high. Inner nested CV selects only the F1 **threshold**, not hyperparameters.
+**Methods note — imbalance, SMOTE, and tuning.** Prevalence is 1.77%. Class weighting (`class_weight="balanced"`, `scale_pos_weight`, `auto_class_weights="Balanced"`) is used for *prediction* so the 92 events are not ignored. SMOTE is **not** used. The five classic models use library defaults plus class weighting. TabPFN (local) is not thinking-high; the client arm is thinking-high. Inner nested CV selects only the F1 **threshold**, not hyperparameters. The comparison is unmatched on tuning effort.
 
 **Asset root:** [paper_figures](04_tabpfn_rating/paper_figures/)
 
-> Figures 1–3 and the ranking / operating-point tables are exported from this executed notebook (Kaggle). Quote the notebook print if a PNG title ever disagrees.
+> Figures 1–3, the sweep panel, and Tables 0–3 are from this executed 7-arm notebook (Kaggle). Quote the notebook print if a PNG title ever disagrees.
 
 ---
 
@@ -1056,7 +1058,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 ![Table 0](04_tabpfn_rating/paper_figures/paper_table0_models.png)
 
-**Table 0.** Six classifiers compared under the same nested-CV *split and threshold* protocol. Classics get scaled one-hot input after the 9-level stent encoder; TabPFN (local) gets that frame natively. Tree boosters use average-precision / PR-AUC as their internal metric. Classics are not grid-searched. The unused client thinking-high constructor remains in the notebook (`RUN_MODELS["TabPFN"]=False`).
+**Table 0.** Seven classifiers compared under the same nested-CV *split and threshold* protocol. Classics get scaled one-hot input after the 9-level stent encoder; both TabPFN arms get that frame natively. Tree boosters use average-precision / PR-AUC as their internal metric. Classics are not grid-searched.
 
 | Model | Family | GPU | Specification (notebook) |
 | --- | --- | --- | --- |
@@ -1065,6 +1067,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 | XGBoost | Boosting | Yes | eval_metric=aucpr; scale_pos_weight from train fold |
 | LightGBM | Boosting | Yes | metric=average_precision; class_weight=balanced |
 | CatBoost | Boosting | Yes | auto_class_weights=Balanced; eval_metric=PRAUC |
+| TabPFN (thinking-high) | Foundation (tabular) | Kaggle T4 + client | thinking_mode=True; thinking_effort=high; thinking_metric=average_precision |
 | TabPFN (local) | Foundation (tabular) | Kaggle T4 | n_estimators=auto; balance_probabilities=True; no thinking |
 
 **Source files:** [paper_figures/paper_table0_models.png](04_tabpfn_rating/paper_figures/paper_table0_models.png), [paper_figures/paper_table0_models.csv](04_tabpfn_rating/paper_figures/paper_table0_models.csv)
@@ -1077,7 +1080,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 ![Figure 1](04_tabpfn_rating/paper_figures/paper_fig1_pr_roc_curves.png)
 
-**Figure 1.** Precision–recall (left) and ROC (right) from pooled nested-CV OOF probabilities. The dotted line on the PR panel is prevalence (0.0177). **LightGBM ranks first on PR-AUC (0.6937)**; XGBoost 0.6815; TabPFN (local) 0.6754. TabPFN (local) ranks first on ROC-AUC (0.9845). On a 1.8% prevalence outcome, PR-AUC is the informative ranking metric. CatBoost is fourth on PR-AUC (0.6172) in this 9-level-encoder run (it was second under the old 106-string one-hot).
+**Figure 1.** Precision–recall (left) and ROC (right) from pooled nested-CV OOF probabilities. The dotted line on the PR panel is prevalence (0.0177). **TabPFN (thinking-high) ranks first on PR-AUC (0.8553)** and ROC-AUC (0.9905). LightGBM is second on PR-AUC (0.6926); XGBoost 0.6815; TabPFN (local) 0.6754. TabPFN (local) is second on ROC-AUC (0.9845). On a 1.8% prevalence outcome, PR-AUC is the informative ranking metric. CatBoost is fifth on PR-AUC (0.6172) in this 9-level-encoder run.
 
 **Source file:** [paper_figures/paper_fig1_pr_roc_curves.png](04_tabpfn_rating/paper_figures/paper_fig1_pr_roc_curves.png)
 
@@ -1089,16 +1092,17 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 | Rank | Model | PR-AUC | PR fold mean ± SD | ROC-AUC | ROC fold mean ± SD | Brier |
 | ---: | --- | ---: | --- | ---: | --- | ---: |
-| 1 | LightGBM | **0.6937** | 0.6941 ± 0.0917 | 0.9681 | 0.9695 ± 0.0164 | 0.0093 |
-| 2 | XGBoost | 0.6815 | 0.6928 ± 0.1288 | 0.9439 | 0.9431 ± 0.0418 | **0.0088** |
-| 3 | TabPFN (local) | 0.6754 | 0.6739 ± 0.0812 | **0.9845** | 0.9846 ± 0.0030 | 0.0673 |
-| 4 | CatBoost | 0.6172 | 0.6353 ± 0.0540 | 0.9594 | 0.9612 ± 0.0137 | 0.0101 |
-| 5 | Random Forest | 0.4865 | 0.5034 ± 0.0793 | 0.9209 | 0.9206 ± 0.0423 | 0.0143 |
-| 6 | Logistic Regression | 0.3326 | 0.3451 ± 0.1213 | 0.9224 | 0.9235 ± 0.0251 | 0.0563 |
+| 1 | TabPFN (thinking-high) | **0.8553** | 0.8488 ± 0.0861 | **0.9905** | 0.9906 ± 0.0070 | **0.0064** |
+| 2 | LightGBM | 0.6926 | 0.6936 ± 0.0915 | 0.9680 | 0.9694 ± 0.0165 | 0.0093 |
+| 3 | XGBoost | 0.6815 | 0.6928 ± 0.1288 | 0.9439 | 0.9431 ± 0.0418 | 0.0088 |
+| 4 | TabPFN (local) | 0.6754 | 0.6739 ± 0.0812 | 0.9845 | 0.9846 ± 0.0030 | 0.0673 |
+| 5 | CatBoost | 0.6172 | 0.6353 ± 0.0540 | 0.9594 | 0.9612 ± 0.0137 | 0.0101 |
+| 6 | Random Forest | 0.4865 | 0.5034 ± 0.0793 | 0.9209 | 0.9206 ± 0.0423 | 0.0143 |
+| 7 | Logistic Regression | 0.3326 | 0.3451 ± 0.1213 | 0.9224 | 0.9235 ± 0.0251 | 0.0563 |
 
 **Source files:** [paper_figures/paper_table1_ranking.png](04_tabpfn_rating/paper_figures/paper_table1_ranking.png), [paper_figures/paper_table1_ranking.csv](04_tabpfn_rating/paper_figures/paper_table1_ranking.csv)
 
-TabPFN (local) PR-AUC by outer fold: 0.6384, 0.6353, 0.5829, 0.7274, 0.7855. LightGBM: 0.7527, 0.7142, 0.5399, 0.7718, 0.6916. LightGBM is higher in **3 of 5** folds; TabPFN (local) in 2 of 5 (folds 3 and 5).
+Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. LightGBM: 0.7505, 0.7130, 0.5399, 0.7727, 0.6919. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.6384, 0.6353, 0.5829, 0.7274, 0.7855 — higher than LightGBM in **2 of 5** (folds 3 and 5). There is still no paired significance test.
 
 ---
 
@@ -1108,7 +1112,7 @@ TabPFN (local) PR-AUC by outer fold: 0.6384, 0.6353, 0.5829, 0.7274, 0.7855. Lig
 
 ![Figure 2](04_tabpfn_rating/paper_figures/paper_fig2_calibration_curves.png)
 
-**Figure 2.** Calibration plots from nested-CV OOF probabilities (quantile bins). Dashed diagonal = perfect calibration. Brier scores match Table 1: XGBoost **0.0088** (best), LightGBM 0.0093, CatBoost 0.0101, RF 0.0143, LR 0.0563, TabPFN (local) **0.0673** (worst of the six). Local TabPFN is **not** well calibrated on this run.
+**Figure 2.** Calibration plots from nested-CV OOF probabilities (quantile bins). Dashed diagonal = perfect calibration. Brier scores match Table 1: TabPFN (thinking-high) **0.0064** (best of seven), XGBoost 0.0088, LightGBM 0.0093, CatBoost 0.0101, RF 0.0143, LR 0.0563, TabPFN (local) **0.0673** (worst). Local TabPFN is **not** well calibrated on this run. Thinking-high **is** the best-calibrated arm on Brier. Do not write “TabPFN is poorly calibrated” without naming the arm.
 
 **Source file:** [paper_figures/paper_fig2_calibration_curves.png](04_tabpfn_rating/paper_figures/paper_fig2_calibration_curves.png)
 
@@ -1122,11 +1126,12 @@ Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figu
 
 ![Table 2](04_tabpfn_rating/paper_figures/paper_table2_nested_operating_point.png)
 
-**Table 2.** Per-fold inner-CV F1 thresholds applied once to the unseen outer fold. LightGBM: mean threshold 0.121 ± 0.085, precision 0.6703, recall **0.6630**, F1 0.6667, TN/FP/FN/TP = 5063/30/31/61. TabPFN (local): 0.915 ± 0.012, precision 0.5478, recall **0.6848**, F1 0.6087, 5041/52/29/63 — more events caught, more false positives.
+**Table 2.** Per-fold inner-CV F1 thresholds applied once to the unseen outer fold. TabPFN (thinking-high): mean threshold 0.271 ± 0.067, precision 0.7927, recall **0.7065**, F1 **0.7471**, TN/FP/FN/TP = **5076/17/27/65**. LightGBM: 0.117 ± 0.087, precision 0.6630, recall **0.6630**, F1 0.6630, **5062/31/31/61**. TabPFN (local): 0.915 ± 0.012, precision 0.5478, recall **0.6848**, F1 0.6087, 5041/52/29/63 — more events caught than LightGBM, more false positives.
 
 | Model | Threshold (mean ± SD) | Accuracy | Precision | Recall | Specificity | F1 | F2 | TN | FP | FN | TP |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| LightGBM | 0.121 ± 0.085 | 0.9882 | 0.6703 | 0.6630 | 0.9941 | 0.6667 | 0.6645 | 5063 | 30 | 31 | 61 |
+| TabPFN (thinking-high) | 0.271 ± 0.067 | 0.9915 | 0.7927 | 0.7065 | 0.9967 | 0.7471 | 0.7222 | 5076 | 17 | 27 | 65 |
+| LightGBM | 0.117 ± 0.087 | 0.9880 | 0.6630 | 0.6630 | 0.9939 | 0.6630 | 0.6630 | 5062 | 31 | 31 | 61 |
 | XGBoost | 0.225 ± 0.060 | 0.9875 | 0.6452 | 0.6522 | 0.9935 | 0.6486 | 0.6508 | 5060 | 33 | 32 | 60 |
 | TabPFN (local) | 0.915 ± 0.012 | 0.9844 | 0.5478 | 0.6848 | 0.9898 | 0.6087 | 0.6522 | 5041 | 52 | 29 | 63 |
 | CatBoost | 0.167 ± 0.040 | 0.9815 | 0.4836 | 0.6413 | 0.9876 | 0.5514 | 0.6020 | 5030 | 63 | 33 | 59 |
@@ -1139,7 +1144,7 @@ Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figu
 
 ![Figure 3](04_tabpfn_rating/paper_figures/paper_fig3_confusion_matrices.png)
 
-**Figure 3.** 2×2 counts at the F1-maximising **pooled** OOF threshold (`t_F1` in each panel title). This is **not** Table 2. TabPFN (local) pooled recall **0.8261** (TP = 76, FN = 16, t = 0.886) vs nested **0.6848** (TP = 63, FN = 29). Do not quote the pooled TabPFN recall as the nested result. Accuracy is uniformly high because negatives dominate.
+**Figure 3.** 2×2 counts at the F1-maximising **pooled** OOF threshold (`t_F1` in each panel title). This is **not** Table 2. TabPFN (thinking-high) pooled recall **0.8152** (TP = 75, FN = 17, t = 0.193) vs nested **0.7065** (TP = 65, FN = 27). TabPFN (local) pooled recall **0.8261** (TP = 76, FN = 16, t = 0.886) vs nested **0.6848** (TP = 63, FN = 29). Do not quote either pooled TabPFN recall as the nested result. Accuracy is uniformly high because negatives dominate. The sweep panel (`best_model_threshold_fpfn_panel.png`) is for the best-by-PR-AUC model, which is **TabPFN** (0.8553).
 
 **Source file:** [paper_figures/paper_fig3_confusion_matrices.png](04_tabpfn_rating/paper_figures/paper_fig3_confusion_matrices.png)
 
@@ -1151,6 +1156,7 @@ Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figu
 
 | Model | t_F1 | Accuracy | Precision | Recall | Specificity | F1 | F2 | TN | FP | FN | TP |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| TabPFN (thinking-high) | 0.193 | 0.9927 | 0.7812 | 0.8152 | 0.9959 | 0.7979 | 0.8082 | 5072 | 21 | 17 | 75 |
 | LightGBM | 0.064 | 0.9871 | 0.6263 | 0.6739 | 0.9927 | 0.6492 | 0.6638 | 5056 | 37 | 30 | 62 |
 | XGBoost | 0.203 | 0.9884 | 0.6739 | 0.6739 | 0.9941 | 0.6739 | 0.6739 | 5063 | 30 | 30 | 62 |
 | TabPFN (local) | 0.886 | 0.9826 | 0.5067 | 0.8261 | 0.9855 | 0.6281 | 0.7336 | 5019 | 74 | 16 | 76 |
@@ -1192,7 +1198,7 @@ Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/ra
 
 These numbers are **not** a nested-CV fit. They come from `code/modeling/rating/wang_vlst_score.ipynb`, which scores Wang 2020 Table 2 **integer points** on all 5,185 rows with the published weights frozen. The same five outer folds as Part 4 (`StratifiedKFold(5, shuffle=True, random_state=42)`) are used only to evaluate that frozen score.
 
-**Headline.** Full-cohort ROC-AUC **0.8013** (Wang published derivation c-statistic 0.80) and PR-AUC **0.1032**. Fold-mean ROC-AUC **0.8005 ± 0.0607**, PR-AUC **0.1134 ± 0.0518**. Nested-CV LightGBM is PR-AUC **0.6937** / ROC-AUC **0.9681**; TabPFN (local) is PR-AUC **0.6754** / ROC-AUC **0.9845**. The ML models still beat the published integer score on PR-AUC. It is **not** external validation (Wang’s c = 0.82 was Shantou).
+**Headline.** Full-cohort ROC-AUC **0.8013** (Wang published derivation c-statistic 0.80) and PR-AUC **0.1032**. Fold-mean ROC-AUC **0.8005 ± 0.0607**, PR-AUC **0.1134 ± 0.0518**. Nested-CV TabPFN (thinking-high) is PR-AUC **0.8553** / ROC-AUC **0.9905**; LightGBM **0.6926** / **0.9680**; TabPFN (local) **0.6754** / **0.9845**. The ML models still beat the published integer score on PR-AUC. It is **not** external validation (Wang’s c = 0.82 was Shantou).
 
 **Encoding (do not photocopy Wang Table 1).** The SES point is on **`PES`**. The 4 post-dilation points go to **`No postdilation` = 1**. Using Wang Table 1’s 14 VLST “No post-dilation” cases as the 4-point group yields ROC-AUC **0.5084**.
 
@@ -1218,15 +1224,16 @@ The Cox linear predictor, Dangas decision-curve analysis, and Shantou scoring ar
 
 ![Table S-Wang](04_tabpfn_rating/paper_figures/paper_table_s_wang_vs_ml.png)
 
-**Table S-Wang.** Wang integer score: full-cohort ranking plus the same five outer folds, score not refit. LightGBM / TabPFN (local) / logistic regression: this Part 4 nested 5×4 CV (D4). PR-AUC is the informative metric at 1.77% prevalence.
+**Table S-Wang.** Wang integer score: full-cohort ranking plus the same five outer folds, score not refit. TabPFN (thinking-high) / LightGBM / TabPFN (local) / logistic regression: this Part 4 nested 5×4 CV (D4). PR-AUC is the informative metric at 1.77% prevalence.
 
 **Source files:** [paper_figures/paper_table_s_wang_vs_ml.png](04_tabpfn_rating/paper_figures/paper_table_s_wang_vs_ml.png), [paper_figures/paper_table_s_wang_vs_ml.csv](04_tabpfn_rating/paper_figures/paper_table_s_wang_vs_ml.csv)
 
 | Model | ROC-AUC | PR-AUC | ROC fold mean ± SD | PR fold mean ± SD | Protocol |
 | --- | ---: | ---: | --- | --- | --- |
 | Wang 2020 integer score (frozen) | 0.8013 | 0.1032 | 0.8005 ± 0.0607 | 0.1134 ± 0.0518 | Published points; folds evaluate only |
-| LightGBM (untuned nested CV) | 0.9681 | **0.6937** | 0.9695 ± 0.0164 | 0.6941 ± 0.0917 | Part 4 nested 5×4 CV OOF |
-| TabPFN (local) | **0.9845** | 0.6754 | 0.9846 ± 0.0030 | 0.6739 ± 0.0812 | Part 4 nested 5×4 CV OOF |
+| TabPFN (thinking-high) | **0.9905** | **0.8553** | 0.9906 ± 0.0070 | 0.8488 ± 0.0861 | Part 4 nested 5×4 CV OOF |
+| LightGBM (untuned nested CV) | 0.9680 | 0.6926 | 0.9694 ± 0.0165 | 0.6936 ± 0.0915 | Part 4 nested 5×4 CV OOF |
+| TabPFN (local) | 0.9845 | 0.6754 | 0.9846 ± 0.0030 | 0.6739 ± 0.0812 | Part 4 nested 5×4 CV OOF |
 | Logistic regression (untuned nested CV) | 0.9224 | 0.3326 | 0.9235 ± 0.0251 | 0.3451 ± 0.1213 | Part 4 nested 5×4 CV OOF |
 
 Fold-level frozen-score metrics: [paper_table_s_wang_score_folds.csv](04_tabpfn_rating/paper_figures/paper_table_s_wang_score_folds.csv).
@@ -1263,7 +1270,7 @@ Notebook: `code/modeling/rating/wang_vlst_score.ipynb`.
 
 ---
 
-*Figures 1–3 and Tables 0–3 are exported from the executed Kaggle run of `baseline_plus_tabpfn.ipynb` (local TabPFN; 9-level stent encoder). Thinking-high client metrics are not in this notebook.*
+*Figures 1–3, the sweep panel, and Tables 0–3 are exported from the executed Kaggle run of `baseline_plus_tabpfn.ipynb` (`de46f92`; both TabPFN arms; 9-level stent encoder). Name the two TabPFN Briers separately (thinking-high 0.0064 vs local 0.0673).*
 
 ---
 # Part 5. TabPFN interpretability
@@ -1274,11 +1281,13 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 **Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline covariate). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” `Stent type-SES` is collapsed with the **shared 9-level encoder** (106 raw brand strings → 9 levels, min_count=30), then coded as integer categoricals with the other text columns (no scaling / one-hot). That is the TabPFN-native representation: 9 brand codes, not 106 strings and not the Part 2/4 one-hot. A PDP sweep across those integers is still not a meaningful nominal contrast, so continuous PDP drops the brand column. Feature ranking, PDP, and SHAP are **interpretation / attribution** — not prediction, not external validation, and not a locked-in feature mask for Part 4.
 
-**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and PDP use the **full cohort**. SHAP explains **15 VLST=1 + 15 VLST=0** (`SHAP_N_PER_CLASS`, seed 42); the model is still fit on all 5,185 rows. k-SII / SHAP-IQ force and network plots remain **one illustrative VLST=1 row** from that slice.
+**This run (D4).** Kaggle Tesla T4, notebook commit `645fb0e` (Interpretability plus Version 2). Protocol met: 9-level encoder; MI CSV **all 81 scores**; SFS 10 seeds on the full cohort; PDP `balance_probabilities=False` on n = 5,185; SHAP **15 VLST=1 + 15 VLST=0** with **client thinking succeeding** (`Explaining all 30 rows`); k-SII / SHAP-IQ remain **one illustrative VLST=1 row** (cohort index **5099**).
 
-**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ try tabpfn-client with thinking (`effort=high`, `metric=average_precision`) and fall back to local TabPFN + KV cache. Ranking / SHAP / stability use `balance_probabilities=True` so a 1.8% outcome is visible on the attribution scale. **PDP only** uses `balance_probabilities=False` (empirical prior; y-axis near prevalence; **not Part 4 nested-CV risk**). PDP fit and average are on the **full cohort**, not a 70/30 test slice. The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing. **[STALE]** Stored SHAP PNGs / Table 4 are the old 15-case-only run (all VLST=1). Code now explains 15 cases + 15 controls. Stored PDP PNGs / Table 3 are the old balanced-prior + test-slice run. Re-run `[2/5]` and `[3/5]` before quoting new numbers.
+**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and PDP use the **full cohort**. SHAP explains **15 VLST=1 + 15 VLST=0** (`SHAP_N_PER_CLASS`, seed 42); the model is still fit on all 5,185 rows. Indices are stored in `interpretability_shap_explain_indices.csv`. k-SII / SHAP-IQ force and network plots remain that one VLST=1 row from the slice. Do not SHAP all 5,185 rows on the client.
 
-**Asset root:** [05_tabpfn_interpretability/paper_figures/](05_tabpfn_interpretability/paper_figures/)
+**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ on this run used **tabpfn-client + thinking** (`effort=high`, `metric=average_precision`) — the client did **not** fall back to local. Ranking / SHAP / stability use `balance_probabilities=True` so a 1.8% outcome is visible on the attribution scale. **PDP only** uses `balance_probabilities=False` (empirical prior; y-axis near prevalence; **not Part 4 nested-CV risk**). PDP fit and average are on the **full cohort**, not a 70/30 test slice. The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing.
+
+**Asset root:** [paper_figures/](05_tabpfn_interpretability/paper_figures/)
 
 ---
 
@@ -1301,16 +1310,16 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 0](05_tabpfn_interpretability/paper_figures/paper_table0_methods.png)
 
-**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). MI and SFS use the **full cohort**. SHAP uses **15 VLST=1 + 15 VLST=0**. Pairwise k-SII is a one-row interaction view (a VLST=1 patient from that slice), not a global interaction ranking.
+**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). MI and SFS use the **full cohort**. SHAP uses **15 VLST=1 + 15 VLST=0**. Pairwise k-SII is a one-row interaction view (row 5099, VLST=1), not a global interaction ranking.
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
-| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median fill is inert (no NaNs) |
-| Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring |
+| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median fill is inert (no NaNs); all 81 scores stored |
+| Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring, full cohort |
 | PDP | Average predicted probability (empirical prior) | local TabPFN | Full cohort; `balance_probabilities=False`; y-axis labeled “empirical prior / not Part 4 risk”. Ranking / SHAP stay True |
-| SHAP (shapiq SV) | Local attributions | local TabPFN (client fallback) | 15 VLST=1 + 15 VLST=0; fit/background = full cohort; budget=256 |
-| k-SII / SHAP-IQ | Pairwise interactions | local TabPFN (client fallback) | One VLST=1 row from that 15+15 slice; budget=256 |
-| Consensus (Borda) | Mean of normalized ranks | aggregate | MI + stability frequency + mean(\|SHAP\|) |
+| SHAP (shapiq SV) | Local attributions | tabpfn-client + thinking | 15 VLST=1 + 15 VLST=0; fit/background = full cohort; budget=256 |
+| k-SII / SHAP-IQ | Pairwise interactions | tabpfn-client + thinking | One VLST=1 row (5099) from that 15+15 slice; budget=256 |
+| Consensus (Borda) | Mean of normalized ranks | aggregate | MI + stability frequency + mean(\|SHAP\|); MI not fill-zeroed |
 
 **Source files:** [paper_figures/paper_table0_methods.png](05_tabpfn_interpretability/paper_figures/paper_table0_methods.png), [paper_figures/paper_table0_methods.csv](05_tabpfn_interpretability/paper_figures/paper_table0_methods.csv)
 
@@ -1322,25 +1331,25 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 1](05_tabpfn_interpretability/paper_figures/paper_table1_mutual_info.png)
 
-**Table 1.** `mutual_info_classif` ranking of the 81-column raw matrix on the **full cohort**. The code applies a column-median fill before MI; the CSV has no missing values, so that fill does nothing. Calcium index (`CaI`), `WBC`, and `LV` lead. `Stent type-SES` and `eGFR` follow. Mutual-information values for `Fast-Glu` and `ZES` were not stored in the consensus table; those two names still appear in the notebook’s printed top-15 list. This is a marginal association screen, not a model attribution.
+**Table 1.** `mutual_info_classif` ranking of the **81-column** raw matrix on the **full cohort**. The code applies a column-median fill before MI; the CSV has no missing values, so that fill does nothing. All 81 scores are stored (`paper_table1_mutual_info.csv` / `interpretability_mutual_info_ranking.csv`). Calcium index (`CaI`), `WBC`, and `LV` lead, then `eGFR` and `1.1:1Post dilation`. `Fast-Glu` is 10th (0.0044) and `ZES` is 13th (0.0038) — those cells are measured, not blanks. `Cre` is 25th (**0.0023**), not a fill-zero. `Stent type-SES` is 32nd (0.0016) after the 9-level encoder, not a top-5 MI name. This is a marginal association screen, not a model attribution.
 
 | Rank | Feature | Mutual information |
 | ---: | --- | ---: |
 | 1 | CaI | 0.019224 |
 | 2 | WBC | 0.018360 |
 | 3 | LV | 0.015178 |
-| 4 | Stent type-SES | 0.011357 |
-| 5 | eGFR | 0.009931 |
-| 6 | 1.1:1Post dilation | 0.007932 |
-| 7 | LDL | 0.007693 |
-| 8 | No postdilation | 0.007535 |
-| 9 | HbA1c | 0.007439 |
-| 10 | HGB | 0.004606 |
-| 11 | Fast-Glu | — |
-| 12 | TCL | 0.004257 |
-| 13 | Fiberinogen | 0.004040 |
-| 14 | ZES | — |
-| 15 | Visual thrombus | 0.003707 |
+| 4 | eGFR | 0.009931 |
+| 5 | 1.1:1Post dilation | 0.007932 |
+| 6 | LDL | 0.007693 |
+| 7 | No postdilation | 0.007535 |
+| 8 | HbA1c | 0.007439 |
+| 9 | HGB | 0.004606 |
+| 10 | Fast-Glu | 0.004429 |
+| 11 | TCL | 0.004257 |
+| 12 | Fiberinogen | 0.004040 |
+| 13 | ZES | 0.003783 |
+| 14 | Visual thrombus | 0.003707 |
+| 15 | CKD5 | 0.003145 |
 
 **Source files:** [paper_figures/paper_table1_mutual_info.png](05_tabpfn_interpretability/paper_figures/paper_table1_mutual_info.png), [paper_figures/paper_table1_mutual_info.csv](05_tabpfn_interpretability/paper_figures/paper_table1_mutual_info.csv)
 
@@ -1348,34 +1357,31 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 2](05_tabpfn_interpretability/paper_figures/paper_table2_stability.png)
 
-**Table 2.** Forward sequential feature selection (keep 10 of 81, 5-fold CV, average precision) repeated over 10 shuffled seeds. Features selected in every run: `LV`, `Stent type-SES`, `eGFR`. Selected in 9/10: `Age`, `Cre`, `WBC`. `No postdilation` (7/10) and `STEMI` (6/10) are moderately stable. A long tail of names appears only once or twice and should not be treated as robust TabPFN features. Wall time for this block in the stored run was ~8.6 h (local TabPFN, 0 client API calls).
+**Table 2.** Forward sequential feature selection (keep 10 of 81, 5-fold CV, average precision) repeated over 10 shuffled seeds on the **full cohort**. The only 10/10 feature is **`WBC`**. Selected in 7/10: `Staged PCI`. Selected in 6/10: `Fiberinogen`, `LV`, `ZES`. Selected in 5/10: `Cre`, `PES`, `eGFR`. **`Stent type-SES` is not a 10/10 feature on this run** (it does not appear in the selected-feature list). A long tail of names appears only once and should not be treated as robust TabPFN features.
 
 | Feature | Selected | Frequency |
 | --- | --- | ---: |
-| LV | 10/10 | 1.0 |
-| Stent type-SES | 10/10 | 1.0 |
-| eGFR | 10/10 | 1.0 |
-| Age | 9/10 | 0.9 |
-| Cre | 9/10 | 0.9 |
-| WBC | 9/10 | 0.9 |
-| No postdilation | 7/10 | 0.7 |
-| STEMI | 6/10 | 0.6 |
-| HbA1c | 5/10 | 0.5 |
-| LVEF | 5/10 | 0.5 |
-| No.of stents per lesion | 3/10 | 0.3 |
-| Staged PCI | 3/10 | 0.3 |
-| 1.1:1Post dilation | 2/10 | 0.2 |
-| CKD5 | 2/10 | 0.2 |
-| CKD60 | 2/10 | 0.2 |
-| EVS | 2/10 | 0.2 |
-| Current drinking | 1/10 | 0.1 |
-| History of peripheral vascualr disease | 1/10 | 0.1 |
-| Initial diagnosis-AMI | 1/10 | 0.1 |
-| PES | 1/10 | 0.1 |
-| Single-vessel disease | 1/10 | 0.1 |
-| Visual thrombus | 1/10 | 0.1 |
+| WBC | 10/10 | 1.0 |
+| Staged PCI | 7/10 | 0.7 |
+| Fiberinogen | 6/10 | 0.6 |
+| LV | 6/10 | 0.6 |
+| ZES | 6/10 | 0.6 |
+| Cre | 5/10 | 0.5 |
+| PES | 5/10 | 0.5 |
+| eGFR | 5/10 | 0.5 |
+| Age | 4/10 | 0.4 |
+| STEMI | 4/10 | 0.4 |
+| 1.1:1Post dilation | 3/10 | 0.3 |
+| Dissection | 3/10 | 0.3 |
+| HbA1c | 3/10 | 0.3 |
+| Ticagrelor | 3/10 | 0.3 |
+| Aneurysm | 2/10 | 0.2 |
+| CaI | 2/10 | 0.2 |
+| LVEF | 2/10 | 0.2 |
+| No postdilation | 2/10 | 0.2 |
+| No.of stents per lesion | 2/10 | 0.2 |
 
-**Source files:** [paper_figures/paper_table2_stability.png](05_tabpfn_interpretability/paper_figures/paper_table2_stability.png), [paper_figures/paper_table2_stability.csv](05_tabpfn_interpretability/paper_figures/paper_table2_stability.csv)
+**Source files:** [paper_figures/paper_table2_stability.png](05_tabpfn_interpretability/paper_figures/paper_table2_stability.png), [paper_figures/paper_table2_stability.csv](05_tabpfn_interpretability/paper_figures/paper_table2_stability.csv), [paper_figures/interpretability_feature_stability_summary.csv](05_tabpfn_interpretability/paper_figures/interpretability_feature_stability_summary.csv)
 
 ---
 
@@ -1383,13 +1389,13 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 PDP candidates were taken from the stability / MI screens. Continuous PDP uses grid resolution 30. Binary PDP forces each flag to 0 vs 1 and reports the change in average predicted P[Stent thrombosis]. Fit and average are on the **full cohort**.
 
-**Methods note — PDP is empirical prior, not Part 4 risk.** PDP uses `balance_probabilities=False`. The y-axis should sit near prevalence 0.0177 after re-run. Do **not** quote the stored Table 3 values 0.13–0.26 or Figure 1’s “toward ~0.6” as clinical risk — those are the **old balanced-prior / test-slice** export. Ranking / SHAP / stability still use `balance_probabilities=True` on a separate fit. Neither scale is the Part 4 nested-CV client.
+**Methods note — PDP is empirical prior, not Part 4 risk.** PDP uses `balance_probabilities=False`. Average predicted probabilities sit near prevalence 0.0177 (binary P(y=1) ≈ 0.017–0.023). Do **not** quote 0.13–0.26 or “toward ~0.6” as clinical risk — those were the old balanced-prior / test-slice export. Ranking / SHAP / stability still use `balance_probabilities=True` on a separate fit. Neither scale is the Part 4 nested-CV client.
 
 ### Figure 1. Continuous partial dependence
 
 ![Figure 1](05_tabpfn_interpretability/paper_figures/paper_fig1_pdp_continuous.png)
 
-**Figure 1.** **[STALE PNG]** Stored image is the old balanced-prior / 70% train / test-slice PDP and still sweeps integer `Stent type-SES`. Code now: `balance_probabilities=False`, full cohort (n = 5,185), y-axis labeled **empirical prior / not Part 4 risk**, dashed prevalence line, nominal stent brand dropped from continuous curves. Do not quote ~0.6 as clinical risk. Re-run `[2/5]` before describing shapes numerically.
+**Figure 1.** Continuous PDP on the **empirical-prior** scale, full cohort (n = 5,185), y-axis labeled **empirical prior / not Part 4 risk**, dashed prevalence line. Nominal `Stent type-SES` is dropped from continuous curves (integer brand codes are not a meaningful grid). Shapes are average predicted probability under local TabPFN, not Part 4 nested-CV risk and not a treatment effect.
 
 **Source file:** [paper_figures/paper_fig1_pdp_continuous.png](05_tabpfn_interpretability/paper_figures/paper_fig1_pdp_continuous.png)
 
@@ -1397,7 +1403,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 2](05_tabpfn_interpretability/paper_figures/paper_fig2_pdp_binary.png)
 
-**Figure 2.** **[STALE PNG / ΔP]** Stored bars are old balanced-prior averages on the test slice. Code now averages over the **full cohort** on the empirical-prior scale (same axis as Figure 1; not mixed with ranking/SHAP). Do not quote 0.24 as clinical risk. Re-run `[2/5]`.
+**Figure 2.** Binary flags forced to 0 vs 1 and averaged over the **full cohort** on the same empirical-prior axis as Figure 1. Largest Δ is `1.1:1Post dilation` (0.0234 → 0.0191). Do not mix this axis with ranking/SHAP (`balance_probabilities=True`). A negative Δ is a lower modelled probability of recorded VLST, not a treatment benefit (confounding by indication).
 
 **Source file:** [paper_figures/paper_fig2_pdp_binary.png](05_tabpfn_interpretability/paper_figures/paper_fig2_pdp_binary.png)
 
@@ -1405,16 +1411,16 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Table 3](05_tabpfn_interpretability/paper_figures/paper_table3_pdp_binary.png)
 
-**Table 3.** **[STALE]** Stored numbers are the old balanced-prior / test-slice export. They are **not** clinical risk and **not** the new empirical-prior protocol. Keep the table only as a record of the previous PNG until `[2/5]` is re-run. Do not quote 0.24 or 0.6 as clinical risk.
+**Table 3.** Empirical-prior binary PDP on n = 5,185 (prevalence 0.0177). These values are **not** clinical risk and **not** Part 4 nested-CV probabilities.
 
 | Feature | P(y=1 \| 0) | P(y=1 \| 1) | ΔP |
 | --- | ---: | ---: | ---: |
-| No postdilation | 0.2430 | 0.2067 | −0.0363 |
-| STEMI | 0.1401 | 0.1271 | −0.0130 |
-| Staged PCI | 0.1334 | 0.1303 | −0.0031 |
-| 1.1:1Post dilation | 0.2643 | 0.1781 | −0.0862 |
-| CKD60 | 0.1359 | 0.1234 | −0.0124 |
-| EVS | 0.1328 | 0.1354 | +0.0026 |
+| Staged PCI | 0.0184 | 0.0169 | −0.0015 |
+| ZES | 0.0184 | 0.0174 | −0.0010 |
+| PES | 0.0170 | 0.0183 | +0.0013 |
+| STEMI | 0.0189 | 0.0172 | −0.0017 |
+| 1.1:1Post dilation | 0.0234 | 0.0191 | −0.0043 |
+| Dissection | 0.0183 | 0.0165 | −0.0018 |
 
 **Source files:** [paper_figures/paper_table3_pdp_binary.png](05_tabpfn_interpretability/paper_figures/paper_table3_pdp_binary.png), [paper_figures/paper_table3_pdp_binary.csv](05_tabpfn_interpretability/paper_figures/paper_table3_pdp_binary.csv)
 
@@ -1422,13 +1428,13 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ## 4. SHAP attributions
 
-**Code now:** Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0**. **[STALE]** The PNGs and numbers in this section are still the previous 15-case-only run. Re-run `tabpfn_interpretability.ipynb` [3/5] before using these figures.
+Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0** (client thinking-high succeeded). Mean(|SHAP|) is that 30-row slice, **not** global SHAP on 5,185 rows. The attribution scale uses `balance_probabilities=True` (stretched 1.8% prior). Waterfall E[f(x)] ≈ 0.90 is that scale, not the PDP empirical prior (~0.018).
 
 ### Figure 3. SHAP summary
 
 ![Figure 3](05_tabpfn_interpretability/paper_figures/paper_fig3_shap_summary.png)
 
-**Figure 3.** **[STALE PNG]** Stored beeswarm is from the old 15-case-only slice. After re-run this is 15 VLST=1 + 15 VLST=0 (colour = feature value).
+**Figure 3.** SHAP summary / beeswarm for the 15+15 slice (colour = feature value). Client thinking-high; 30 rows explained.
 
 **Source file:** [paper_figures/paper_fig3_shap_summary.png](05_tabpfn_interpretability/paper_figures/paper_fig3_shap_summary.png)
 
@@ -1436,7 +1442,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 4](05_tabpfn_interpretability/paper_figures/paper_fig4_shap_scatter_age.png)
 
-**Figure 4.** **[STALE PNG]** Age versus SHAP from the old 15-case slice. Re-run before citing.
+**Figure 4.** Age versus SHAP on the same 15+15 slice. A local scatter, not a cohort dose–response.
 
 **Source file:** [paper_figures/paper_fig4_shap_scatter_age.png](05_tabpfn_interpretability/paper_figures/paper_fig4_shap_scatter_age.png)
 
@@ -1444,7 +1450,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 5](05_tabpfn_interpretability/paper_figures/paper_fig5_shap_bar.png)
 
-**Figure 5.** **[STALE PNG / numbers]** Mean(|SHAP|) from the old 15-case-only slice (`LV` 1.24, `WBC` 1.16, …). After re-run this is mean(|SHAP|) on 15 VLST=1 + 15 VLST=0.
+**Figure 5.** Mean(|SHAP|) on the 30-row slice. **`Cre` leads** (0.158), then `eGFR` (0.077), `WBC` (0.061), `LV` (0.052). This ranking is not the old 15-case-only list (`LV` 1.24 / `WBC` 1.16).
 
 **Source file:** [paper_figures/paper_fig5_shap_bar.png](05_tabpfn_interpretability/paper_figures/paper_fig5_shap_bar.png)
 
@@ -1452,7 +1458,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 6](05_tabpfn_interpretability/paper_figures/paper_fig6_shap_beeswarm.png)
 
-**Figure 6.** **[STALE PNG]** Compact beeswarm from the old 15-case slice.
+**Figure 6.** Compact beeswarm of the same 15+15 attributions.
 
 **Source file:** [paper_figures/paper_fig6_shap_beeswarm.png](05_tabpfn_interpretability/paper_figures/paper_fig6_shap_beeswarm.png)
 
@@ -1460,7 +1466,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 7](05_tabpfn_interpretability/paper_figures/paper_fig7_shap_waterfall.png)
 
-**Figure 7.** **[STALE PNG]** Old waterfall for one VLST case. Code now uses the first VLST=1 patient from the 15+15 slice. Local explanation for one patient, not a global ranking.
+**Figure 7.** Waterfall for the first VLST=1 patient in the slice (**row 5099**). Baseline E[f(x)] ≈ **0.903** → f(x) ≈ **1.00** on the **balanced-prior SHAP scale**. `LV` and `WBC` raise the output; `Cre` lowers it on this row. Local explanation for one patient, not a global ranking, and not the PDP 0.018 axis.
 
 **Source file:** [paper_figures/paper_fig7_shap_waterfall.png](05_tabpfn_interpretability/paper_figures/paper_fig7_shap_waterfall.png)
 
@@ -1468,39 +1474,39 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Table 4](05_tabpfn_interpretability/paper_figures/paper_table4_shap_mean_abs.png)
 
-**Table 4.** **[STALE]** Mean absolute SHAP from the old 15-case-only slice. After re-run this is the 15+15 ranking used in Table 5.
+**Table 4.** Mean absolute SHAP on **15 VLST=1 + 15 VLST=0**. Used as the SHAP column of Table 5.
 
 | Rank | Feature | mean(\|SHAP\|) |
 | ---: | --- | ---: |
-| 1 | LV | 1.2368 |
-| 2 | WBC | 1.1648 |
-| 3 | LDL | 0.6408 |
-| 4 | eGFR | 0.4713 |
-| 5 | 1.1:1Post dilation | 0.2392 |
-| 6 | Stent type-SES | 0.2296 |
-| 7 | No postdilation | 0.1779 |
-| 8 | CaI | 0.1779 |
-| 9 | HbA1c | 0.1602 |
-| 10 | Cre | 0.1539 |
-| 11 | Fiberinogen | 0.0942 |
-| 12 | HGB | 0.0760 |
-| 13 | TCL | 0.0500 |
-| 14 | No.of stents per lesion | 0.0424 |
-| 15 | Visual thrombus | 0.0384 |
+| 1 | Cre | 0.1585 |
+| 2 | eGFR | 0.0771 |
+| 3 | WBC | 0.0609 |
+| 4 | LV | 0.0525 |
+| 5 | No.of stents per lesion | 0.0477 |
+| 6 | Men | 0.0455 |
+| 7 | Aspirin | 0.0388 |
+| 8 | CKD5 | 0.0313 |
+| 9 | DAPT | 0.0273 |
+| 10 | LDL | 0.0253 |
+| 11 | 1.1:1Post dilation | 0.0172 |
+| 12 | No postdilation | 0.0139 |
+| 13 | CaI | 0.0135 |
+| 14 | TCL | 0.0111 |
+| 15 | HbA1c | 0.0091 |
 
-**Source files:** [paper_figures/paper_table4_shap_mean_abs.png](05_tabpfn_interpretability/paper_figures/paper_table4_shap_mean_abs.png), [paper_figures/paper_table4_shap_mean_abs.csv](05_tabpfn_interpretability/paper_figures/paper_table4_shap_mean_abs.csv)
+**Source files:** [paper_figures/paper_table4_shap_mean_abs.png](05_tabpfn_interpretability/paper_figures/paper_table4_shap_mean_abs.png), [paper_figures/paper_table4_shap_mean_abs.csv](05_tabpfn_interpretability/paper_figures/paper_table4_shap_mean_abs.csv), [paper_figures/interpretability_shap_explain_indices.csv](05_tabpfn_interpretability/paper_figures/interpretability_shap_explain_indices.csv)
 
 ---
 
 ## 5. Pairwise interactions — k-SII
 
-k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are not a cohort interaction screen. **[STALE]** Stored figures 8–12 are still the old VLST-case row.
+k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (row **5099**, budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are **not** a cohort interaction screen. The notebook print lists the top-20 |SV| names for this row as `LV`, `WBC`, `CKD5`, `eGFR`, `Men`, `No postdilation`, `Cre`, … — not a statement about the 5,185-row cohort.
 
 ### Figure 8. k-SII network (SHAP section)
 
 ![Figure 8](05_tabpfn_interpretability/paper_figures/paper_fig8_ksii_network.png)
 
-**Figure 8.** Circular k-SII network for the top 20 features by |Shapley value| on **one VLST case**. Large red nodes (`LV`, `WBC`) are strong positive main effects; `1.1:1Post dilation` is a large **negative** (blue) main effect on this row — not a cohort-level benefit. Thick edges among `LV`, `WBC`, `eGFR`, `LDL`, and post-dilation are the dominant pairwise terms **for that patient**.
+**Figure 8.** Circular k-SII network for the top features by |Shapley value| on **one VLST=1 row**. Thick edges are pairwise terms **for that patient**. Do not treat them as cohort interactions.
 
 **Source file:** [paper_figures/paper_fig8_ksii_network.png](05_tabpfn_interpretability/paper_figures/paper_fig8_ksii_network.png)
 
@@ -1508,7 +1514,7 @@ k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (budge
 
 ![Figure 9](05_tabpfn_interpretability/paper_figures/paper_fig9_ksii_upset.png)
 
-**Figure 9.** UpSet-style listing of the largest main effects and pairwise k-SII values for the same row. The leftmost bar is the large negative base / intercept term. The largest positive main effects are `LV` then `WBC`; the largest negative main effect among named features is `1.1:1Post dilation`. Pairwise terms involving `LV`, `WBC`, `eGFR`, and `LDL` fill most of the remaining top-20 slots.
+**Figure 9.** UpSet-style listing of the largest main effects and pairwise k-SII values for the same row. Some panels show a large intercept / base term near 0.90 on the balanced-prior scale; that is the SHAP baseline for this explainer, not cohort prevalence.
 
 **Source file:** [paper_figures/paper_fig9_ksii_upset.png](05_tabpfn_interpretability/paper_figures/paper_fig9_ksii_upset.png)
 
@@ -1516,13 +1522,13 @@ k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (budge
 
 ## 6. SHAP-IQ native plots
 
-Section [4/5] of the notebook recomputes imputation-based Shapley values and k-SII with shapiq’s native plotting API, again after the client backend failed. Figures 10–12 are a second view of the **same one-row explanation**, not an independent replication on new rows.
+Section [4/5] of the notebook recomputes imputation-based Shapley values and k-SII with shapiq’s native plotting API, again on **tabpfn-client + thinking**. Figures 10–12 are a second view of the **same one-row explanation** (row 5099), not an independent replication on new rows.
 
 ### Figure 10. SHAP-IQ force plot (one row)
 
 ![Figure 10](05_tabpfn_interpretability/paper_figures/paper_fig10_shapiq_force.png)
 
-**Figure 10.** Force / additive layout for the same explained row (f(x) ≈ −3.09). Red segments (`LV`, `WBC`, `LDL`) raise the output from the base value; blue segments (post-dilation, eGFR, SES) lower it. This is the compact counterpart of the waterfall in Figure 7.
+**Figure 10.** Force / additive layout for row 5099. Read it as the compact counterpart of the waterfall in Figure 7, on the same balanced-prior attribution scale.
 
 **Source file:** [paper_figures/paper_fig10_shapiq_force.png](05_tabpfn_interpretability/paper_figures/paper_fig10_shapiq_force.png)
 
@@ -1530,7 +1536,7 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ![Figure 11](05_tabpfn_interpretability/paper_figures/paper_fig11_shapiq_network.png)
 
-**Figure 11.** Native shapiq network for the same top-20 features by |SV|. Layout and the `LV` / `WBC` / post-dilation / `LDL` / `eGFR` core match Figure 8.
+**Figure 11.** Native shapiq network for the same one-row k-SII. Layout is a restyle of Figure 8, not a new sample of patients. Printed top-20 |SV| names on this pass include `LV`, `WBC`, `eGFR`, `Men`, `Cre`, `CKD5`, …
 
 **Source file:** [paper_figures/paper_fig11_shapiq_network.png](05_tabpfn_interpretability/paper_figures/paper_fig11_shapiq_network.png)
 
@@ -1538,7 +1544,7 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ![Figure 12](05_tabpfn_interpretability/paper_figures/paper_fig12_shapiq_upset.png)
 
-**Figure 12.** Native shapiq UpSet plot of top-20 main effects and pairwise interactions for the same row. Read it as a restyle of Figure 9, not as a new sample of patients.
+**Figure 12.** Native shapiq UpSet plot of top main effects and pairwise interactions for the same row. Read it as a restyle of Figure 9, not as a new sample of patients.
 
 **Source file:** [paper_figures/paper_fig12_shapiq_upset.png](05_tabpfn_interpretability/paper_figures/paper_fig12_shapiq_upset.png)
 
@@ -1546,13 +1552,13 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ## 7. Consensus ranking
 
-Ranking uses a **Borda-style mean of normalized ranks** across mutual information, stability frequency, and mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort.
+Ranking uses a **Borda-style mean of normalized ranks** across mutual information, stability frequency, and mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values come from the full 81-row ranking (no fill-zero for names outside a truncated top-15).
 
 ### Figure 13. Top 15 by consensus
 
 ![Figure 13](05_tabpfn_interpretability/paper_figures/paper_fig13_consensus_ranking.png)
 
-**Figure 13.** Aggregated importance (1 = strongest mean normalized rank). Annotations give how many of the three signals placed the feature in their top set. `LV`, `WBC`, `eGFR`, `Stent type-SES`, `No postdilation`, and `HbA1c` are 3/3. `1.1:1Post dilation` is high on MI and SHAP but only 2/10 in stability. `No.of stents per lesion` ranks 14th on the Borda score despite 0/3 top-set membership — a reminder that a middling rank on all three lists can still enter the top 15.
+**Figure 13.** Aggregated importance (1 = strongest mean normalized rank). Annotations give how many of the three signals placed the feature in their top set. **`WBC`, `LV`, and `eGFR` are 3/3.** `Stent type-SES` is **not** a 3/3 name on this run. `LVEF` and `STEMI` rank 11–12 on Borda with **0/3** top-set membership — middling ranks on all three lists can still enter the top 15.
 
 **Source file:** [paper_figures/paper_fig13_consensus_ranking.png](05_tabpfn_interpretability/paper_figures/paper_fig13_consensus_ranking.png)
 
@@ -1560,25 +1566,25 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ![Table 5](05_tabpfn_interpretability/paper_figures/paper_table5_consensus.png)
 
-**Table 5.** The notebook’s `interpretability_feature_importance_report` top 15. `importance_score` is the Borda aggregate. `n_methods` counts how many of {MI top, stability, SHAP top} contributed. The six names with n_methods = 3 and high stability (`LV`, `WBC`, `eGFR`, `Stent type-SES`, plus `No postdilation` and `HbA1c`) are the most honest TabPFN associations in this run. `Cre` is stable (0.9) and in the SHAP top set but not the MI top set. `CaI` and `LDL` are strong on MI/SHAP but never selected by repeated SFS (frequency 0.0). **`Cre` and `No.of stents per lesion` show `mutual_info = 0.000000` because they sit outside the stored MI top-15 and were filled with zeros — those are not measured zeros.**
+**Table 5.** The notebook’s `interpretability_feature_importance_report` top 15. `importance_score` is the Borda aggregate. `n_methods` counts how many of {MI top, stability, SHAP top} contributed. The three names with n_methods = 3 (`WBC`, `LV`, `eGFR`) are the most consistent TabPFN associations in this run. `Cre` has measured MI **0.0023** (25th of 81) and leads mean(|SHAP|); it is 2/3, not a fill-zero. `CaI` is first on MI but only 2/10 in stability. `ZES` is 6/10 stable and in the MI top 15 but not the SHAP top (2/3).
 
 | Rank | Feature | Score | n methods | Stability | mean(\|SHAP\|) | MI | In MI top | In SHAP top |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| 1 | LV | 0.9875 | 3/3 | 1.0 | 1.2368 | 0.015178 | yes | yes |
-| 2 | WBC | 0.9750 | 3/3 | 0.9 | 1.1648 | 0.018360 | yes | yes |
-| 3 | eGFR | 0.9667 | 3/3 | 1.0 | 0.4713 | 0.009931 | yes | yes |
-| 4 | Stent type-SES | 0.9625 | 3/3 | 1.0 | 0.2296 | 0.011357 | yes | yes |
-| 5 | No postdilation | 0.9208 | 3/3 | 0.7 | 0.1779 | 0.007535 | yes | yes |
-| 6 | 1.1:1Post dilation | 0.9062 | 2/3 | 0.2 | 0.2392 | 0.007932 | yes | yes |
-| 7 | HbA1c | 0.8979 | 3/3 | 0.5 | 0.1602 | 0.007439 | yes | yes |
-| 8 | Visual thrombus | 0.7854 | 1/3 | 0.1 | 0.0384 | 0.003707 | yes | no |
-| 9 | CaI | 0.7583 | 2/3 | 0.0 | 0.1779 | 0.019224 | yes | yes |
-| 10 | LDL | 0.7542 | 2/3 | 0.0 | 0.6408 | 0.007693 | yes | yes |
-| 11 | Cre | 0.7479 | 2/3 | 0.9 | 0.1539 | 0.000000 | no | yes |
-| 12 | HGB | 0.6958 | 2/3 | 0.0 | 0.0760 | 0.004606 | yes | yes |
-| 13 | Fiberinogen | 0.6875 | 2/3 | 0.0 | 0.0942 | 0.004040 | yes | yes |
-| 14 | No.of stents per lesion | 0.6833 | 0/3 | 0.3 | 0.0424 | 0.000000 | no | no |
-| 15 | TCL | 0.6792 | 1/3 | 0.0 | 0.0500 | 0.004257 | yes | no |
+| 1 | WBC | 0.9875 | 3/3 | 1.0 | 0.0609 | 0.018360 | yes | yes |
+| 2 | LV | 0.9667 | 3/3 | 0.6 | 0.0525 | 0.015178 | yes | yes |
+| 3 | eGFR | 0.9583 | 3/3 | 0.5 | 0.0771 | 0.009931 | yes | yes |
+| 4 | 1.1:1Post dilation | 0.8937 | 2/3 | 0.3 | 0.0172 | 0.007932 | yes | yes |
+| 5 | CaI | 0.8833 | 2/3 | 0.2 | 0.0135 | 0.019224 | yes | yes |
+| 6 | Cre | 0.8750 | 2/3 | 0.5 | 0.1585 | 0.002281 | no | yes |
+| 7 | HbA1c | 0.8646 | 2/3 | 0.3 | 0.0091 | 0.007439 | yes | yes |
+| 8 | No postdilation | 0.8625 | 2/3 | 0.2 | 0.0139 | 0.007535 | yes | yes |
+| 9 | LDL | 0.8229 | 2/3 | 0.1 | 0.0253 | 0.007693 | yes | yes |
+| 10 | Fiberinogen | 0.8000 | 2/3 | 0.6 | 0.0040 | 0.004040 | yes | no |
+| 11 | LVEF | 0.7417 | 0/3 | 0.2 | 0.0047 | 0.002604 | no | no |
+| 12 | STEMI | 0.7313 | 0/3 | 0.4 | 0.0086 | 0.001086 | no | no |
+| 13 | HGB | 0.7229 | 1/3 | 0.1 | 0.0045 | 0.004606 | yes | no |
+| 14 | Fast-Glu | 0.7104 | 1/3 | 0.1 | 0.0043 | 0.004429 | yes | no |
+| 15 | ZES | 0.6875 | 2/3 | 0.6 | 0.0019 | 0.003783 | yes | no |
 
 **Source files:** [paper_figures/paper_table5_consensus.png](05_tabpfn_interpretability/paper_figures/paper_table5_consensus.png), [paper_figures/paper_table5_consensus.csv](05_tabpfn_interpretability/paper_figures/paper_table5_consensus.csv)
 
@@ -1610,4 +1616,4 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ---
 
-*Figures are the executed PNG outputs stored in `tabpfn_interpretability.ipynb`. Tables are reconstructed from those plots and the notebook’s printed CSVs. SHAP / SHAP-IQ used local TabPFN after the client thinking backend failed. MI, stability, and PDP **code** use the full cohort; SHAP **code** explains 15 VLST=1 + 15 VLST=0. Stored SHAP PNGs are still 15 cases only and stored PDP PNGs are still the old balanced-prior test-slice until re-run. Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*
+*Figures are the executed PNG outputs from `tabpfn_interpretability.ipynb` (`645fb0e`). Tables are rebuilt from the Kaggle CSVs. SHAP / SHAP-IQ used tabpfn-client thinking (no local fallback). MI, stability, and PDP use the full cohort; SHAP explains 15 VLST=1 + 15 VLST=0; k-SII is one VLST=1 row (5099). Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*

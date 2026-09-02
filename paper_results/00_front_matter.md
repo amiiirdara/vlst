@@ -30,13 +30,13 @@ An adjusted OR < 1 (`1.1:1Post dilation` 0.144; `Clopidogrel` 0.464) or a negati
 
 **What “personalised” does *not* mean.** The repository README says “Personalized Risk prediction.” Nothing here is an individual-level model, a patient-specific fine-tune, or a decision-curve analysis. The artefact is a **single global classifier** (or a single global logit for association). Nested-CV probabilities are not portable personalised risks: prevalence, calibration, and PPV are properties of this derivation cohort. We do not use “personalised” as a result claim.
 
-**Why TabPFN is in the comparison.** VLST here is a small-n, mixed-type tabular problem (92 events, 81 raw columns). TabPFN is a tabular foundation model that does in-context learning, handles categoricals natively, and does not run a per-dataset hyperparameter grid. The **stored Part 4 arm** is **local** TabPFN (`from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, no thinking; Kaggle Tesla T4, checkpoint `tabpfn-v3-classifier-v3_default.ckpt`). The client thinking-high constructor remains in `baseline_plus_tabpfn.ipynb` (`RUN_MODELS["TabPFN"]=False`) and is **not** in this six-model table. Classics in the same nested CV use **library defaults** plus class weighting. On this run LightGBM is first on PR-AUC (**0.6937**); TabPFN (local) is third on PR-AUC (**0.6754**) and first on ROC-AUC (**0.9845**).
+**Why TabPFN is in the comparison.** VLST here is a small-n, mixed-type tabular problem (92 events, 81 raw columns). TabPFN is a tabular foundation model that does in-context learning, handles categoricals natively, and does not run a per-dataset hyperparameter grid. Part 4 now reports **both** arms from the same nested CV (Kaggle Tesla T4, `de46f92`): **TabPFN (thinking-high)** (`tabpfn_client.TabPFNClassifier`, constructor unchanged) and **TabPFN (local)** (`from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, no thinking; checkpoint `tabpfn-v3-classifier-v3_default.ckpt`). Classics in the same nested CV use **library defaults** plus class weighting. On this run thinking-high is first on PR-AUC (**0.8553**), ROC-AUC (**0.9905**), and Brier (**0.0064**). LightGBM is second on PR-AUC (**0.6926**). TabPFN (local) is fourth on PR-AUC (**0.6754**), second on ROC-AUC (**0.9845**), and worst on Brier (**0.0673**). Name the two TabPFN Briers separately.
 
 **What this pack adds on the *same* derivation cohort, beyond Wang’s score:**
 
 1. **Association catalogue** (Part 1) — FDR-controlled univariate tests and an exploratory 17-covariate logit (not a Cox model; not Wang’s eight variables).
 2. **Interpretation catalogues** (Parts 2–3, 5) — classic-model LOCO / SHAP / FFS versus FDR names; TabPFN attributions. These do not feed the predictor.
-3. **Prediction comparison** (Part 4) — nested 5×4 stratified CV of five classic classifiers and **local** TabPFN after dropping the leaky follow-up-time column (W1), plus the frozen Wang integer score on the same rows (Table S-Wang).
+3. **Prediction comparison** (Part 4) — nested 5×4 stratified CV of five classic classifiers and **both** TabPFN arms after dropping the leaky follow-up-time column (W1), plus the frozen Wang integer score on the same rows (Table S-Wang).
 4. **Leakage control** (Part 4 supplement) — with-TSSI vs without-TSSI on a 70/30 split, showing why binary-ified survival time must not be a covariate.
 
 It does **not** add: external or temporal testing of the ML models; a re-fit of Wang’s Cox linear predictor or a Dangas decision curve; a statement that TabPFN is ready for clinical use.
@@ -62,25 +62,25 @@ Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement
 
 1. **No external or temporal test of the ML models.** Every Part 4 number is nested CV on the 5,185 derivation rows. Wang’s Cox score **was** tested on Shantou (n = 2,058, 1.70% VLST); those rows are not here. Nested CV is not a substitute.
 
-2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV LightGBM PR-AUC **0.6937** (TabPFN local **0.6754**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
+2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV TabPFN (thinking-high) PR-AUC **0.8553** (LightGBM **0.6926**; TabPFN local **0.6754**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
 
 3. **EPV ≈ 5.4** on the 17-covariate logit (W4). Collinear blocks remain (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`). `CKD90`’s Wald interval is extremely wide. Do not read Table 4 as an identified clinical model.
 
-4. **Local TabPFN calibration on this run.** Nested-CV TabPFN (local) Brier is **0.0673**, the **worst** of the six (XGBoost 0.0088 is best). Prior thinking-high client numbers (Brier 0.0060 / PR-AUC 0.8534) are **not** this notebook.
+4. **Two TabPFN calibrations.** Nested-CV TabPFN (thinking-high) Brier is **0.0064**, the **best** of the seven. TabPFN (local) Brier is **0.0673**, the **worst**. Client thinking-high is non-deterministic across dumps (historical Brier 0.0060 / 0.0360 vs this dump 0.0064). Do not collapse the arms.
 
-5. **This Part 4 TabPFN is a local checkpoint, not the client.** The stored arm is `tabpfn` on Kaggle T4 (`tabpfn-v3-classifier-v3_default.ckpt`). The unused thinking-high client constructor is still in the notebook. Client and server-side versions remain unrecorded for that unused arm.
+5. **Unequal TabPFN objects.** Thinking-high is the client API; local is `tabpfn` on Kaggle T4 (`tabpfn-v3-classifier-v3_default.ckpt`). Client and server-side versions remain unrecorded. Classics are untuned defaults.
 
 6. **DAPT columns are post-baseline.** All patients had DAPT for ≥ 1 year; continuation after year 1 was at the treating physician’s discretion. Wang Table 1 “DAPT” is persistence during follow-up, not a discharge prescription. `Aspirin`, `Clopidogrel`, `Ticagrelor`, `DAPT` must not be described as index-PCI covariates without that caveat.
 
 7. **WBC was excluded by the original investigators.** Wang dropped WBC from the Cox score because infection could not be ruled out. Our FDR screen and several selectors rank `WBC` at the top. That is a discrepancy to report, not a new “validated” inflammatory marker.
 
-8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). TabPFN (local) sees the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
+8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high; the client arm is thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
 
-9. **No interval on PR-AUC, ROC-AUC, or Brier; no paired test** of LightGBM vs TabPFN (local). LightGBM is first on PR-AUC as a point estimate (higher in **3 of 5** outer folds vs TabPFN local). OOF CSVs were not committed.
+9. **No interval on PR-AUC, ROC-AUC, or Brier; no paired test** of thinking-high vs LightGBM (or local vs LightGBM). Thinking-high is first on PR-AUC as a point estimate (higher in **5 of 5** outer folds). Local is higher than LightGBM in **2 of 5**. OOF CSVs were written on Kaggle but **not committed** (B2).
 
 10. **`LV` (and `CaI`) are not in Wang Table 1.** Until the column is named, timed, and unit-defined, do not treat `LV` as a novel echo marker.
 
-11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk). Do not mix those scales on one axis, and do not quote stored PDP 0.24 / ~0.6 as clinical risk. Stored SHAP/PDP PNGs are stale until the notebook is re-run (PDP full cohort; SHAP 15+15).
+11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk; binary P(y=1) ≈ 0.017–0.023). Do not mix those scales on one axis. SHAP is **15 VLST=1 + 15 VLST=0** with client thinking; k-SII is one VLST=1 row (5099). Do not treat k-SII as cohort interactions.
 
 ---
 

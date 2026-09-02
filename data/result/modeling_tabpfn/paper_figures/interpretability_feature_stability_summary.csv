@@ -1,0 +1,11 @@
+times_selected,n_features,features
+10,1,WBC
+9,0,
+8,0,
+7,1,Staged PCI
+6,3,Fiberinogen; LV; ZES
+5,3,Cre; PES; eGFR
+4,2,Age; STEMI
+3,4,1.1:1Post dilation; Dissection; HbA1c; Ticagrelor
+2,5,Aneurysm; CaI; LVEF; No postdilation; No.of stents per lesion
+1,20,2-vessel disease; Aspirin; Bifurcation; CKD60; CKD90; Clopidogrel; EVS; Fast-Glu; HGB; LDL; Max-stent diameter; No reflow; P-RCA; Platelet; Pre-TIMI flow-3; Previous CABG; Stent release pressure; TIMI-2; UA; Ulceration
