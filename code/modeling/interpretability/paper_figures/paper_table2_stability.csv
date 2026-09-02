@@ -1,23 +1,40 @@
-feature,selected_of_10,selection_freq
-LV,10,1.0
-Stent type-SES,10,1.0
-eGFR,10,1.0
-Age,9,0.9
-Cre,9,0.9
-WBC,9,0.9
-No postdilation,7,0.7
-STEMI,6,0.6
-HbA1c,5,0.5
-LVEF,5,0.5
-No.of stents per lesion,3,0.3
-Staged PCI,3,0.3
-1.1:1Post dilation,2,0.2
-CKD5,2,0.2
-CKD60,2,0.2
-EVS,2,0.2
-Current drinking,1,0.1
-History of peripheral vascualr disease,1,0.1
-Initial diagnosis-AMI,1,0.1
-PES,1,0.1
-Single-vessel disease,1,0.1
-Visual thrombus,1,0.1
+rank,feature,times_selected,selection_freq
+1,WBC,10,1.0
+2,Staged PCI,7,0.7
+3,Fiberinogen,6,0.6
+4,LV,6,0.6
+5,ZES,6,0.6
+6,Cre,5,0.5
+7,PES,5,0.5
+8,eGFR,5,0.5
+9,Age,4,0.4
+10,STEMI,4,0.4
+11,1.1:1Post dilation,3,0.3
+12,Dissection,3,0.3
+13,HbA1c,3,0.3
+14,Ticagrelor,3,0.3
+15,Aneurysm,2,0.2
+16,CaI,2,0.2
+17,LVEF,2,0.2
+18,No postdilation,2,0.2
+19,No.of stents per lesion,2,0.2
+20,2-vessel disease,1,0.1
+21,Aspirin,1,0.1
+22,Bifurcation,1,0.1
+23,CKD60,1,0.1
+24,CKD90,1,0.1
+25,Clopidogrel,1,0.1
+26,EVS,1,0.1
+27,Fast-Glu,1,0.1
+28,HGB,1,0.1
+29,LDL,1,0.1
+30,Max-stent diameter,1,0.1
+31,No reflow,1,0.1
+32,P-RCA,1,0.1
+33,Platelet,1,0.1
+34,Pre-TIMI flow-3,1,0.1
+35,Previous CABG,1,0.1
+36,Stent release pressure,1,0.1
+37,TIMI-2,1,0.1
+38,UA,1,0.1
+39,Ulceration,1,0.1

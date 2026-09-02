@@ -1,7 +1,7 @@
 Method,Question,Backend,Notebook setting
-mutual_info_classif,Univariate association,sklearn,0 TabPFN calls; median-imputed raw matrix
+mutual_info_classif,Univariate association,sklearn,0 TabPFN calls; median fill is inert (no NaNs); all 81 scores stored
 Stability (repeated SFS),Selection frequency,local TabPFN,"10 resamples × top-10 forward SFS, AP scoring, full cohort"
-PDP,Average predicted probability (empirical prior; not Part 4 risk),local TabPFN,"Full cohort; balance_probabilities=False; ranking/SHAP stay True"
-SHAP (shapiq SV),Local attributions,local TabPFN (client fallback),"15 VLST=1 + 15 VLST=0; fit/background=full cohort; budget=256"
-k-SII / SHAP-IQ,Pairwise interactions,local TabPFN (client fallback),"One VLST=1 row from the 15+15 slice, budget=256"
-Consensus (Borda),Mean of normalized ranks,aggregate,MI + stability frequency + mean(|SHAP|)
+PDP,Average predicted probability (empirical prior; not Part 4 risk),local TabPFN,Full cohort n=5185; balance_probabilities=False; ranking/SHAP stay True
+SHAP (shapiq SV),Local attributions,tabpfn-client + thinking (succeeded),15 VLST=1 + 15 VLST=0; fit/background=full cohort; budget=256
+k-SII / SHAP-IQ,Pairwise interactions,tabpfn-client + thinking (succeeded),One VLST=1 row (5099) from the 15+15 slice; budget=256
+Consensus (Borda),Mean of normalized ranks,aggregate,MI + stability frequency + mean(|SHAP|); MI not fill-zeroed

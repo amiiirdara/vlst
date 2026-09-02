@@ -4,22 +4,23 @@ CELL 0 type=markdown exec=None
 ================================================================================
 ## Install TabPFN
 
+
 ================================================================================
 CELL 1 type=code exec=1
 ================================================================================
 !pip install -q -q --no-warn-conflicts tabpfn-client tabpfn
-
-[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m70.1/70.1 kB[0m [31m922.8 kB/s[0m eta [36m0:00:00[0m
-[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m771.2/771.2 kB[0m [31m2.1 MB/s[0m eta [36m0:00:00[0m
-[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m69.4/69.4 kB[0m [31m3.6 MB/s[0m eta [36m0:00:00[0m
-[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m595.4/595.4 kB[0m [31m10.4 MB/s[0m eta [36m0:00:00[0m
-[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m5.2 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m72.1/72.1 kB[0m [31m5.9 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m771.2/771.2 kB[0m [31m23.8 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m69.4/69.4 kB[0m [31m4.9 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m598.4/598.4 kB[0m [31m36.7 MB/s[0m eta [36m0:00:00[0m
+[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m73.1/73.1 kB[0m [31m5.3 MB/s[0m eta [36m0:00:00[0m
 [?25h
 
 ================================================================================
 CELL 2 type=markdown exec=None
 ================================================================================
 ## Ready Env
+
 
 ================================================================================
 CELL 3 type=code exec=2
@@ -128,7 +129,6 @@ print("OOF_DIR:", OOF_DIR)
 print("CUDA:", CUDA_AVAILABLE, "|", DEVICE_NAME)
 print("CatBoost:", CATBOOST_TASK_TYPE, "| XGB:", XGB_DEVICE)
 print("are TOKENs ready:", bool(_tabpfn_token) and bool(_hf_token))
-
 Runtime: Kaggle
 RAW_PATH: /kaggle/input/datasets/amirinho661/vlst-figshare-7409606/VLST.csv
 RESULT_DIR: /kaggle/working/modeling_results
@@ -138,6 +138,7 @@ OOF_DIR: /kaggle/working/modeling_results/oof
 CUDA: True | Tesla T4
 CatBoost: GPU | XGB: cuda
 are TOKENs ready: True
+
 
 ================================================================================
 CELL 4 type=markdown exec=None
@@ -149,9 +150,8 @@ Classics use library defaults plus class weighting. The inner loop tunes only th
 
 Three-way comparison on the same nested-CV protocol:
 - **Classics** — library defaults plus class weighting.
-- **TabPFN (local)** — `from tabpfn import TabPFNClassifier` (normal / no thinking). This is the arm to run now.
-- **TabPFN** — `tabpfn_client.TabPFNClassifier` with thinking-high. Constructor left unchanged; toggle it off in `RUN_MODELS` so this pass does not re-fit it. Stored high-effort OOF already exists.
-
+- **TabPFN (local)** — `from tabpfn import TabPFNClassifier` (normal / no thinking).
+- **TabPFN** — `tabpfn_client.TabPFNClassifier` with thinking-high. Constructor unchanged. Both TabPFN arms are on in `RUN_MODELS`.
 
 ================================================================================
 CELL 5 type=code exec=3
@@ -354,15 +354,15 @@ def lightgbm_safe_frame(data):
 #
 # GridSearch winners from baseline_without_tssi.ipynb are NOT imported here.
 # The inner loop only chooses an F1 threshold.
-# Set a flag False to skip an arm (e.g. run only local TabPFN later).
+# Set a flag False to skip an arm. Both TabPFN arms run.
 RUN_MODELS = {
     "Logistic Regression": True,
     "Random Forest": True,
     "XGBoost": True,
     "LightGBM": True,
     "CatBoost": True,
-    "TabPFN": False,           # client thinking-high (already stored); do not change constructor
-    "TabPFN (local)": True,    # normal local TabPFN — no thinking
+    "TabPFN": True,            # client thinking-high; do not change constructor
+    "TabPFN (local)": True,    # local TabPFN — no thinking
 }
 
 models = {
@@ -507,18 +507,18 @@ for outer_fold, (train_idx, val_idx) in enumerate(outer_cv.split(X, y), 1):
 print("Nested CV finished.")
 print("OOF arrays ready for:", ", ".join(oof_probabilities))
 print("Next cells plot ranking curves, confusion matrices, and the comparison table.")
-
 Stent encoder: using in-notebook fallback (Kaggle / no repo tree).
 Stent brand: 106 raw strings -> 9 levels (min_count=30)
 Local TabPFN arm ready on device=cuda.
-Nested-CV arms: Logistic Regression, Random Forest, XGBoost, LightGBM, CatBoost, TabPFN (local)
+Nested-CV arms: Logistic Regression, Random Forest, XGBoost, LightGBM, CatBoost, TabPFN, TabPFN (local)
 Classic GPU routing: CatBoost=GPU, XGB=cuda, LGB=gpu
 Running nested 5-fold outer / 4-fold inner CV...
 Processing outer fold 1/5...
   Logistic Regression: estimating threshold from inner OOF predictions
   Random Forest: estimating threshold from inner OOF predictions
   XGBoost: estimating threshold from inner OOF predictions
-/usr/local/lib/python3.12/dist-packages/xgboost/core.py:751: UserWarning: [21:26:54] WARNING: /__w/xgboost/xgboost/src/common/error_msg.cc:62: Falling back to prediction using DMatrix due to mismatched devices. This might lead to higher memory usage and slower performance. XGBoost is running on: cuda:0, while the input data is on: cpu.
+
+/usr/local/lib/python3.12/dist-packages/xgboost/core.py:751: UserWarning: [21:27:55] WARNING: /__w/xgboost/xgboost/src/common/error_msg.cc:62: Falling back to prediction using DMatrix due to mismatched devices. This might lead to higher memory usage and slower performance. XGBoost is running on: cuda:0, while the input data is on: cpu.
 Potential solutions:
 - Use a data structure that matches the device ordinal in the booster.
 - Set the device for booster before call to inplace_predict.
@@ -526,7 +526,9 @@ Potential solutions:
 This warning will only be shown once.
 
   return func(**kwargs)
+
   LightGBM: estimating threshold from inner OOF predictions
+
 1 warning generated.
 1 warning generated.
 1 warning generated.
@@ -560,7 +562,9 @@ This warning will only be shown once.
 1 warning generated.
 1 warning generated.
 1 warning generated.
+
   CatBoost: estimating threshold from inner OOF predictions
+
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
@@ -571,15 +575,61 @@ Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
+
+  TabPFN: estimating threshold from inner OOF predictions
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:11 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+04:52 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:18 Predicting... Done!
+00:00 Fitting... -
+Train set already exists, skipping upload.
+
+04:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:17 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+04:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
   TabPFN (local): estimating threshold from inner OOF predictions
+
 tabpfn-v3-classifier-v3_default.ckpt:   0%|          | 0.00/213M [00:00<?, ?B/s]
+
 config.json:   0%|          | 0.00/33.0 [00:00<?, ?B/s]
+
 Processing outer fold 2/5...
   Logistic Regression: estimating threshold from inner OOF predictions
   Random Forest: estimating threshold from inner OOF predictions
   XGBoost: estimating threshold from inner OOF predictions
   LightGBM: estimating threshold from inner OOF predictions
   CatBoost: estimating threshold from inner OOF predictions
+
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
@@ -590,6 +640,48 @@ Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
+
+  TabPFN: estimating threshold from inner OOF predictions
+00:00 Fitting... |
+Train set already exists, skipping upload.
+
+03:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:11 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:11 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:09 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+04:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:19 Predicting... Done!
   TabPFN (local): estimating threshold from inner OOF predictions
 Processing outer fold 3/5...
   Logistic Regression: estimating threshold from inner OOF predictions
@@ -597,6 +689,7 @@ Processing outer fold 3/5...
   XGBoost: estimating threshold from inner OOF predictions
   LightGBM: estimating threshold from inner OOF predictions
   CatBoost: estimating threshold from inner OOF predictions
+
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
@@ -607,6 +700,48 @@ Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
+
+  TabPFN: estimating threshold from inner OOF predictions
+00:00 Fitting... /
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:12 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+04:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:16 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+04:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:18 Predicting... Done!
   TabPFN (local): estimating threshold from inner OOF predictions
 Processing outer fold 4/5...
   Logistic Regression: estimating threshold from inner OOF predictions
@@ -614,6 +749,7 @@ Processing outer fold 4/5...
   XGBoost: estimating threshold from inner OOF predictions
   LightGBM: estimating threshold from inner OOF predictions
   CatBoost: estimating threshold from inner OOF predictions
+
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
@@ -624,6 +760,48 @@ Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
+
+  TabPFN: estimating threshold from inner OOF predictions
+00:00 Fitting... /
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+02:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:07 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:12 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+04:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
   TabPFN (local): estimating threshold from inner OOF predictions
 Processing outer fold 5/5...
   Logistic Regression: estimating threshold from inner OOF predictions
@@ -631,6 +809,7 @@ Processing outer fold 5/5...
   XGBoost: estimating threshold from inner OOF predictions
   LightGBM: estimating threshold from inner OOF predictions
   CatBoost: estimating threshold from inner OOF predictions
+
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
@@ -641,10 +820,53 @@ Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
 Default metric period is 5 because PRAUC is/are not implemented for GPU
 Metric PRAUC is not implemented on GPU. Will use CPU for metric computation, this could significantly affect learning time
+
+  TabPFN: estimating threshold from inner OOF predictions
+00:00 Fitting... /
+Train set already exists, skipping upload.
+
+04:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:17 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:10 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:38 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:13 Predicting... Done!
+00:00 Fitting... \
+Train set already exists, skipping upload.
+
+03:08 Fitting... Done!
+00:00 Predicting... \
+Test set already exists, skipping upload.
+
+00:07 Predicting... Done!
   TabPFN (local): estimating threshold from inner OOF predictions
 Nested CV finished.
-OOF arrays ready for: Logistic Regression, Random Forest, XGBoost, LightGBM, CatBoost, TabPFN (local)
+OOF arrays ready for: Logistic Regression, Random Forest, XGBoost, LightGBM, CatBoost, TabPFN, TabPFN (local)
 Next cells plot ranking curves, confusion matrices, and the comparison table.
+
 
 ================================================================================
 CELL 6 type=markdown exec=None
@@ -652,7 +874,6 @@ CELL 6 type=markdown exec=None
 ## Persist OOF
 
 Write nested-CV out-of-fold labels, probabilities, fold IDs, and inner-CV thresholds to disk so later figures can be rebuilt without re-fitting.
-
 
 ================================================================================
 CELL 7 type=code exec=4
@@ -694,10 +915,10 @@ print(
     "| positives:", int(oof_df["y"].sum()),
     "| folds:", sorted(oof_df["fold"].unique().tolist()),
 )
-
 Saved OOF predictions to: /kaggle/working/modeling_results/oof/oof_predictions.csv
 Saved fold thresholds to: /kaggle/working/modeling_results/oof/fold_thresholds.csv
 OOF rows: 5185 | positives: 92 | folds: [1, 2, 3, 4, 5]
+
 
 ================================================================================
 CELL 8 type=markdown exec=None
@@ -705,7 +926,6 @@ CELL 8 type=markdown exec=None
 ## Ranking curves
 
 Precision-recall and ROC curves from nested-CV out-of-fold probabilities (threshold-independent). The dotted line on the PR panel is the positive-class prevalence.
-
 
 ================================================================================
 CELL 9 type=code exec=5
@@ -761,10 +981,11 @@ plt.savefig(pr_roc_path, dpi=300, bbox_inches="tight")
 plt.show()
 print(f"Saved ranking-curve panel to: {pr_roc_path}")
 print(f"Positive-class prevalence: {prevalence:.4f}")
-
 <Figure size 1400x620 with 2 Axes>
+
 Saved ranking-curve panel to: /kaggle/working/modeling_results/figures/pr_roc_curves.png
 Positive-class prevalence: 0.0177
+
 
 ================================================================================
 CELL 10 type=markdown exec=None
@@ -772,7 +993,6 @@ CELL 10 type=markdown exec=None
 ## Calibration
 
 Reliability curves from nested-CV out-of-fold probabilities. Quantile bins are used because VLST is rare; Brier score is shown in each title (lower is better).
-
 
 ================================================================================
 CELL 11 type=code exec=6
@@ -820,15 +1040,17 @@ plt.show()
 print(f"Saved calibration panel to: {cal_path}")
 for _name, _brier in brier_scores.items():
     print(f"  {_name}: Brier = {_brier:.4f}")
+<Figure size 1320x1170 with 9 Axes>
 
-<Figure size 1320x780 with 6 Axes>
 Saved calibration panel to: /kaggle/working/modeling_results/figures/calibration_curves.png
   Logistic Regression: Brier = 0.0563
   Random Forest: Brier = 0.0143
   XGBoost: Brier = 0.0088
   LightGBM: Brier = 0.0093
   CatBoost: Brier = 0.0101
+  TabPFN: Brier = 0.0064
   TabPFN (local): Brier = 0.0673
+
 
 ================================================================================
 CELL 12 type=markdown exec=None
@@ -836,7 +1058,6 @@ CELL 12 type=markdown exec=None
 ## Confusion matrices
 
 Heatmaps at each model's **F1-optimal** out-of-fold threshold (same operating point as the F1 block of the comparison table).
-
 
 ================================================================================
 CELL 13 type=code exec=7
@@ -876,9 +1097,10 @@ cm_path = FIGURE_DIR / "confusion_matrices.png"
 plt.savefig(cm_path, dpi=300, bbox_inches="tight")
 plt.show()
 print(f"Saved confusion-matrix panel to: {cm_path}")
+<Figure size 1260x1140 with 9 Axes>
 
-<Figure size 1260x760 with 6 Axes>
 Saved confusion-matrix panel to: /kaggle/working/modeling_results/figures/confusion_matrices.png
+
 
 ================================================================================
 CELL 14 type=markdown exec=None
@@ -886,7 +1108,6 @@ CELL 14 type=markdown exec=None
 ## Model comparison table
 
 Threshold-independent ranking (pooled PR-AUC / ROC-AUC / Brier, plus fold-wise mean +/- SD) and operating-point metrics at the F1-optimal out-of-fold threshold. Nested-CV fold-specific F1 operating points are saved alongside.
-
 
 ================================================================================
 CELL 15 type=code exec=8
@@ -1067,59 +1288,71 @@ print(" ", comparison_path)
 print(" ", nested_path)
 print(" ", cm_counts_path)
 print(" ", fold_path)
-
 === SUPER TABLE: ranking (pooled OOF + fold mean+/-SD) ===
+
                  model  pr_auc      pr_auc_fold roc_auc     roc_auc_fold  \
-0             LightGBM  0.6937  0.6941+/-0.0917  0.9681  0.9695+/-0.0164   
-1              XGBoost  0.6815  0.6928+/-0.1288  0.9439  0.9431+/-0.0418   
-2       TabPFN (local)  0.6754  0.6739+/-0.0812  0.9845  0.9846+/-0.0030   
-3             CatBoost  0.6172  0.6353+/-0.0540  0.9594  0.9612+/-0.0137   
-4        Random Forest  0.4865  0.5034+/-0.0793  0.9209  0.9206+/-0.0423   
-5  Logistic Regression  0.3326  0.3451+/-0.1213  0.9224  0.9235+/-0.0251   
+0               TabPFN  0.8553  0.8488+/-0.0861  0.9905  0.9906+/-0.0070   
+1             LightGBM  0.6926  0.6936+/-0.0915  0.9680  0.9694+/-0.0165   
+2              XGBoost  0.6815  0.6928+/-0.1288  0.9439  0.9431+/-0.0418   
+3       TabPFN (local)  0.6754  0.6739+/-0.0812  0.9845  0.9846+/-0.0030   
+4             CatBoost  0.6172  0.6353+/-0.0540  0.9594  0.9612+/-0.0137   
+5        Random Forest  0.4865  0.5034+/-0.0793  0.9209  0.9206+/-0.0423   
+6  Logistic Regression  0.3326  0.3451+/-0.1213  0.9224  0.9235+/-0.0251   
 
     brier  
-0  0.0093  
-1  0.0088  
-2  0.0673  
-3  0.0101  
-4  0.0143  
-5  0.0563  
+0  0.0064  
+1  0.0093  
+2  0.0088  
+3  0.0673  
+4  0.0101  
+5  0.0143  
+6  0.0563  
+
 
 === SUPER TABLE: ranking + F1-optimal OOF threshold ===
+
                  model  pr_auc roc_auc   t_f1  acc_f1 prec_f1  rec_f1 spec_f1  \
-0             LightGBM  0.6937  0.9681  0.064  0.9871  0.6263  0.6739  0.9927   
-1              XGBoost  0.6815  0.9439  0.203  0.9884  0.6739  0.6739  0.9941   
-2       TabPFN (local)  0.6754  0.9845  0.886  0.9826  0.5067  0.8261  0.9855   
-3             CatBoost  0.6172  0.9594  0.416  0.9873  0.6806  0.5326  0.9955   
-4        Random Forest  0.4865  0.9209  0.104  0.9826  0.5098  0.5652  0.9902   
-5  Logistic Regression  0.3326  0.9224  0.985  0.9819  0.4857  0.3696  0.9929   
+0               TabPFN  0.8553  0.9905  0.193  0.9927  0.7812  0.8152  0.9959   
+1             LightGBM  0.6926  0.9680  0.064  0.9871  0.6263  0.6739  0.9927   
+2              XGBoost  0.6815  0.9439  0.203  0.9884  0.6739  0.6739  0.9941   
+3       TabPFN (local)  0.6754  0.9845  0.886  0.9826  0.5067  0.8261  0.9855   
+4             CatBoost  0.6172  0.9594  0.416  0.9873  0.6806  0.5326  0.9955   
+5        Random Forest  0.4865  0.9209  0.104  0.9826  0.5098  0.5652  0.9902   
+6  Logistic Regression  0.3326  0.9224  0.985  0.9819  0.4857  0.3696  0.9929   
 
   f1_at_t_f1 f2_at_t_f1  tn_f1  fp_f1  fn_f1  tp_f1  
-0     0.6492     0.6638   5056     37     30     62  
-1     0.6739     0.6739   5063     30     30     62  
-2     0.6281     0.7336   5019     74     16     76  
-3     0.5976     0.5568   5070     23     43     49  
-4     0.5361     0.5532   5043     50     40     52  
-5     0.4198     0.3881   5057     36     58     34  
+0     0.7979     0.8082   5072     21     17     75  
+1     0.6492     0.6638   5056     37     30     62  
+2     0.6739     0.6739   5063     30     30     62  
+3     0.6281     0.7336   5019     74     16     76  
+4     0.5976     0.5568   5070     23     43     49  
+5     0.5361     0.5532   5043     50     40     52  
+6     0.4198     0.3881   5057     36     58     34  
+
 
 === NESTED-CV OPERATING POINT (fold-specific inner F1 thresholds) ===
+
                  model      threshold accuracy precision  recall specificity  \
-0             LightGBM  0.121+/-0.085   0.9882    0.6703  0.6630      0.9941   
-1              XGBoost  0.225+/-0.060   0.9875    0.6452  0.6522      0.9935   
-2       TabPFN (local)  0.915+/-0.012   0.9844    0.5478  0.6848      0.9898   
-3             CatBoost  0.167+/-0.040   0.9815    0.4836  0.6413      0.9876   
-4        Random Forest  0.118+/-0.013   0.9840    0.5517  0.5217      0.9923   
-5  Logistic Regression  0.947+/-0.035   0.9769    0.3654  0.4130      0.9870   
+0               TabPFN  0.271+/-0.067   0.9915    0.7927  0.7065      0.9967   
+1             LightGBM  0.117+/-0.087   0.9880    0.6630  0.6630      0.9939   
+2              XGBoost  0.225+/-0.060   0.9875    0.6452  0.6522      0.9935   
+3       TabPFN (local)  0.915+/-0.012   0.9844    0.5478  0.6848      0.9898   
+4             CatBoost  0.167+/-0.040   0.9815    0.4836  0.6413      0.9876   
+5        Random Forest  0.118+/-0.013   0.9840    0.5517  0.5217      0.9923   
+6  Logistic Regression  0.947+/-0.035   0.9769    0.3654  0.4130      0.9870   
 
        f1      f2  pr_auc roc_auc    tn  fp  fn  tp  
-0  0.6667  0.6645  0.6937  0.9681  5063  30  31  61  
-1  0.6486  0.6508  0.6815  0.9439  5060  33  32  60  
-2  0.6087  0.6522  0.6754  0.9845  5041  52  29  63  
-3  0.5514  0.6020  0.6172  0.9594  5030  63  33  59  
-4  0.5363  0.5275  0.4865  0.9209  5054  39  44  48  
-5  0.3878  0.4025  0.3326  0.9224  5027  66  54  38  
+0  0.7471  0.7222  0.8553  0.9905  5076  17  27  65  
+1  0.6630  0.6630  0.6926  0.9680  5062  31  31  61  
+2  0.6486  0.6508  0.6815  0.9439  5060  33  32  60  
+3  0.6087  0.6522  0.6754  0.9845  5041  52  29  63  
+4  0.5514  0.6020  0.6172  0.9594  5030  63  33  59  
+5  0.5363  0.5275  0.4865  0.9209  5054  39  44  48  
+6  0.3878  0.4025  0.3326  0.9224  5027  66  54  38  
+
 
 === FOLD-WISE RANKING METRICS ===
+
                   model  fold     n  n_pos  pr_auc roc_auc
 0   Logistic Regression     1  1037     18  0.2177  0.8881
 1   Logistic Regression     2  1037     18  0.3040  0.9497
@@ -1136,27 +1369,34 @@ print(" ", fold_path)
 12              XGBoost     3  1037     18  0.5226  0.8918
 13              XGBoost     4  1037     19  0.8331  0.9861
 14              XGBoost     5  1037     19  0.6680  0.9515
-15             LightGBM     1  1037     18  0.7527  0.9853
-16             LightGBM     2  1037     18  0.7142  0.9465
-17             LightGBM     3  1037     18  0.5399  0.9638
-18             LightGBM     4  1037     19  0.7718  0.9857
-19             LightGBM     5  1037     19  0.6916  0.9664
+15             LightGBM     1  1037     18  0.7505  0.9851
+16             LightGBM     2  1037     18  0.7130  0.9464
+17             LightGBM     3  1037     18  0.5399  0.9637
+18             LightGBM     4  1037     19  0.7727  0.9856
+19             LightGBM     5  1037     19  0.6919  0.9664
 20             CatBoost     1  1037     18  0.5668  0.9749
 21             CatBoost     2  1037     18  0.6560  0.9433
 22             CatBoost     3  1037     18  0.6440  0.9631
 23             CatBoost     4  1037     19  0.7082  0.9731
 24             CatBoost     5  1037     19  0.6015  0.9516
-25       TabPFN (local)     1  1037     18  0.6384  0.9875
-26       TabPFN (local)     2  1037     18  0.6353  0.9840
-27       TabPFN (local)     3  1037     18  0.5829  0.9812
-28       TabPFN (local)     4  1037     19  0.7274  0.9880
-29       TabPFN (local)     5  1037     19  0.7855  0.9826
+25               TabPFN     1  1037     18  0.8640  0.9954
+26               TabPFN     2  1037     18  0.7837  0.9881
+27               TabPFN     3  1037     18  0.7407  0.9802
+28               TabPFN     4  1037     19  0.9497  0.9981
+29               TabPFN     5  1037     19  0.9061  0.9914
+30       TabPFN (local)     1  1037     18  0.6384  0.9875
+31       TabPFN (local)     2  1037     18  0.6353  0.9840
+32       TabPFN (local)     3  1037     18  0.5829  0.9812
+33       TabPFN (local)     4  1037     19  0.7274  0.9880
+34       TabPFN (local)     5  1037     19  0.7855  0.9826
+
 
 Saved tables to:
   /kaggle/working/modeling_results/tables/model_comparison.csv
   /kaggle/working/modeling_results/tables/nested_cv_operating_point.csv
   /kaggle/working/modeling_results/tables/confusion_counts.csv
   /kaggle/working/modeling_results/tables/fold_metrics.csv
+
 
 ================================================================================
 CELL 16 type=markdown exec=None
@@ -1167,7 +1407,6 @@ Threshold and FP/FN sweeps for the **best model by PR-AUC**, using nested-CV out
 
 - **f1** marks the F1-maximising threshold
 - FP vs FN traces the same sweep and highlights the chosen operating point
-
 
 ================================================================================
 CELL 17 type=code exec=9
@@ -1274,11 +1513,13 @@ print("Saved sweep tables to:")
 print(" ", sweep_csv)
 print(" ", chosen_csv)
 print(f"  f1 threshold = {chosen['f1']:.3f}")
+Best model by PR-AUC: TabPFN (AP = 0.8553)
 
-Best model by PR-AUC: LightGBM (AP = 0.6937)
 <Figure size 1400x500 with 2 Axes>
+
 Saved figures panel to: /kaggle/working/modeling_results/figures/best_model_threshold_fpfn_panel.png
 Saved sweep tables to:
   /kaggle/working/modeling_results/tables/best_model_threshold_sweep.csv
   /kaggle/working/modeling_results/tables/best_model_operating_points.csv
-  f1 threshold = 0.064
+  f1 threshold = 0.193
+

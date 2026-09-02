@@ -1,5 +1,6 @@
 Model,Strategy,Threshold,TN,FP,FN,TP
-LightGBM,nested inner F1,0.121 ± 0.085,5063,30,31,61
+TabPFN (thinking-high),nested inner F1,0.271 ± 0.067,5076,17,27,65
+LightGBM,nested inner F1,0.117 ± 0.087,5062,31,31,61
 XGBoost,nested inner F1,0.225 ± 0.060,5060,33,32,60
 TabPFN (local),nested inner F1,0.915 ± 0.012,5041,52,29,63
 CatBoost,nested inner F1,0.167 ± 0.040,5030,63,33,59
