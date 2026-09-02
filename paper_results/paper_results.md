@@ -51,7 +51,7 @@ An adjusted OR < 1 (`1.1:1Post dilation` 0.144; `Clopidogrel` 0.464) or a negati
 
 **What this pack adds on the *same* derivation cohort, beyond Wang’s score:**
 
-1. **Association catalogue** (Part 1) — FDR-controlled univariate tests and an exploratory 17-covariate logit (not a Cox model; not Wang’s eight variables).
+1. **Association catalogue** (Part 1) — FDR-controlled univariate tests, clinical Table C from `VLST.csv`, and an identified 13-covariate logit (Table 4b; the stored 17-covariate Table 4 is not identified). Not a Cox model; not Wang’s eight variables.
 2. **Interpretation catalogues** (Parts 2–3, 5) — classic-model LOCO / SHAP / FFS versus FDR names; TabPFN attributions. These do not feed the predictor.
 3. **Prediction comparison** (Part 4) — nested 5×4 stratified CV of five classic classifiers and **both** TabPFN arms after dropping the leaky follow-up-time column (W1), plus the frozen Wang integer score on the same rows (Table S-Wang).
 4. **Leakage control** (Part 4 supplement) — with-TSSI vs without-TSSI on a 70/30 split, showing why binary-ified survival time must not be a covariate.
@@ -67,21 +67,22 @@ It does **not** add: external or temporal testing of the ML models; a re-fit of 
 | Comparison | Value | Consequence |
 | --- | --- | --- |
 | Events / candidate features (81) | 92 / 81 ≈ **1.14** | Far below any conventional EPV rule |
-| Events / multivariable logit covariates (17) | 92 / 17 ≈ **5.4** | Below the conventional EPV ≥ 10 rule |
+| Events / multivariable logit covariates (17, Table 4) | 92 / 17 ≈ **5.4** | Unidentified spec; do not publish |
+| Events / reduced logit covariates (13, Table 4b) | 92 / 13 ≈ **7.1** | One name per collinear block; still below EPV ≥ 10 |
 | Events per Part 4 outer fold | 18, 18, 18, 19, 19 | Nested-CV scoreboard is thin |
 | Events on the Part 2 val slice | 18 of 1,037 | Selector catalogues are not prediction |
 
-Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement) is from the 17-covariate unweighted logit: **EPV ≈ 5.4**. Quote that number next to the OR. The model is for screening / confounding context, not prediction.
+Every **adjusted odds ratio** quoted as the identified screen is from Part 1 **Table 4b** (13 covariates, unweighted logit, **EPV ≈ 7.1**). Table 4 is the stored 17-covariate unidentified fit (**EPV ≈ 5.4**; VIF = ∞ on the post-dilation pair). Both are screening / confounding context, not prediction.
 
 ---
 
 ## Limitations (W3)
 
-1. **No external or temporal test of the ML models.** Every Part 4 number is nested CV on the 5,185 derivation rows. Wang’s Cox score **was** tested on Shantou (n = 2,058, 1.70% VLST); those rows are not here. Nested CV is not a substitute.
+1. **No external or temporal test of the ML models.** Every Part 4 number is nested CV on the 5,185 derivation rows. Wang’s Cox score **was** tested on Shantou (n = 2,058, 1.70% VLST); those rows are not here and **cannot be obtained this cycle** (B11 blocked). Nested CV is not a substitute. The Cox linear predictor and Dangas decision-curve comparison are likewise absent.
 
 2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV TabPFN (thinking-high) PR-AUC **0.8553** (LightGBM **0.6926**; TabPFN local **0.6754**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
 
-3. **EPV ≈ 5.4** on the 17-covariate logit (W4). Collinear blocks remain (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`). `CKD90`’s Wald interval is extremely wide. Do not read Table 4 as an identified clinical model.
+3. **EPV ≈ 7.1** on the identified 13-covariate logit (Table 4b); **EPV ≈ 5.4** on the stored 17-covariate Table 4, which is unidentified (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`; `CKD90` Wald interval 2.71–639.5). Quote Table 4b. Still below EPV ≥ 10.
 
 4. **Two TabPFN calibrations.** Nested-CV TabPFN (thinking-high) Brier is **0.0064**, the **best** of the seven. TabPFN (local) Brier is **0.0673**, the **worst**. Client thinking-high is non-deterministic across dumps (historical Brier 0.0060 / 0.0360 vs this dump 0.0064). Do not collapse the arms.
 
@@ -93,9 +94,9 @@ Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement
 
 8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high; the client arm is thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
 
-9. **No interval on PR-AUC, ROC-AUC, or Brier; no paired test** of thinking-high vs LightGBM (or local vs LightGBM). Thinking-high is first on PR-AUC as a point estimate (higher in **5 of 5** outer folds). Local is higher than LightGBM in **2 of 5**. OOF CSVs were written on Kaggle but **not committed** (B2).
+9. **PR-AUC CIs and paired test (B3).** Stratified bootstrap of pooled OOF (`n_boot = 2000`): thinking-high PR-AUC **0.8553 (0.7957–0.9131)** vs LightGBM **0.6926 (0.6049–0.7772)**; Δ **0.1627 (0.1000–0.2301)**, P(Δ ≤ 0) = 0/2000. Local vs LightGBM Δ **−0.0172 (−0.0951–0.0588)** is compatible with no difference. Thinking-high remains higher in **5 of 5** outer folds; local in **2 of 5**. OOF CSVs are committed (B2).
 
-10. **`LV` (and `CaI`) are not in Wang Table 1.** Until the column is named, timed, and unit-defined, do not treat `LV` as a novel echo marker.
+10. **`LV` (and `CaI`) are not named in the CSV.** Until the columns are named, timed, and unit-defined, do not treat `LV` as a novel echo marker. `CaI` means match Wang Table 1 peak troponin I but the file still does not expand the name. Clinical Table C is rebuilt from `VLST.csv` (B7), including both, and does not photocopy Wang’s post-dilation label.
 
 11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk; binary P(y=1) ≈ 0.017–0.023). Do not mix those scales on one axis. SHAP is **15 VLST=1 + 15 VLST=0** with client thinking; k-SII is one VLST=1 row (5099). Do not treat k-SII as cohort interactions.
 
@@ -116,7 +117,7 @@ This document gathers publication-oriented figures and tables from the explorato
 
 **Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed to levels with n ≥ 30 plus `other` (**9 levels**) for the χ² screen via the shared encoder (`code/modeling/tools/stent_encoding.py`). Part 2 now uses that same 9-level column and one-hots it (drop-first → **88** scaled columns). Part 4 nested CV uses the same encoder, then one-hots without drop-first (~89 columns); TabPFN (local) sees the 9-level frame natively. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical association.
 
-**Asset root:** [01_eda/paper_figures/](01_eda/paper_figures/)
+**Asset root:** [paper_figures/](01_eda/paper_figures/)
 
 > Preview note: large table images are linked (not inlined) so the Markdown preview stays responsive. Figure PNGs are inlined below.
 
@@ -124,6 +125,7 @@ This document gathers publication-oriented figures and tables from the explorato
 
 ## Contents
 
+0. [Cohort characteristics](#0-cohort-characteristics-clinical-table-1)
 1. [Test selection](#1-test-selection)
 2. [Univariate continuous associations](#2-univariate-continuous-associations)
 3. [Univariate binary associations](#3-univariate-binary-associations)
@@ -132,6 +134,47 @@ This document gathers publication-oriented figures and tables from the explorato
 6. [Pairwise / bivariate structure](#6-pairwise--bivariate-structure)
 7. [Medical-domain analysis (supplementary)](#7-medical-domain-analysis-supplementary)
 8. [File index](#8-file-index)
+
+---
+
+## 0. Cohort characteristics (clinical Table 1)
+
+### Table C. Derivation-cohort characteristics from `VLST.csv`
+
+Rendered table image: [paper_figures/paper_table_c_cohort_characteristics.png](01_eda/paper_figures/paper_table_c_cohort_characteristics.png)
+
+**Table C.** Case–control characteristics rebuilt from `data/raw/VLST.csv` (n = 5,185; 92 VLST). This is the conventional clinical Table 1 for the manuscript. It is **association**, not prediction. Cite Wang 2020 for the recruitment flow (**6,038 eligible → 5,185 analysed**: 236 in-hospital deaths, 413 refused follow-up, 204 lost). Continuous cells are mean (SD); binary cells are n (%). Tests follow the Part 1 rule (Welch if abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U; chi-square unless any expected cell < 5, then Fisher). `Time since stent implantation` is omitted: it is time-at-risk / follow-up, not a baseline covariate.
+
+**Do not photocopy Wang Table 1’s post-dilation row.** Wang reports “No post-dilation” in 14/92 VLST (15.22%) vs 2,496/5,093 controls (49.01%). In this CSV those 14 events sit on `1.1:1Post dilation` = 1, and `No postdilation` is the exact complement (78/92). Both columns are shown as stored. `Aspirin` / `Clopidogrel` / `Ticagrelor` / `DAPT` are **follow-up persistence** after the mandated year, not index-PCI prescriptions (Wang DAPT 44.37% vs 38.04%, p = 0.226 — recovered here). `LV` is still unnamed (A1/A4). `CaI` is still unnamed in the file; its means **match** Wang Table 1 peak troponin I (37.37 ± 61.64 vs 40.55 ± 72.25) and are not treated as a new marker. `PES` recovers Wang Table 1 SES (68.76% vs 82.61%). The full column list is in the CSV.
+
+| Variable | No VLST (n = 5,093) | VLST (n = 92) | Test | p |
+| --- | --- | --- | --- | --- |
+| Age, years | 59.83 (9.93) | 60.71 (11.33) | Welch t | 0.463 |
+| Men | 3489 (68.51%) | 68 (73.91%) | Chi-square | 0.268 |
+| Diabetes | 1293 (25.39%) | 36 (39.13%) | Chi-square | 0.003 |
+| Hypertension | 2670 (52.42%) | 51 (55.43%) | Chi-square | 0.567 |
+| Dyslipidaemia (HL) | 1612 (31.65%) | 28 (30.43%) | Chi-square | 0.804 |
+| Current smoker | 2860 (56.16%) | 54 (58.70%) | Chi-square | 0.626 |
+| Previous PCI | 94 (1.85%) | 10 (10.87%) | Fisher | 1.25e-05 |
+| Previous MI | 347 (6.81%) | 10 (10.87%) | Chi-square | 0.128 |
+| Admitting diagnosis AMI | 3095 (60.77%) | 65 (70.65%) | Chi-square | 0.054 |
+| 3-vessel disease | 1422 (27.92%) | 42 (45.65%) | Chi-square | 0.000 |
+| LVEF, % | 55.15 (4.52) | 54.55 (3.68) | Mann–Whitney U | 0.033 |
+| LV (unnamed; not in Wang Table 1) | 44.55 (4.04) | 49.11 (4.23) | Welch t | 5.44e-17 |
+| WBC, 10^9/L | 8.75 (3.24) | 12.49 (3.92) | Mann–Whitney U | 7.90e-21 |
+| Creatinine | 72.53 (24.81) | 72.44 (19.05) | Mann–Whitney U | 0.879 |
+| eGFR | 120.03 (34.10) | 95.88 (19.63) | Welch t | 4.64e-20 |
+| eGFR < 90 (CKD90) | 860 (16.89%) | 32 (34.78%) | Chi-square | 6.55e-06 |
+| CaI (unnamed; not in Wang Table 1) | 37.37 (61.64) | 40.55 (72.25) | Mann–Whitney U | 0.051 |
+| Fibrinogen, g/L | 3.17 (0.88) | 3.37 (1.01) | Mann–Whitney U | 0.012 |
+| Stents per lesion | 1.21 (0.46) | 1.42 (0.65) | Mann–Whitney U | 0.000 |
+| Total stent length, mm | 31.70 (15.62) | 38.46 (20.71) | Mann–Whitney U | 0.001 |
+| SES (`PES` column) | 3502 (68.76%) | 76 (82.61%) | Chi-square | 0.004 |
+| 1.1:1 post-dilation (CSV as stored) | 2496 (49.01%) | 14 (15.22%) | Chi-square | 1.30e-10 |
+| No postdilation (CSV as stored) | 2597 (50.99%) | 78 (84.78%) | Chi-square | 1.30e-10 |
+| DAPT during follow-up (not index PCI) | 2260 (44.37%) | 35 (38.04%) | Chi-square | 0.226 |
+
+**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](01_eda/paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](01_eda/paper_figures/paper_table_c_cohort_characteristics.csv)
 
 ---
 
@@ -288,7 +331,7 @@ Rendered table image: [paper_figures/paper_table3_categorical.png](01_eda/paper_
 
 Rendered table image: [paper_figures/paper_table4_multivariable_or.png](01_eda/paper_figures/paper_table4_multivariable_or.png)
 
-**Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). **EPV = 92 / 17 ≈ 5.4** (92 events, 17 covariates), below the conventional EPV ≥ 10 rule. Adjusted ORs are for screening/confounding context, **not prediction**. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
+**Table 4.** Exploratory multivariable logistic regression for VLST as stored from `eda.ipynb` (17 covariates). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. **This specification is not identified:** `1.1:1Post dilation` sits beside its exact complement `No postdilation` (VIF = ∞), and `eGFR` sits beside `CKD5` / `CKD90`. `CKD90`’s Wald interval is 2.708–639.506. **EPV = 92 / 17 ≈ 5.4**. Do **not** publish Table 4 as the clinical multivariable model. Quote **Table 4b**. Adjusted ORs are for screening/confounding context, **not prediction**. `class_weight="balanced"` is **not** used here.
 
 **OR estimators (do not mix).** Table 4 “Univariate OR” is from this unweighted logit (one covariate at a time, same scaling). Table 2 OR is the **2×2 / Fisher** estimator. Supplementary Figure S4 “Univariate OR” is from the joint-domain specification. For `Previous PCI` those three numbers are **6.46 / 6.49 / 6.73**. OR < 1 for `1.1:1Post dilation` or `Clopidogrel` is not a treatment benefit.
 
@@ -313,6 +356,32 @@ Rendered table image: [paper_figures/paper_table4_multivariable_or.png](01_eda/p
 | PES | binary | 2.16 | 1.24 | [0.585, 4.056] |
 
 **Source files:** [paper_figures/paper_table4_multivariable_or.png](01_eda/paper_figures/paper_table4_multivariable_or.png), [paper_figures/paper_table4_multivariable_or.csv](01_eda/paper_figures/paper_table4_multivariable_or.csv)
+
+### Table 4b. Reduced specification (one representative per collinear block)
+
+Rendered table image: [paper_figures/paper_table4b_reduced_or.png](01_eda/paper_figures/paper_table4b_reduced_or.png)
+
+**Table 4b.** Same unweighted Bernoulli logit, **13 covariates**, one name per collinear block. Dropped: `No postdilation` (exact complement of `1.1:1Post dilation`); `CKD5` and `CKD90` (deterministic encodings of `eGFR`); `3-vessel disease` (vessel-count family; `NO.of vessels` kept). Continuous covariates per 1 SD (population SD). Primary interval is the **Wald 95% CI**; a stratified 2,000-replicate percentile bootstrap of the same fit is in the CSV. **EPV = 92 / 13 ≈ 7.1** (still below EPV ≥ 10). All Table 4b VIFs are finite (max 4.02, `Total stent length`; post-dilation VIF 1.07 vs ∞ in Table 4). Univariate OR here is the same unweighted 1-SD logit as the adjusted column — not Table 2’s 2×2 estimator and not Table 4’s stored univariate column. OR < 1 is not a treatment benefit.
+
+| Feature | Type | VIF | Univariate OR | Adjusted OR | Wald 95% CI |
+| --- | --- | ---: | ---: | ---: | --- |
+| WBC | continuous (per 1 SD) | 1.05 | 2.090 | 1.972 | [1.667, 2.331] |
+| eGFR | continuous (per 1 SD) | 1.04 | 0.469 | 0.568 | [0.449, 0.717] |
+| LV | continuous (per 1 SD) | 1.03 | 2.098 | 1.832 | [1.539, 2.181] |
+| No.of stents per lesion | continuous (per 1 SD) | 3.96 | 1.383 | 1.421 | [0.970, 2.080] |
+| HbA1c | continuous (per 1 SD) | 1.79 | 1.282 | 0.960 | [0.724, 1.272] |
+| NO.of vessels | continuous (per 1 SD) | 1.06 | 1.469 | 1.212 | [0.954, 1.539] |
+| Total stent length | continuous (per 1 SD) | 4.02 | 1.378 | 1.160 | [0.777, 1.731] |
+| Fiberinogen | continuous (per 1 SD) | 1.03 | 1.206 | 1.024 | [0.845, 1.240] |
+| 1.1:1Post dilation | binary | 1.07 | 0.187 | 0.152 | [0.081, 0.286] |
+| Previous PCI | binary | 1.01 | 6.485 | 6.710 | [2.884, 15.610] |
+| Clopidogrel | binary | 1.00 | 0.503 | 0.480 | [0.293, 0.787] |
+| Diabetes | binary | 1.77 | 1.889 | 1.452 | [0.795, 2.652] |
+| PES | binary | 1.03 | 2.158 | 1.734 | [0.953, 3.154] |
+
+VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](01_eda/paper_figures/paper_table4b_vif_comparison.png). Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py`.
+
+**Source files:** [paper_figures/paper_table4b_reduced_or.png](01_eda/paper_figures/paper_table4b_reduced_or.png), [paper_figures/paper_table4b_reduced_or.csv](01_eda/paper_figures/paper_table4b_reduced_or.csv), [paper_figures/paper_table4b_vif_comparison.png](01_eda/paper_figures/paper_table4b_vif_comparison.png), [paper_figures/paper_table4b_vif_comparison.csv](01_eda/paper_figures/paper_table4b_vif_comparison.csv)
 
 ### Figure 6. Univariate versus multivariable associations
 
@@ -460,6 +529,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Fig 1 | Figure | [paper_fig1_test_selection_map.png](01_eda/paper_figures/paper_fig1_test_selection_map.png) |
 | Table R | Table | [paper_table_test_rationale.png](01_eda/paper_figures/paper_table_test_rationale.png) |
 | Fig 2 | Figure | [paper_fig2_univariate_significance.png](01_eda/paper_figures/paper_fig2_univariate_significance.png) |
+| Table C | Table | [paper_table_c_cohort_characteristics.png](01_eda/paper_figures/paper_table_c_cohort_characteristics.png) |
 | Table 1 | Table | [paper_table1_continuous_fdr.png](01_eda/paper_figures/paper_table1_continuous_fdr.png) |
 | Fig 3 | Figure | [paper_fig3_continuous_effect_sizes.png](01_eda/paper_figures/paper_fig3_continuous_effect_sizes.png) |
 | Fig 4 | Figure | [paper_fig4_binary_odds_ratios.png](01_eda/paper_figures/paper_fig4_binary_odds_ratios.png) |
@@ -467,6 +537,8 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Fig 5 | Figure | [paper_fig5_categorical_rates_Stent_type-SES.png](01_eda/paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png) |
 | Table 3 | Table | [paper_table3_categorical.png](01_eda/paper_figures/paper_table3_categorical.png) |
 | Table 4 | Table | [paper_table4_multivariable_or.png](01_eda/paper_figures/paper_table4_multivariable_or.png) |
+| Table 4b | Table | [paper_table4b_reduced_or.png](01_eda/paper_figures/paper_table4b_reduced_or.png) |
+| Table 4b VIF | Table | [paper_table4b_vif_comparison.png](01_eda/paper_figures/paper_table4b_vif_comparison.png) |
 | Fig 6 | Figure | [paper_fig6_uni_vs_multivariable_or.png](01_eda/paper_figures/paper_fig6_uni_vs_multivariable_or.png) |
 | Fig S5a | Supp. figure | [03_correlation_heatmap_top42_vs_next41_with_target.png](01_eda/paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png) |
 | Fig S5b | Supp. figure | [03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png](01_eda/paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png) |
@@ -485,7 +557,6 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 *Generated from EDA notebook outputs. Close and reopen this file (or refresh Markdown preview) after updates.*
 
 ---
-
 # Part 2. Classic-model feature selection
 
 ### Classic-model feature selection — paper figures and tables
@@ -1018,7 +1089,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 **Cohort / protocol.** Full VLST cohort, n = 5,185 (92 events; prevalence = 0.0177). Target = `Stent thrombosis`. Identifiers (`NO.`, `Name`) and `Time since stent implantation` are dropped; the latter is treated as a time-at-risk / follow-up column, not a baseline covariate. **No Part 2 / Part 5 feature mask is applied.** Evaluation is nested stratified CV: **5 outer folds / 4 inner folds** (outer `random_state=42`). Ranking metrics (PR-AUC, ROC-AUC, Brier) use pooled outer out-of-fold probabilities and are threshold-independent. For precision / recall / F1 / F2, **quote the nested inner-fold thresholds** (Table 2): each outer fold’s cut is chosen on inner OOF scores and applied once to that fold’s unseen cases. Figure 3 / Table 3 additionally show a single pooled F1 cut; that cut is **optimistically biased** (methods note below). These nested-CV metrics are this pack’s only **prediction** results.
 
-**This run (D4).** Kaggle nested CV, Tesla T4, notebook commit `de46f92` (Version 5). **Both TabPFN arms finished:** `RUN_MODELS["TabPFN"]=True` and `TabPFN (local)=True`. The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively.
+**This run (D4).** Kaggle nested CV, Tesla T4, notebook commit `de46f92` (Version 5). **Both TabPFN arms finished:** `RUN_MODELS["TabPFN"]=True` and `TabPFN (local)=True`. The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Nested-CV OOF CSVs from this run are in `data/result/modeling_results/oof/` and `tables/` (B2). Bootstrap CIs and the paired PR-AUC test use those files (B3; Table S-CI / Table S-Δ).
 
 **Methods note — feature views.** Classics sit in an sklearn `Pipeline` with a `ColumnTransformer` **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; the encoded `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. Neither TabPFN arm is in that pipeline.
 
@@ -1044,11 +1115,12 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 1. [Models (Table 0)](#1-models)
 2. [Ranking curves (Figure 1, Table 1)](#2-ranking-curves)
-3. [Calibration (Figure 2)](#3-calibration)
-4. [F1 operating point (Table 2 nested; Figure 3 / Table 3 pooled)](#4-f1-operating-point)
-5. [Supplementary: follow-up-time leakage](#5-supplementary-follow-up-time-leakage)
-6. [Supplementary: Wang 2020 integer score](#6-supplementary-wang-2020-integer-score)
-7. [File index](#7-file-index)
+3. [Uncertainty (Table S-CI, Table S-Δ)](#3-uncertainty)
+4. [Calibration (Figure 2)](#4-calibration)
+5. [F1 operating point (Table 2 nested; Figure 3 / Table 3 pooled)](#5-f1-operating-point)
+6. [Supplementary: follow-up-time leakage](#6-supplementary-follow-up-time-leakage)
+7. [Supplementary: Wang 2020 integer score](#7-supplementary-wang-2020-integer-score)
+8. [File index](#8-file-index)
 
 ---
 
@@ -1102,11 +1174,50 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 **Source files:** [paper_figures/paper_table1_ranking.png](04_tabpfn_rating/paper_figures/paper_table1_ranking.png), [paper_figures/paper_table1_ranking.csv](04_tabpfn_rating/paper_figures/paper_table1_ranking.csv)
 
-Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. LightGBM: 0.7505, 0.7130, 0.5399, 0.7727, 0.6919. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.6384, 0.6353, 0.5829, 0.7274, 0.7855 — higher than LightGBM in **2 of 5** (folds 3 and 5). There is still no paired significance test.
+Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. LightGBM: 0.7505, 0.7130, 0.5399, 0.7727, 0.6919. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.6384, 0.6353, 0.5829, 0.7274, 0.7855 — higher than LightGBM in **2 of 5** (folds 3 and 5). Interval estimates and the paired test are Table S-CI / Table S-Δ.
 
 ---
 
-## 3. Calibration
+## 3. Uncertainty
+
+Patient-level **stratified** bootstrap of the pooled OOF rows (keep 92 events and 5,093 non-events; `n_boot = 2000`, seed 42). Classifiers are **not** re-fit; the interval is the sampling variability of the pooled OOF metric given the stored scores. Fold mean ± SD in Table 1 remains the split-to-split summary.
+
+### Table S-CI. Stratified bootstrap 95% CIs on pooled OOF metrics
+
+![Table S-CI](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.png)
+
+**Table S-CI.** Percentile 95% CIs. Thinking-high PR-AUC **0.8553 (0.7957–0.9131)**; LightGBM **0.6926 (0.6049–0.7772)**; local **0.6754 (0.5874–0.7669)**. Thinking-high Brier **0.0064 (0.0052–0.0077)** vs local **0.0673 (0.0627–0.0718)**. Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py` on committed `oof_predictions.csv`.
+
+| Model | PR-AUC (95% CI) | ROC-AUC (95% CI) | Brier (95% CI) |
+| --- | --- | --- | --- |
+| TabPFN (thinking-high) | 0.8553 [0.7957, 0.9131] | 0.9905 [0.9834, 0.9964] | 0.0064 [0.0052, 0.0077] |
+| LightGBM | 0.6926 [0.6049, 0.7772] | 0.9680 [0.9489, 0.9830] | 0.0093 [0.0076, 0.0110] |
+| XGBoost | 0.6815 [0.5881, 0.7703] | 0.9439 [0.9100, 0.9742] | 0.0088 [0.0071, 0.0106] |
+| TabPFN (local) | 0.6754 [0.5874, 0.7669] | 0.9845 [0.9760, 0.9917] | 0.0673 [0.0627, 0.0718] |
+| CatBoost | 0.6172 [0.5250, 0.7148] | 0.9594 [0.9398, 0.9765] | 0.0101 [0.0084, 0.0119] |
+| Random Forest | 0.4865 [0.3860, 0.6034] | 0.9209 [0.8824, 0.9555] | 0.0143 [0.0137, 0.0148] |
+| Logistic Regression | 0.3326 [0.2486, 0.4345] | 0.9224 [0.8966, 0.9449] | 0.0563 [0.0511, 0.0611] |
+
+**Source files:** [paper_figures/paper_table_s_bootstrap_ci.png](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.png), [paper_figures/paper_table_s_bootstrap_ci.csv](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.csv)
+
+### Table S-Δ. Paired bootstrap Δ PR-AUC vs LightGBM
+
+![Table S-Δ](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.png)
+
+**Table S-Δ.** Same resampled OOF rows for both models. Primary contrast: thinking-high − LightGBM Δ PR-AUC **0.1627 (0.1000–0.2301)**; **P(Δ ≤ 0) = 0 / 2000**. Secondary: local − LightGBM **−0.0172 (−0.0951–0.0588)**; P(Δ ≤ 0) = 0.6465 (two-sided p = 0.707). The 5/5 outer-fold win for thinking-high is unchanged; local remains 2/5.
+
+| Contrast | Δ PR-AUC | 95% CI | P(Δ ≤ 0) | Two-sided p |
+| --- | ---: | --- | ---: | ---: |
+| TabPFN (thinking-high) − LightGBM | 0.1627 | [0.1000, 0.2301] | 0.0000 | 0.0000 |
+| TabPFN (local) − LightGBM | −0.0172 | [−0.0951, 0.0588] | 0.6465 | 0.707 |
+
+Outer-fold PR-AUC: [paper_figures/paper_table_s_fold_pr_wins.png](04_tabpfn_rating/paper_figures/paper_table_s_fold_pr_wins.png).
+
+**Source files:** [paper_figures/paper_table_s_paired_delta.png](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.png), [paper_figures/paper_table_s_paired_delta.csv](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.csv), [paper_figures/paper_table_s_fold_pr_wins.png](04_tabpfn_rating/paper_figures/paper_table_s_fold_pr_wins.png), [paper_figures/paper_table_s_fold_pr_wins.csv](04_tabpfn_rating/paper_figures/paper_table_s_fold_pr_wins.csv)
+
+---
+
+## 4. Calibration
 
 ### Figure 2. Reliability curves (quantile bins)
 
@@ -1118,7 +1229,7 @@ Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. Ligh
 
 ---
 
-## 4. F1 operating point
+## 5. F1 operating point
 
 Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figure 3 and Table 3 are the pooled F1 cut: the same concatenated OOF labels are used to *pick* and *score* the threshold, so precision, recall, F1, and F2 are **optimistically biased**. Counts sum to n = 5,185 with 92 events.
 
@@ -1168,7 +1279,7 @@ Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figu
 
 ---
 
-## 5. Supplementary: follow-up-time leakage
+## 6. Supplementary: follow-up-time leakage
 
 These numbers are **not** the nested-CV headline. They come from the two single-split (70/30, GridSearchCV) notebooks that diagnosed why `Time since stent implantation` cannot enter a classifier. Nothing was re-run; values are the stored test-set metrics.
 
@@ -1194,7 +1305,7 @@ Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/ra
 
 ---
 
-## 6. Supplementary: Wang 2020 integer score
+## 7. Supplementary: Wang 2020 integer score
 
 These numbers are **not** a nested-CV fit. They come from `code/modeling/rating/wang_vlst_score.ipynb`, which scores Wang 2020 Table 2 **integer points** on all 5,185 rows with the published weights frozen. The same five outer folds as Part 4 (`StratifiedKFold(5, shuffle=True, random_state=42)`) are used only to evaluate that frozen score.
 
@@ -1250,13 +1361,16 @@ Notebook: `code/modeling/rating/wang_vlst_score.ipynb`.
 
 ---
 
-## 7. File index
+## 8. File index
 
 | ID | Type | File |
 | --- | --- | --- |
 | Table 0 | Table | [paper_table0_models.png](04_tabpfn_rating/paper_figures/paper_table0_models.png) |
 | Fig 1 | Figure | [paper_fig1_pr_roc_curves.png](04_tabpfn_rating/paper_figures/paper_fig1_pr_roc_curves.png) |
 | Table 1 | Table | [paper_table1_ranking.png](04_tabpfn_rating/paper_figures/paper_table1_ranking.png) |
+| Table S-CI | Table | [paper_table_s_bootstrap_ci.png](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.png) |
+| Table S-Δ | Table | [paper_table_s_paired_delta.png](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.png) |
+| Table S-folds | Table | [paper_table_s_fold_pr_wins.png](04_tabpfn_rating/paper_figures/paper_table_s_fold_pr_wins.png) |
 | Fig 2 | Figure | [paper_fig2_calibration_curves.png](04_tabpfn_rating/paper_figures/paper_fig2_calibration_curves.png) |
 | Fig 3 | Figure | [paper_fig3_confusion_matrices.png](04_tabpfn_rating/paper_figures/paper_fig3_confusion_matrices.png) |
 | Table 2 | Table | [paper_table2_nested_operating_point.png](04_tabpfn_rating/paper_figures/paper_table2_nested_operating_point.png) |

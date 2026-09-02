@@ -34,7 +34,7 @@ An adjusted OR < 1 (`1.1:1Post dilation` 0.144; `Clopidogrel` 0.464) or a negati
 
 **What this pack adds on the *same* derivation cohort, beyond Wang’s score:**
 
-1. **Association catalogue** (Part 1) — FDR-controlled univariate tests and an exploratory 17-covariate logit (not a Cox model; not Wang’s eight variables).
+1. **Association catalogue** (Part 1) — FDR-controlled univariate tests, clinical Table C from `VLST.csv`, and an identified 13-covariate logit (Table 4b; the stored 17-covariate Table 4 is not identified). Not a Cox model; not Wang’s eight variables.
 2. **Interpretation catalogues** (Parts 2–3, 5) — classic-model LOCO / SHAP / FFS versus FDR names; TabPFN attributions. These do not feed the predictor.
 3. **Prediction comparison** (Part 4) — nested 5×4 stratified CV of five classic classifiers and **both** TabPFN arms after dropping the leaky follow-up-time column (W1), plus the frozen Wang integer score on the same rows (Table S-Wang).
 4. **Leakage control** (Part 4 supplement) — with-TSSI vs without-TSSI on a 70/30 split, showing why binary-ified survival time must not be a covariate.
@@ -50,21 +50,22 @@ It does **not** add: external or temporal testing of the ML models; a re-fit of 
 | Comparison | Value | Consequence |
 | --- | --- | --- |
 | Events / candidate features (81) | 92 / 81 ≈ **1.14** | Far below any conventional EPV rule |
-| Events / multivariable logit covariates (17) | 92 / 17 ≈ **5.4** | Below the conventional EPV ≥ 10 rule |
+| Events / multivariable logit covariates (17, Table 4) | 92 / 17 ≈ **5.4** | Unidentified spec; do not publish |
+| Events / reduced logit covariates (13, Table 4b) | 92 / 13 ≈ **7.1** | One name per collinear block; still below EPV ≥ 10 |
 | Events per Part 4 outer fold | 18, 18, 18, 19, 19 | Nested-CV scoreboard is thin |
 | Events on the Part 2 val slice | 18 of 1,037 | Selector catalogues are not prediction |
 
-Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement) is from the 17-covariate unweighted logit: **EPV ≈ 5.4**. Quote that number next to the OR. The model is for screening / confounding context, not prediction.
+Every **adjusted odds ratio** quoted as the identified screen is from Part 1 **Table 4b** (13 covariates, unweighted logit, **EPV ≈ 7.1**). Table 4 is the stored 17-covariate unidentified fit (**EPV ≈ 5.4**; VIF = ∞ on the post-dilation pair). Both are screening / confounding context, not prediction.
 
 ---
 
 ## Limitations (W3)
 
-1. **No external or temporal test of the ML models.** Every Part 4 number is nested CV on the 5,185 derivation rows. Wang’s Cox score **was** tested on Shantou (n = 2,058, 1.70% VLST); those rows are not here. Nested CV is not a substitute.
+1. **No external or temporal test of the ML models.** Every Part 4 number is nested CV on the 5,185 derivation rows. Wang’s Cox score **was** tested on Shantou (n = 2,058, 1.70% VLST); those rows are not here and **cannot be obtained this cycle** (B11 blocked). Nested CV is not a substitute. The Cox linear predictor and Dangas decision-curve comparison are likewise absent.
 
 2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV TabPFN (thinking-high) PR-AUC **0.8553** (LightGBM **0.6926**; TabPFN local **0.6754**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
 
-3. **EPV ≈ 5.4** on the 17-covariate logit (W4). Collinear blocks remain (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`). `CKD90`’s Wald interval is extremely wide. Do not read Table 4 as an identified clinical model.
+3. **EPV ≈ 7.1** on the identified 13-covariate logit (Table 4b); **EPV ≈ 5.4** on the stored 17-covariate Table 4, which is unidentified (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`; `CKD90` Wald interval 2.71–639.5). Quote Table 4b. Still below EPV ≥ 10.
 
 4. **Two TabPFN calibrations.** Nested-CV TabPFN (thinking-high) Brier is **0.0064**, the **best** of the seven. TabPFN (local) Brier is **0.0673**, the **worst**. Client thinking-high is non-deterministic across dumps (historical Brier 0.0060 / 0.0360 vs this dump 0.0064). Do not collapse the arms.
 
@@ -76,9 +77,9 @@ Every **adjusted odds ratio** in Part 1 Table 4 (and the joint-domain supplement
 
 8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high; the client arm is thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
 
-9. **No interval on PR-AUC, ROC-AUC, or Brier; no paired test** of thinking-high vs LightGBM (or local vs LightGBM). Thinking-high is first on PR-AUC as a point estimate (higher in **5 of 5** outer folds). Local is higher than LightGBM in **2 of 5**. OOF CSVs were written on Kaggle but **not committed** (B2).
+9. **PR-AUC CIs and paired test (B3).** Stratified bootstrap of pooled OOF (`n_boot = 2000`): thinking-high PR-AUC **0.8553 (0.7957–0.9131)** vs LightGBM **0.6926 (0.6049–0.7772)**; Δ **0.1627 (0.1000–0.2301)**, P(Δ ≤ 0) = 0/2000. Local vs LightGBM Δ **−0.0172 (−0.0951–0.0588)** is compatible with no difference. Thinking-high remains higher in **5 of 5** outer folds; local in **2 of 5**. OOF CSVs are committed (B2).
 
-10. **`LV` (and `CaI`) are not in Wang Table 1.** Until the column is named, timed, and unit-defined, do not treat `LV` as a novel echo marker.
+10. **`LV` (and `CaI`) are not named in the CSV.** Until the columns are named, timed, and unit-defined, do not treat `LV` as a novel echo marker. `CaI` means match Wang Table 1 peak troponin I but the file still does not expand the name. Clinical Table C is rebuilt from `VLST.csv` (B7), including both, and does not photocopy Wang’s post-dilation label.
 
 11. **Part 5 is not the Part 4 predictor.** Ranking / SHAP / stability use `balance_probabilities=True` (stretched 1.8% prior so shapes are visible). PDP uses `False` (empirical prior, labeled not Part 4 risk; binary P(y=1) ≈ 0.017–0.023). Do not mix those scales on one axis. SHAP is **15 VLST=1 + 15 VLST=0** with client thinking; k-SII is one VLST=1 row (5099). Do not treat k-SII as cohort interactions.
 

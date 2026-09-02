@@ -31,9 +31,10 @@ Part 5 met the protocol we were waiting for: 9-level encoder; MI CSV all 81 scor
 cohort; PDP `balance_probabilities=False` on n = 5,185 (binary P(y=1) ≈ 0.017–0.023, not 0.24); SHAP
 **15 VLST=1 + 15 VLST=0** with client thinking-high succeeding (`Explaining all 30 rows`); k-SII still one
 VLST=1 row (5099). **Reports and `paper_figures/` in both trees now match those notebooks** (B1 / B12 closed
-for the PNG/CSV copy). **Still open:** OOF CSVs were written on Kaggle but **not committed** (B2); no CIs /
-paired test (B3); EDA Table 4 collinearity (B4); clinical Table 1 rebuild (B7); Shantou / Cox LP / Dangas DCA
-(B11). D4: quote the notebooks if a later re-run disagrees with these exports.
+for the PNG/CSV copy). **Revision 8 (paper hygiene, no new Kaggle run, no new data).** B2 OOF CSVs committed
+under `data/result/modeling_results/oof/` and `tables/`; B3 stratified bootstrap CIs and paired PR-AUC test
+on those files; B4 Table 4b reduced logit; B7 clinical Table C from `VLST.csv`. **B11 remains blocked** (no
+Shantou / Cox LP / Dangas DCA this cycle). D4: quote the notebooks if a later re-run disagrees with these exports.
 
 **Revision 6.** Superseded by Revision 7 as the *current* Part 4/5 snapshot. That revision documented the
 Kaggle **local-only** nested CV (`RUN_MODELS["TabPFN"]=False`): LightGBM PR-AUC 0.6937, TabPFN (local)
@@ -205,7 +206,8 @@ in `paper_table1_continuous_univariate.csv`; Part 2's consensus tables at
 `.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L1468–1535 reproduce Part 2's
 Tables 1–4 exactly. So D4 does **not** invalidate Parts 1–3 wholesale. **Part 4 and Part 5 Markdown /
 `paper_figures/` now match the Revision 7 notebooks** (§5.8–5.9, §7.1–7.4): seven-arm thinking-high-first
-scoreboard; 15+15 SHAP with client thinking; empirical-prior PDP. OOF prediction CSVs remain uncommitted (B2).
+scoreboard; 15+15 SHAP with client thinking; empirical-prior PDP. OOF prediction CSVs are committed (B2);
+bootstrap CIs and the paired test are Part 4 Table S-CI / Table S-Δ (B3).
 
 ### 2.2 Events per variable
 
@@ -213,7 +215,8 @@ scoreboard; 15+15 SHAP with client thinking; empirical-prior PDP. OOF prediction
 | Comparison                                   | Value              | Consequence                                                                                                        |
 | -------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | Events / candidate features (81)             | 92 / 81 ≈ **1.14** | Far below any conventional threshold                                                                               |
-| Events / multivariable-model covariates (17) | 92 / 17 ≈ **5.4**  | Below the conventional EPV ≥ 10 rule                                                                               |
+| Events / multivariable-model covariates (17) | 92 / 17 ≈ **5.4**  | Stored Table 4 (unidentified); do not publish |
+| Events / reduced logit covariates (13) | 92 / 13 ≈ **7.1** | Table 4b; quote this; still below EPV ≥ 10 |
 | Events in the stored Part 2 test fold        | **28**             | Stored figures scored on 28 events. Current code uses a full-cohort val slice (~18 events at `INNER_VAL_SIZE=0.2`) |
 | Events per outer CV fold (Part 4)            | 18, 18, 18, 19, 19 | `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L1030–1060                                              |
 
@@ -606,8 +609,10 @@ then `ColumnTransformer` scale + `OneHotEncoder(handle_unknown="ignore")` on tha
 split (~89 columns). Neither TabPFN arm is in that pipeline; both see the same 9-level frame natively. Imputers
 are inert (no missing values).
 
-OOF arrays were written to `/kaggle/working/modeling_results/oof/` (dump cell 7) but **not copied into the repo**
-(§12.10, B2).
+OOF arrays from `/kaggle/working/modeling_results/` are committed at
+`data/result/modeling_results/oof/{oof_predictions,fold_thresholds}.csv` and
+`data/result/modeling_results/tables/{model_comparison,nested_cv_operating_point,fold_metrics,...}.csv` (B2).
+Bootstrap CIs / paired Δ PR-AUC are Part 4 Table S-CI / Table S-Δ (B3).
 
 The six-model local-only snapshot (Rev 6: LightGBM PR-AUC 0.6937, thinking-high unused) is **not** this run.
 LightGBM on this GPU pass is PR-AUC **0.6926** (small non-determinism vs 0.6937). Historical thinking-high
@@ -864,8 +869,9 @@ Source: dump L1354–1395. Each fold n = 1,037, with n_pos = 18, 18, 18, 19, 19.
 
 
 Thinking-high PR-AUC is higher than LightGBM in **5 of 5** folds. TabPFN (local) is higher than LightGBM in
-**2 of 5** folds (3 and 5), same pattern as Rev 6. There is still no paired significance test (§12.9). Do not
-say the *local* arm wins 5/5.
+**2 of 5** folds (3 and 5), same pattern as Rev 6. Paired stratified bootstrap of pooled OOF (B3, `n_boot=2000`):
+thinking-high − LightGBM Δ PR-AUC **0.1627 (0.1000–0.2301)**, P(Δ ≤ 0) = 0/2000. Local − LightGBM
+**−0.0172 (−0.0951–0.0588)**, two-sided p = 0.707. Do not say the *local* arm wins 5/5.
 
 ### 7.5 Unreported metrics: single-split baselines with and without the leakage variable
 
@@ -1228,6 +1234,7 @@ paper-protocol selector run (`rebuild_part2_paper_figures.py`, `stats_vs_ml_comp
 | ID        | Type       | File                                                                                                                                                                                                                                    | Content                                                 |
 | --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | Fig 1     | Figure     | `paper_fig1_test_selection_map.png`                                                                                                                                                                                                     | Skew–kurtosis test-selection map, 3 panels              |
+| Table C   | Table      | `paper_table_c_cohort_characteristics.png/.csv`                                                                                                                                                           | Clinical Table 1 from `VLST.csv` (B7)                   |
 | Table R   | Table      | `paper_table_test_rationale.png/.csv`                                                                                                                                                                                                   | 24 continuous variables, chosen test, shape stats, p, q |
 | Fig 2     | Figure     | `paper_fig2_univariate_significance.png`                                                                                                                                                                                                | −log10(p) ranking of continuous features                |
 | Table 1   | Table      | `paper_table1_continuous_fdr.png` / `paper_table1_continuous_univariate.csv`                                                                                                                                                            | 10 FDR-significant continuous                           |
@@ -1236,7 +1243,8 @@ paper-protocol selector run (`rebuild_part2_paper_figures.py`, `stats_vs_ml_comp
 | Table 2   | Table      | `paper_table2_binary_fdr.png` / `paper_table2_binary_univariate.csv`                                                                                                                                                                    | 10 FDR-significant binary                               |
 | Fig 5     | Figure     | `paper_fig5_categorical_rates_Stent_type-SES.png`                                                                                                                                                                                       | VLST rate by stent type (9 collapsed levels)            |
 | Table 3   | Table      | `paper_table3_categorical.png/.csv`                                                                                                                                                                                                     | χ² for `Stent type-SES`                                 |
-| Table 4   | Table      | `paper_table4_multivariable_or.png/.csv` + `_numeric.csv`                                                                                                                                                                               | 17-covariate adjusted ORs                               |
+| Table 4   | Table      | `paper_table4_multivariable_or.png/.csv` + `_numeric.csv`                                                                                                                                                                               | 17-covariate adjusted ORs (unidentified; do not publish) |
+| Table 4b  | Table      | `paper_table4b_reduced_or.png/.csv` + `paper_table4b_vif_comparison.png/.csv`                                                                                                                                                          | 13-covariate identified logit, VIFs, EPV ≈ 7.1 (B4) |
 | Fig 6     | Figure     | `paper_fig6_uni_vs_multivariable_or.png`                                                                                                                                                                                                | Univariate vs adjusted OR                               |
 | Fig S5a–b | Supp fig   | `03_correlation_heatmap_top42_vs_next41_with_target.png`, `03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png`                                                                                                            | Pearson / Spearman pairwise heatmaps (with target)      |
 | Fig S1    | Supp fig   | `domain_univariate_top_hits.png`                                                                                                                                                                                                        | Top hits per clinical domain                            |
@@ -1310,20 +1318,17 @@ No truncation note.
 | Table S-Wang-bins | Table | `paper_table_s_wang_score_bins.png/.csv` | Current — frozen Wang bins vs published n/rates |
 | Table S-Wang | Table | `paper_table_s_wang_vs_ml.png/.csv` | Current — thinking-high 0.9905 / 0.8553 added |
 | Fig S-Wang | Figure | `paper_fig_s_wang_score_rate.png` | Current — observed VLST rate by integer score |
+| Table S-CI | Table | `paper_table_s_bootstrap_ci.png/.csv` | Current — B3 stratified bootstrap 95% CIs |
+| Table S-Δ | Table | `paper_table_s_paired_delta.png/.csv` | Current — thinking-high − LightGBM Δ PR-AUC 0.1627 |
+| Table S-folds | Table | `paper_table_s_fold_pr_wins.png/.csv` | Current — 5/5 vs 2/5 fold PR-AUC wins |
 
 
 Do **not** quote leftover `paper_table2_f1_operating_point.*` (deleted; it was a prior pooled export with TabPFN t=0.901).
 
-**Produced by the notebook but absent as committed CSVs:** `model_comparison.csv`,
-`nested_cv_operating_point.csv`, `fold_metrics.csv`,
-`best_model_threshold_sweep.csv`, `oof_predictions.csv`, `fold_thresholds.csv`.
-
-**[GAP — confirmed by directory listing]** None of the CSV artefacts written to `/kaggle/working/...` were
-copied into the repository except the `paper_figures/` exports. `data/result/modeling_results/` contains **only** a `paper_figures/` folder; there is no
-`oof_predictions.csv`, `fold_metrics.csv`, `fold_thresholds.csv`, `model_comparison.csv` or
-`nested_cv_operating_point.csv` anywhere under `data/result/`. The out-of-fold predictions — which would let a
-reviewer recompute every Part 4 number, add confidence intervals, and run DeLong or bootstrap comparisons — do not
-exist in the repo. **[TODO-REPRO]**
+**OOF / table CSVs (B2 closed).** Committed under `data/result/modeling_results/oof/` and `tables/`:
+`oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `model_comparison.csv`,
+`nested_cv_operating_point.csv`, plus bootstrap exports from B3. Reviewers can recompute Part 4 ranking
+metrics and the paired test from these files.
 
 ### Part 5 — TabPFN interpretability
 
@@ -1368,9 +1373,9 @@ paper's framing changes and this layout does not apply.
 
 | Slot         | Item                                                                                                                                                                          | Rationale                                                                                                                                                                                                                                         |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Table 1**  | Baseline cohort characteristics, cases vs controls                                                                                                                            | Wang 2020 Table 1 **already is this table** for this cohort. Rebuild it from `VLST.csv` (do not photocopy: post-dilation labelling is inconsistent in Wang, and `LV` / `CaI` need to appear). Cite Wang for the recruitment flow (6,038 → 5,185). |
+| **Table 1**  | Baseline cohort characteristics, cases vs controls                                                                                                                            | Part 1 Table C, rebuilt from `VLST.csv` (B7). Cite Wang for 6,038 → 5,185. Do not photocopy Wang’s post-dilation label. `LV` / `CaI` included unnamed. |
 | **Table 2**  | Part 4 ranking + nested operating point from §7.1 / §7.3 | Use the **7-arm** notebook: thinking-high first on PR-AUC (0.8553), local Brier 0.0673 as a separate row. Repo tables now match. |
-| **Table 3**  | Part 1 Table 4 **respecified** — see §12.1; one representative per collinear block, EPV stated                                                                                | Currently unpublishable as written.                                                                                                                                                                                                               |
+| **Table 3**  | Part 1 Table 4b (13 covariates, one per collinear block, EPV ≈ 7.1, VIFs reported)                                                                                | Table 4 (17-covariate) stays in the supplement as the unidentified stored spec. |
 | **Figure 1** | Part 4 Figure 1 (PR and ROC curves) with the prevalence line, **PR panel first and larger**                                                                                   | The single most important result. PR-AUC leads because prevalence is 1.77%.                                                                                                                                                                       |
 | **Figure 2** | Part 4 Figure 2 (calibration), 7-arm notebook                                                                 | Thinking-high Brier **0.0064** is best of seven; local **0.0673** is worst. Do not claim “TabPFN is poorly calibrated” without naming the arm. |
 | **Figure 3** | A **new** single figure merging Part 1 Figure 4 (binary ORs) and Part 1 Figure 3 (continuous effect sizes) with **separate panels per effect-size metric**                    | Fixes the d-vs-r comparability problem of §7.8 while keeping the association story in one place.                                                                                                                                                  |
@@ -1389,7 +1394,7 @@ paper's framing changes and this layout does not apply.
 | Feature-selection methods                       | Part 2 Table 0, Fig 1, Table 1, Table 2, Table 3, Table 4 — each with an explicit note that LOCO's pool is a column-order prefix and that scoring used the test set                                   |
 | Stats-vs-ML                                     | Part 3 Fig 1 or 2, Table 1, Tables 2–4                                                                                                                                                                |
 | Interpretability                                | Part 5 Table 1, Table 2, Fig 1, Fig 2, Table 3, Fig 5, Table 4, Fig 7, Fig 8 — every caption restated per §12.6                                                                                       |
-| Reproducibility                                 | `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `nested_cv_operating_point.csv` — **must be regenerated and committed**                                                             |
+| Reproducibility                                 | `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `nested_cv_operating_point.csv` — **committed** under `data/result/modeling_results/` (B2)                                                             |
 
 
 ### 11.3 Redundant — cut or merge
@@ -1414,25 +1419,20 @@ paper's framing changes and this layout does not apply.
 
 ## 12. Unsupported claims, ambiguities, contradictions, missing information
 
-### 12.1 [CRITICAL] The exploratory multivariable model is not identified
+### 12.1 [CLOSED for Table 4b] The stored 17-covariate Table 4 is not identified
 
 EDA Table 4 contains, simultaneously:
 
-- `1.1:1Post dilation` **and** `No postdilation` — verified **exact complements** (§3.4). Two parameters for one
-bit. The split between adjusted OR 0.144 and adjusted OR 0.895 is determined entirely by the `C=1e6` ridge
-penalty, not by the data. **Neither coefficient is interpretable.**
-- `eGFR` (continuous) **and** `CKD5` (its stage) **and** `CKD90` (its dichotomisation at 90) — three deterministic
-functions of one measurement. This produces `CKD5`'s sign flip (univariate 1.391 → adjusted 0.156, CI
-excluding 1 in the **opposite** direction) and `CKD90`'s adjusted OR of 12.54 with a bootstrap CI of
-**2.708 – 639.506**, a CI spanning more than two orders of magnitude.
-- `3-vessel disease` **and** `NO.of vessels` — the same anatomical construct twice.
+- `1.1:1Post dilation` **and** `No postdilation` — verified **exact complements** (§3.4). VIF = ∞ on both.
+- `eGFR` (continuous) **and** `CKD5` (its stage) **and** `CKD90` (its dichotomisation at 90).
+- `3-vessel disease` **and** `NO.of vessels`.
 
-Additionally: no variance inflation factors are reported for this model, although
-`domain_vif_cluster_reps.csv` exists for the domain models; 200 bootstrap replicates is low; and the 8-binary cap
-is an undisclosed specification rule.
+**Table 4 stays in the pack as the stored unidentified export. Do not publish it as the clinical model.**
 
-**This table cannot be published as it stands.** Refit with one representative per collinear block and report
-EPV, or drop the multivariable analysis and present univariate associations only.
+**Table 4b (B4)** is the identified refit: 13 covariates, one name per block (`1.1:1Post dilation`, `eGFR`,
+`NO.of vessels` kept; complements and extra encodings dropped). Unweighted Newton MLE, Wald 95% CI,
+stratified `n_boot = 2000`. **EPV = 92 / 13 ≈ 7.1**. All VIFs finite (max 4.02, `Total stent length`;
+post-dilation VIF 1.07). `CKD90`’s 2.71–639 interval is gone because `CKD90` is not in the spec. Quote Table 4b.
 
 ### 12.2 [CLOSED] Part 4 `paper_figures/` match the 7-arm notebook
 
@@ -1446,7 +1446,7 @@ and Part 4 Markdown agree.
 
 **Client non-determinism.** This dump Brier 0.0064 sits next to earlier client prints 0.0060 and 0.0360.
 Limitations should say the client arm has moved across runs; this dump is internally consistent at 0.0064.
-**[TODO-REPRO]** OOF CSVs remain uncommitted.
+OOF CSVs are committed (B2).
 
 ### 12.3 [CRITICAL] Claims that ROC-AUC and F1 support clinical usefulness
 
@@ -1531,12 +1531,14 @@ fit/val 4148/1037. Kaggle long CSVs were not committed; Harmony panels were rebu
 displays (`rebuild_part2_paper_figures.py`). Do not quote the old F1/F2 / 0.95 Jaccard / 185-column
 story.
 
-### 12.9 [RISK] Unquantified uncertainty everywhere
+### 12.9 [CLOSED for ranking metrics] Unquantified uncertainty
 
-- No confidence intervals on **any** PR-AUC, ROC-AUC, or Brier score.
-- No paired statistical comparison between models (no DeLong, no bootstrap difference test). "Thinking-high is first on PR-AUC" and "TabPFN (local) is fourth of seven" are point-estimate orderings. Fold SDs (§7.1): thinking-high PR 0.8488 ± 0.0861 vs LightGBM 0.6936 ± 0.0915; thinking-high higher in **5/5** folds. Local vs LightGBM is still 2/5. No test was run.
+- **Closed for PR-AUC / ROC-AUC / Brier (B3).** Stratified patient-level bootstrap of pooled OOF, `n_boot = 2000`,
+  seed 42. Thinking-high PR-AUC 0.8553 (0.7957–0.9131); LightGBM 0.6926 (0.6049–0.7772); local 0.6754 (0.5874–0.7669).
+  Paired Δ PR-AUC thinking-high − LightGBM 0.1627 (0.1000–0.2301), P(Δ ≤ 0) = 0/2000. Local − LightGBM is compatible
+  with zero. Fold wins remain 5/5 and 2/5. Classifiers were not re-fit inside the bootstrap.
 - No confidence intervals on precision/recall/F1 at any operating point.
-- No calibration slope or intercept; only Brier and a visual reliability curve.
+- No calibration slope or intercept; only Brier, a visual reliability curve, and now a Brier CI.
 - Univariate effect sizes in Table 1 and Table 2 carry no confidence intervals — only p and q.
 
 ### 12.10 [GAP] Reproducibility
@@ -1544,7 +1546,7 @@ story.
 
 | Missing                                                                                   | Impact                                                                                                                                                                        |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `oof_predictions.csv` / `fold_thresholds.csv` not in repo (written to `/kaggle/working/`) | No reviewer can recompute Part 4 or add CIs                                                                                                                                   |
+| `oof_predictions.csv` / `fold_thresholds.csv` **committed** (B2) | Reviewers can recompute Part 4 ranking metrics and the B3 CIs |
 | No `environment.yml` / lockfile; `requirements.txt` has no pins verified                  | TabPFN, shapiq, CatBoost versions unknown                                                                                                                                     |
 | Stored Part 4 TabPFN is a local checkpoint (`tabpfn-v3-classifier-v3_default.ckpt`)       | Pin `tabpfn` package version; the unused thinking-high client/server versions remain unrecorded                                                                               |
 | Unused client thinking-high arm is non-deterministic across runs (§12.2) | **This dump ran the client** (Brier 0.0064). Earlier client prints 0.0060 / 0.0360 still belong in Limitations. Local Brier remains 0.0673. |
@@ -1564,9 +1566,9 @@ One sentence of residual substance, kept for honesty and needing no table: explo
 seven notebooks did execute against the same 92 events, so if a reviewer asks what else was tried, the accurate
 answer is "exploratory analyses that were abandoned and are not reported" — not "nothing".
 
-The stronger version of this concern, which does still bind, is not about notebook count at all: it is that no
-paired significance test separates thinking-high TabPFN from LightGBM (§12.9), and the ML models have no external validation
-(§6.6) even though Wang's Cox score does.
+The stronger version of this concern, which does still bind, is not about notebook count at all: it is that
+the ML models have no external validation (§6.6) even though Wang's Cox score does (B11 blocked this cycle).
+The paired PR-AUC test of thinking-high vs LightGBM is now in Part 4 Table S-Δ (§12.9).
 
 ### 12.12 Terminology discipline for the manuscript
 
@@ -1620,17 +1622,17 @@ Groups B–E are execution work.
 | #                         | Task                                                                                                                                                                                                                                                                                         | Cost                                                                                                                                                            | Notes                                                                                                                                                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **B1** [TODO-P4 — **closed**] | **Re-export all of Part 4** from the 7-arm notebook (`de46f92`): Figures 1–3, Tables 0–3, sweep panel. | Done — notebook cell PNGs + rebuilt tables in both trees + `data/result/modeling_results/` | Thinking-high-first 7-arm figures. |
-| **B2** [TODO-REPRO]       | **Persist** `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `model_comparison.csv`, `nested_cv_operating_point.csv`. Written on Kaggle; **absent from repo**. | Low | Needed for CIs (B3). |
-| **B3** [TODO-CI]          | **Bootstrap CIs** and a paired test between thinking-high TabPFN and LightGBM (primary), and local vs LightGBM (secondary). | Low once B2 exists | Thinking-high higher PR in 5/5 folds is the interim fallback. |
+| **B2** [TODO-REPRO — **closed**] | **Persist** `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `model_comparison.csv`, `nested_cv_operating_point.csv`. | Done — `data/result/modeling_results/oof/` and `tables/` from Kaggle Version 5 | Unblocks B3. |
+| **B3** [TODO-CI — **closed**] | **Bootstrap CIs** and a paired test between thinking-high TabPFN and LightGBM (primary), and local vs LightGBM (secondary). | Done — Part 4 Table S-CI / Table S-Δ (`n_boot=2000`, seed 42) | Thinking-high Δ PR-AUC 0.1627 (0.1000–0.2301), P(Δ ≤ 0) = 0/2000. Local vs LightGBM not distinguishable. 5/5 fold wins retained. |
 | **B6** [TODO-MI — **closed**] | `[1a]` wrote all 81 MI scores; `Fast-Glu` / `ZES` in top 15. Table 1/5 PNGs/CSVs exported from `645fb0e`. | Done | `Cre` MI 0.002281 stored; no fill-zero. |
-| **B4** [TODO-T4]          | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; raise `N_BOOT` from 200 to ≥ 2,000.                                                                                                                                                                  | Low                                                                                                                                                             | As it stands the model is not identified: `1.1:1Post dilation` sits beside its exact complement, and `eGFR` beside `CKD5` and `CKD90` (§12.1). `CKD90`'s CI is 2.708–639.506. **This table cannot be published as written.**  |
+| **B4** [TODO-T4 — **closed**] | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; `N_BOOT` ≥ 2,000. | Done as **Table 4b** (13 covariates, EPV ≈ 7.1). Table 4 kept as the unidentified stored spec. | Do not publish Table 4. Quote Table 4b. |
 | **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `stats_vs_ml_comparison.ipynb`. Jaccard 5/28 asserted after the 2026-08-31 catalogues. | Done | Inputs are the §8.1 FDR set and §8.6 ML consensus. Re-run the notebook if either catalogue changes. |
 | **B8** [CLOSED]           | **Part 2 paper protocol re-run on Kaggle** (2026-08-31): full-cohort discovery, PR-AUC only, independent selectors, top-20 / SHAP 40 / LOCO 60 / FFS 24×12. Parts 2–3 figures replaced. Download `selector_summary_long.csv` when convenient (tables were reconstructed from notebook HTML). | Done | Part 2/3 still do not support a *predictive* claim — they are discovery catalogues on a val slice (§4.4, §9.5). |
-| **B7** [TODO-TABLE1]      | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3).                                                                                     | Low                                                                                                                                                             | A conventional Table 1 already exists in Wang 2020; the repo still needs a verified, ML-complete version.                                                                                                                     |
+| **B7** [TODO-TABLE1 — **closed**] | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3). | Done — Part 1 Table C | Wang SES / WBC / LVEF / DAPT / HL recovered. 14 VLST events sit on `1.1:1Post dilation` = 1. `CaI` means match Wang peak troponin I; column still unnamed. |
 | **B9** [encoding — closed] | **Part 4 and Part 5 notebooks use the 9-level encoder.** Optional: tune classics. | Encoding done | Untuned classics vs thinking-high is disclosed (§6.3). |
 | **B10** [TODO-SCORE — closed] | Wang integer score on 5,185 rows: ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV thinking-high **0.9905 / 0.8553**, LightGBM 0.9680 / 0.6926, local 0.9845 / 0.6754. | Done | Cox LP / DCA / Shantou still B11. |
 | **B12** [TODO-P5 — **closed**] | **Copy Part 5 Kaggle artefacts** (`interpretability_*.csv/png`, SHAP 30-row indices) into both `paper_figures/` trees from `645fb0e`. | Done | Dual tree + `data/result/modeling_tabpfn/`. |
-| **B11** [TODO-EXT]        | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used.                                                                                                                                                                                         | Political, not computational                                                                                                                                    | Without it, state clearly that ML validation is derivation-cohort nested CV only.                                                                                                                                             |
+| **B11** [TODO-EXT — **blocked**] | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used. Cox LP and Dangas DCA wait on the same access. | **Blocked this cycle — no new data.** | State clearly that ML validation is derivation-cohort nested CV only. |
 
 
 ### C. Rewrite or delete — claims that are now known to be wrong
@@ -1644,7 +1646,7 @@ closures that were not reopened.
 | ------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **C1**  | Part 4 Table 1 / Figure 2 Brier                                                           | **[REV7/closed in reports]** Thinking-high Brier **0.0064** (best of seven); local **0.0673** (worst). Dual-tree PNGs match.                                                                                                                               |
 | **C2**  | Part 4 event counts                                                                       | **[REV7/closed in reports]** Nested thinking-high 5076/17/27/65 (recall 0.7065). Local nested 5041/52/29/63. Pooled local TP=76 is Table 3 only.                                                                                                           |
-| **C3**  | Part 4 provenance / fold SD                                                               | **[REV7/closed in reports]** Fold SD and thinking-high row are in Table 1. OOF CSVs still uncommitted (B2).                                                                                                                                               |
+| **C3**  | Part 4 provenance / fold SD                                                               | **[REV8/closed]** Fold SD in Table 1. OOF CSVs committed (B2). Bootstrap CIs in Table S-CI. |
 | **C4**  | Part 4 Tables 2–3                                                                         | **[REV7/closed in reports]** Thinking-high nested/pooled rows present; nested vs pooled labels kept.                                                                                                                                                      |
 | **C6**  | Part 5 SHAP captions                                                                      | **[REV7/closed in reports]** 15+15 / client thinking; Cre leads mean(\|SHAP\|).                                                                                                                                                                            |
 | **C7**  | Part 5 PDP captions                                                                       | **[REV7/closed in reports]** Empirical prior (~0.018); largest binary Δ −0.0043.                                                                                                                                                                           |
@@ -1667,8 +1669,8 @@ closures that were not reopened.
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative.                                                           | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
 | **W2** [closed in reports]  | **Clinical motivation and citations.** Drafted in `paper_results/00_front_matter.md` (and concatenated `paper_results.md` Part 0): Wang 2020 definition/cohort/score; why TabPFN; what “personalised” does *not* mean; what this pack adds *beyond* Wang’s 8-variable Cox score. Frozen integer points are now scored (Part 4 S-Wang; B10 closed for that comparator). | Cite Wang; do not write as if no VLST score exists.                                       |
-| **W3** [closed in reports]  | **Limitations** Rev 7 pass: thinking-high ran (Brier 0.0064, PR 0.8553, 5/5 folds vs LightGBM); local Brier 0.0673 still worst; client non-determinism across dumps; no CIs; no external ML test. | Drafted in Part 0. |
-| **W4** [TODO-EPV — closed]  | **EPV stated explicitly** (92 / 17 ≈ **5.4**) in Part 0 and next to Part 1 Table 4 / Figure S4 adjusted ORs (both report trees + concat).                                                                                                                                                                                                                                                            | Was computed nowhere (§2.2).                                                              |
+| **W3** [closed in reports]  | **Limitations** Rev 8 pass: B3 CIs in; Table 4b identified; Table C rebuilt; B11 blocked (no new data). Thinking-high PR 0.8553 (0.7957–0.9131) vs LightGBM 0.6926 (0.6049–0.7772). | Drafted in Part 0. |
+| **W4** [TODO-EPV — closed]  | **EPV stated explicitly**: Table 4 92 / 17 ≈ **5.4** (unidentified); Table 4b 92 / 13 ≈ **7.1** (quote this).                                                                                                                                                                                                                                                            | Was computed nowhere (§2.2).                                                              |
 | **W5** [closed in reports]  | **Terminology pass** enforcing §12.12 in Part 0 and part headers: association (Parts 1, 5 MI); prediction (Part 4 nested CV only); interpretation/attribution (Parts 2, 5). Banned words removed from captions (“risk factor”, “independent signal”). Wang’s score remains the only result called externally tested.                                                                                  |                                                                                           |
 
 
@@ -1687,9 +1689,9 @@ closures that were not reopened.
 
 ### Suggested order
 
-1. **A1/A4 (`LV`, WBC vs Wang's exclusion) in parallel with B2 (commit OOF CSVs).** Lab timing no longer gates the whole paper; `LV` still gates any claim that names it. Part 4/5 PNG export (B1, B12) is closed for this 7-arm / 15+15 snapshot.
-2. **B11** (Shantou file) as a data-access ask, not a compute task. B10 (Wang integer score on the derivation file) is closed.
-3. **B4, B7** — both cheap. B7 is "rebuild and verify against Wang Table 1." (B5 / Part 3 notebook and B6 MI export are done.)
-4. **C1–C16 report wording is done for Parts 4–5** against Revision 7. Optional leftover: C12 split-axis Figure 3.
-5. **W1–W5 are drafted** in `paper_results/00_front_matter.md` (Part 0 of `paper_results.md`) and Part 1 Table 4. Remaining B-list: B2 OOF CSVs, B3 CIs once B2 exists, B4 Table 4 refit, B7 clinical Table 1, B11 Shantou file.
+1. **A1/A4 (`LV`, WBC vs Wang's exclusion).** Lab timing no longer gates the whole paper; `LV` still gates any claim that names it. `CaI` means match Wang peak troponin I but the CSV name is still unexpanded.
+2. **B11** (Shantou file / Cox LP / Dangas DCA) remains a data-access ask. **Blocked this cycle — no new data.** Nested CV is derivation-only.
+3. **B2, B3, B4, B7 are closed.** OOF CSVs committed; CIs and paired test in Part 4; Table 4b is the identified logit; Table C is the clinical Table 1.
+4. **C1–C16 report wording is done for Parts 4–5** against Revision 7, with C3 updated for B2/B3. Optional leftover: C12 split-axis Figure 3.
+5. **W1–W5 are drafted** in `paper_results/00_front_matter.md`. Remaining B-list: **B11 only**.
 

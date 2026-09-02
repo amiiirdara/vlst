@@ -4,7 +4,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 **Cohort / protocol.** Full VLST cohort, n = 5,185 (92 events; prevalence = 0.0177). Target = `Stent thrombosis`. Identifiers (`NO.`, `Name`) and `Time since stent implantation` are dropped; the latter is treated as a time-at-risk / follow-up column, not a baseline covariate. **No Part 2 / Part 5 feature mask is applied.** Evaluation is nested stratified CV: **5 outer folds / 4 inner folds** (outer `random_state=42`). Ranking metrics (PR-AUC, ROC-AUC, Brier) use pooled outer out-of-fold probabilities and are threshold-independent. For precision / recall / F1 / F2, **quote the nested inner-fold thresholds** (Table 2): each outer fold’s cut is chosen on inner OOF scores and applied once to that fold’s unseen cases. Figure 3 / Table 3 additionally show a single pooled F1 cut; that cut is **optimistically biased** (methods note below). These nested-CV metrics are this pack’s only **prediction** results.
 
-**This run (D4).** Kaggle nested CV, Tesla T4, notebook commit `de46f92` (Version 5). **Both TabPFN arms finished:** `RUN_MODELS["TabPFN"]=True` and `TabPFN (local)=True`. The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively.
+**This run (D4).** Kaggle nested CV, Tesla T4, notebook commit `de46f92` (Version 5). **Both TabPFN arms finished:** `RUN_MODELS["TabPFN"]=True` and `TabPFN (local)=True`. The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Nested-CV OOF CSVs from this run are in `data/result/modeling_results/oof/` and `tables/` (B2). Bootstrap CIs and the paired PR-AUC test use those files (B3; Table S-CI / Table S-Δ).
 
 **Methods note — feature views.** Classics sit in an sklearn `Pipeline` with a `ColumnTransformer` **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; the encoded `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. Neither TabPFN arm is in that pipeline.
 
@@ -30,11 +30,12 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 1. [Models (Table 0)](#1-models)
 2. [Ranking curves (Figure 1, Table 1)](#2-ranking-curves)
-3. [Calibration (Figure 2)](#3-calibration)
-4. [F1 operating point (Table 2 nested; Figure 3 / Table 3 pooled)](#4-f1-operating-point)
-5. [Supplementary: follow-up-time leakage](#5-supplementary-follow-up-time-leakage)
-6. [Supplementary: Wang 2020 integer score](#6-supplementary-wang-2020-integer-score)
-7. [File index](#7-file-index)
+3. [Uncertainty (Table S-CI, Table S-Δ)](#3-uncertainty)
+4. [Calibration (Figure 2)](#4-calibration)
+5. [F1 operating point (Table 2 nested; Figure 3 / Table 3 pooled)](#5-f1-operating-point)
+6. [Supplementary: follow-up-time leakage](#6-supplementary-follow-up-time-leakage)
+7. [Supplementary: Wang 2020 integer score](#7-supplementary-wang-2020-integer-score)
+8. [File index](#8-file-index)
 
 ---
 
@@ -88,11 +89,50 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 **Source files:** [paper_figures/paper_table1_ranking.png](paper_figures/paper_table1_ranking.png), [paper_figures/paper_table1_ranking.csv](paper_figures/paper_table1_ranking.csv)
 
-Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. LightGBM: 0.7505, 0.7130, 0.5399, 0.7727, 0.6919. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.6384, 0.6353, 0.5829, 0.7274, 0.7855 — higher than LightGBM in **2 of 5** (folds 3 and 5). There is still no paired significance test.
+Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. LightGBM: 0.7505, 0.7130, 0.5399, 0.7727, 0.6919. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.6384, 0.6353, 0.5829, 0.7274, 0.7855 — higher than LightGBM in **2 of 5** (folds 3 and 5). Interval estimates and the paired test are Table S-CI / Table S-Δ.
 
 ---
 
-## 3. Calibration
+## 3. Uncertainty
+
+Patient-level **stratified** bootstrap of the pooled OOF rows (keep 92 events and 5,093 non-events; `n_boot = 2000`, seed 42). Classifiers are **not** re-fit; the interval is the sampling variability of the pooled OOF metric given the stored scores. Fold mean ± SD in Table 1 remains the split-to-split summary.
+
+### Table S-CI. Stratified bootstrap 95% CIs on pooled OOF metrics
+
+![Table S-CI](paper_figures/paper_table_s_bootstrap_ci.png)
+
+**Table S-CI.** Percentile 95% CIs. Thinking-high PR-AUC **0.8553 (0.7957–0.9131)**; LightGBM **0.6926 (0.6049–0.7772)**; local **0.6754 (0.5874–0.7669)**. Thinking-high Brier **0.0064 (0.0052–0.0077)** vs local **0.0673 (0.0627–0.0718)**. Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py` on committed `oof_predictions.csv`.
+
+| Model | PR-AUC (95% CI) | ROC-AUC (95% CI) | Brier (95% CI) |
+| --- | --- | --- | --- |
+| TabPFN (thinking-high) | 0.8553 [0.7957, 0.9131] | 0.9905 [0.9834, 0.9964] | 0.0064 [0.0052, 0.0077] |
+| LightGBM | 0.6926 [0.6049, 0.7772] | 0.9680 [0.9489, 0.9830] | 0.0093 [0.0076, 0.0110] |
+| XGBoost | 0.6815 [0.5881, 0.7703] | 0.9439 [0.9100, 0.9742] | 0.0088 [0.0071, 0.0106] |
+| TabPFN (local) | 0.6754 [0.5874, 0.7669] | 0.9845 [0.9760, 0.9917] | 0.0673 [0.0627, 0.0718] |
+| CatBoost | 0.6172 [0.5250, 0.7148] | 0.9594 [0.9398, 0.9765] | 0.0101 [0.0084, 0.0119] |
+| Random Forest | 0.4865 [0.3860, 0.6034] | 0.9209 [0.8824, 0.9555] | 0.0143 [0.0137, 0.0148] |
+| Logistic Regression | 0.3326 [0.2486, 0.4345] | 0.9224 [0.8966, 0.9449] | 0.0563 [0.0511, 0.0611] |
+
+**Source files:** [paper_figures/paper_table_s_bootstrap_ci.png](paper_figures/paper_table_s_bootstrap_ci.png), [paper_figures/paper_table_s_bootstrap_ci.csv](paper_figures/paper_table_s_bootstrap_ci.csv)
+
+### Table S-Δ. Paired bootstrap Δ PR-AUC vs LightGBM
+
+![Table S-Δ](paper_figures/paper_table_s_paired_delta.png)
+
+**Table S-Δ.** Same resampled OOF rows for both models. Primary contrast: thinking-high − LightGBM Δ PR-AUC **0.1627 (0.1000–0.2301)**; **P(Δ ≤ 0) = 0 / 2000**. Secondary: local − LightGBM **−0.0172 (−0.0951–0.0588)**; P(Δ ≤ 0) = 0.6465 (two-sided p = 0.707). The 5/5 outer-fold win for thinking-high is unchanged; local remains 2/5.
+
+| Contrast | Δ PR-AUC | 95% CI | P(Δ ≤ 0) | Two-sided p |
+| --- | ---: | --- | ---: | ---: |
+| TabPFN (thinking-high) − LightGBM | 0.1627 | [0.1000, 0.2301] | 0.0000 | 0.0000 |
+| TabPFN (local) − LightGBM | −0.0172 | [−0.0951, 0.0588] | 0.6465 | 0.707 |
+
+Outer-fold PR-AUC: [paper_figures/paper_table_s_fold_pr_wins.png](paper_figures/paper_table_s_fold_pr_wins.png).
+
+**Source files:** [paper_figures/paper_table_s_paired_delta.png](paper_figures/paper_table_s_paired_delta.png), [paper_figures/paper_table_s_paired_delta.csv](paper_figures/paper_table_s_paired_delta.csv), [paper_figures/paper_table_s_fold_pr_wins.png](paper_figures/paper_table_s_fold_pr_wins.png), [paper_figures/paper_table_s_fold_pr_wins.csv](paper_figures/paper_table_s_fold_pr_wins.csv)
+
+---
+
+## 4. Calibration
 
 ### Figure 2. Reliability curves (quantile bins)
 
@@ -104,7 +144,7 @@ Thinking-high PR-AUC by outer fold: 0.8640, 0.7837, 0.7407, 0.9497, 0.9061. Ligh
 
 ---
 
-## 4. F1 operating point
+## 5. F1 operating point
 
 Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figure 3 and Table 3 are the pooled F1 cut: the same concatenated OOF labels are used to *pick* and *score* the threshold, so precision, recall, F1, and F2 are **optimistically biased**. Counts sum to n = 5,185 with 92 events.
 
@@ -154,7 +194,7 @@ Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figu
 
 ---
 
-## 5. Supplementary: follow-up-time leakage
+## 6. Supplementary: follow-up-time leakage
 
 These numbers are **not** the nested-CV headline. They come from the two single-split (70/30, GridSearchCV) notebooks that diagnosed why `Time since stent implantation` cannot enter a classifier. Nothing was re-run; values are the stored test-set metrics.
 
@@ -180,7 +220,7 @@ Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/ra
 
 ---
 
-## 6. Supplementary: Wang 2020 integer score
+## 7. Supplementary: Wang 2020 integer score
 
 These numbers are **not** a nested-CV fit. They come from `code/modeling/rating/wang_vlst_score.ipynb`, which scores Wang 2020 Table 2 **integer points** on all 5,185 rows with the published weights frozen. The same five outer folds as Part 4 (`StratifiedKFold(5, shuffle=True, random_state=42)`) are used only to evaluate that frozen score.
 
@@ -236,13 +276,16 @@ Notebook: `code/modeling/rating/wang_vlst_score.ipynb`.
 
 ---
 
-## 7. File index
+## 8. File index
 
 | ID | Type | File |
 | --- | --- | --- |
 | Table 0 | Table | [paper_table0_models.png](paper_figures/paper_table0_models.png) |
 | Fig 1 | Figure | [paper_fig1_pr_roc_curves.png](paper_figures/paper_fig1_pr_roc_curves.png) |
 | Table 1 | Table | [paper_table1_ranking.png](paper_figures/paper_table1_ranking.png) |
+| Table S-CI | Table | [paper_table_s_bootstrap_ci.png](paper_figures/paper_table_s_bootstrap_ci.png) |
+| Table S-Δ | Table | [paper_table_s_paired_delta.png](paper_figures/paper_table_s_paired_delta.png) |
+| Table S-folds | Table | [paper_table_s_fold_pr_wins.png](paper_figures/paper_table_s_fold_pr_wins.png) |
 | Fig 2 | Figure | [paper_fig2_calibration_curves.png](paper_figures/paper_fig2_calibration_curves.png) |
 | Fig 3 | Figure | [paper_fig3_confusion_matrices.png](paper_figures/paper_fig3_confusion_matrices.png) |
 | Table 2 | Table | [paper_table2_nested_operating_point.png](paper_figures/paper_table2_nested_operating_point.png) |

@@ -369,7 +369,7 @@ evaluation as every baseline; that it is **not** thinking-high.
 
 **Requires confirmation.**
 - Record the local `tabpfn` package / checkpoint version (partially done: `tabpfn-v3-classifier-v3_default.ckpt`).
-- `oof_predictions.csv` and `fold_thresholds.csv` were written to `/kaggle/working/` and never committed (EM B2).
+- OOF predictions are committed under `data/result/modeling_results/oof/` (EM B2). Bootstrap CIs are Part 4 Table S-CI.
 - Do not quote historical thinking-high Brier 0.0060 vs 0.0360 as this run.
 
 ### 2.8 Interpretability
@@ -425,10 +425,9 @@ point is the honest nested one.
 
 **Requires confirmation — important (EM CONFIRM #7, #10).**
 1. **Report the nested operating point, not the pooled one.** **[closed in Part 4 reports]** Table 2 is the honest nested print (LightGBM recall **0.6630**, F1 0.6667, TP 61; TabPFN local recall **0.6848**, TP 63). Figure 3 / Table 3 are the pooled cut, labelled as optimistically biased; do not quote TabPFN local pooled recall 0.8261 as nested.
-2. **No confidence intervals exist on any metric, and no paired model comparison was run.** "LightGBM is first,
-   TabPFN (local) is third on PR-AUC" is a point-estimate ordering. Fold SDs: LightGBM PR-AUC 0.6941 ± 0.0917;
-   TabPFN (local) 0.6739 ± 0.0812; LightGBM higher in 3 of 5 folds. Add bootstrap CIs and a paired test
-   before any superiority language.
+2. **PR-AUC CIs and the paired test are in Part 4 Table S-CI / Table S-Δ** (B3). Thinking-high − LightGBM
+   Δ PR-AUC **0.1627 (0.1000–0.2301)**, P(Δ ≤ 0) = 0/2000. Local vs LightGBM is compatible with zero. Fold wins
+   remain 5/5 (thinking-high) and 2/5 (local).
 3. State that there is **no external, temporal, or geographic validation** (EM §6.6).
 
 ### 2.10 [PROPOSED — new] Leakage assessment and sensitivity analysis
@@ -841,11 +840,11 @@ sample: Wang 2020 establishes a consecutive complete-follow-up cohort; 1.77% is 
 | --- | --- | --- |
 | 1 | **No external or temporal test of the ML models.** Wang’s Cox score was tested on Shantou; those rows are not here. | EM §6.6 |
 | 2 | **Binary classification vs published Cox analysis.** Follow-up time is the Cox axis; as a covariate it leaks (Part 4 S-TSSI). | EM §4.1–4.2 |
-| 3 | **EPV ≈ 5.4** on the 17-covariate logit; collinear blocks remain. | EM §2.2, W4 |
+| 3 | **EPV ≈ 7.1** on Table 4b (13 covariates); Table 4 (17, EPV ≈ 5.4) is unidentified and not for publication. | EM §2.2, W4, B4 |
 | 4 | **Two TabPFN calibrations.** Thinking-high Brier **0.0064** (best); local **0.0673** (worst). Client non-deterministic across dumps. | EM §12.2, §12.10 |
 | 5 | **Classical baselines untuned**; local TabPFN has no thinking; client arm is thinking-high. Unequal model class. | EM §6.3 |
 | 6 | **Classics still one-hot** the 9-level brand column (~89); both TabPFN arms see it natively. | EM §6.4 |
-| 7 | **No CIs and no paired test** of thinking-high vs LightGBM. Thinking-high PR-AUC higher in 5/5 folds. | EM §12.9 |
+| 7 | **Thinking-high vs LightGBM Δ PR-AUC 0.1627 (0.1000–0.2301)**; local vs LightGBM not distinguishable. Nested CV is still derivation-only (B11 blocked). | EM §12.9, B3, B11 |
 | 8 | **Part 2 catalogues are discovery on an 18-event val slice**, not a Part 4 mask. | EM §4.4 |
 | 9 | **DAPT columns are post-baseline**; **WBC** was excluded by Wang; **`LV` unnamed**. | EM §3, A1 |
 | 10 | **Observational design:** no causal / “protective” language for post-dilation or clopidogrel. | EM §12.12 |
@@ -890,7 +889,7 @@ add any sentence proposing clinical use.
 | S15 | Venn, presence heatmap, reason buckets, domain counts | Part 3 Figs 1–4 |
 | S16 | Correlation clustermaps | Part 1 Figs S2a–d |
 | S17 | Per-domain and joint multivariable models | Part 1 Figs S3, S4 |
-| **Data** | `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `nested_cv_operating_point.csv` | **Must be regenerated — never committed** |
+| **Data** | `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `nested_cv_operating_point.csv` | Committed (B2); CIs in Table S-CI |
 
 ---
 
@@ -917,9 +916,8 @@ add any sentence proposing clinical use.
 
 1. **Answer EM CONFIRM #1 (measurement timing) and #2 (control sampling).** Nothing else is worth writing first.
 2. **Part 4 nested CV is the Kaggle 7-arm run** (thinking-high PR-AUC 0.8553 / Brier 0.0064; local Brier 0.0673).
-   Commit OOF predictions (EM B2) so CIs can be added. Do not change the thinking-high constructor.
-3. **Respecify the multivariable model** (§2.4). Table 2 and Figure 2 depend on it.
-4. **Add bootstrap CIs and a paired model test** to Table 3.
-5. **Build Table 1 and Figure 1.**
-6. Draft Methods, then Results, then Discussion.
-7. Draft the Abstract last, from the finished Results.
+   OOF predictions are committed (EM B2). CIs and the paired test are Table S-CI / Table S-Δ. Do not change the thinking-high constructor.
+3. **Quote Table 4b** (13 covariates, EPV ≈ 7.1), not stored Table 4.
+4. **Clinical Table 1 is Part 1 Table C** (from `VLST.csv`; Wang 6,038 → 5,185 in the caption).
+5. Draft Methods, then Results, then Discussion. External ML test, Cox LP, and Dangas DCA wait on B11 (no new data this cycle).
+6. Draft the Abstract last, from the finished Results.
