@@ -12,6 +12,7 @@ This document gathers publication-oriented figures and tables from the explorato
 
 ## Contents
 
+0. [Cohort characteristics](#0-cohort-characteristics-clinical-table-1)
 1. [Test selection](#1-test-selection)
 2. [Univariate continuous associations](#2-univariate-continuous-associations)
 3. [Univariate binary associations](#3-univariate-binary-associations)
@@ -20,6 +21,47 @@ This document gathers publication-oriented figures and tables from the explorato
 6. [Pairwise / bivariate structure](#6-pairwise--bivariate-structure)
 7. [Medical-domain analysis (supplementary)](#7-medical-domain-analysis-supplementary)
 8. [File index](#8-file-index)
+
+---
+
+## 0. Cohort characteristics (clinical Table 1)
+
+### Table C. Derivation-cohort characteristics from `VLST.csv`
+
+Rendered table image: [paper_figures/paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png)
+
+**Table C.** Case–control characteristics rebuilt from `data/raw/VLST.csv` (n = 5,185; 92 VLST). This is the conventional clinical Table 1 for the manuscript. It is **association**, not prediction. Cite Wang 2020 for the recruitment flow (**6,038 eligible → 5,185 analysed**: 236 in-hospital deaths, 413 refused follow-up, 204 lost). Continuous cells are mean (SD); binary cells are n (%). Tests follow the Part 1 rule (Welch if abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U; chi-square unless any expected cell < 5, then Fisher). `Time since stent implantation` is omitted: it is time-at-risk / follow-up, not a baseline covariate.
+
+**Do not photocopy Wang Table 1’s post-dilation row.** Wang reports “No post-dilation” in 14/92 VLST (15.22%) vs 2,496/5,093 controls (49.01%). In this CSV those 14 events sit on `1.1:1Post dilation` = 1, and `No postdilation` is the exact complement (78/92). Both columns are shown as stored. `Aspirin` / `Clopidogrel` / `Ticagrelor` / `DAPT` are **follow-up persistence** after the mandated year, not index-PCI prescriptions (Wang DAPT 44.37% vs 38.04%, p = 0.226 — recovered here). `LV` is still unnamed (A1/A4). `CaI` is still unnamed in the file; its means **match** Wang Table 1 peak troponin I (37.37 ± 61.64 vs 40.55 ± 72.25) and are not treated as a new marker. `PES` recovers Wang Table 1 SES (68.76% vs 82.61%). The full column list is in the CSV.
+
+| Variable | No VLST (n = 5,093) | VLST (n = 92) | Test | p |
+| --- | --- | --- | --- | --- |
+| Age, years | 59.83 (9.93) | 60.71 (11.33) | Welch t | 0.463 |
+| Men | 3489 (68.51%) | 68 (73.91%) | Chi-square | 0.268 |
+| Diabetes | 1293 (25.39%) | 36 (39.13%) | Chi-square | 0.003 |
+| Hypertension | 2670 (52.42%) | 51 (55.43%) | Chi-square | 0.567 |
+| Dyslipidaemia (HL) | 1612 (31.65%) | 28 (30.43%) | Chi-square | 0.804 |
+| Current smoker | 2860 (56.16%) | 54 (58.70%) | Chi-square | 0.626 |
+| Previous PCI | 94 (1.85%) | 10 (10.87%) | Fisher | 1.25e-05 |
+| Previous MI | 347 (6.81%) | 10 (10.87%) | Chi-square | 0.128 |
+| Admitting diagnosis AMI | 3095 (60.77%) | 65 (70.65%) | Chi-square | 0.054 |
+| 3-vessel disease | 1422 (27.92%) | 42 (45.65%) | Chi-square | 0.000 |
+| LVEF, % | 55.15 (4.52) | 54.55 (3.68) | Mann–Whitney U | 0.033 |
+| LV (unnamed; not in Wang Table 1) | 44.55 (4.04) | 49.11 (4.23) | Welch t | 5.44e-17 |
+| WBC, 10^9/L | 8.75 (3.24) | 12.49 (3.92) | Mann–Whitney U | 7.90e-21 |
+| Creatinine | 72.53 (24.81) | 72.44 (19.05) | Mann–Whitney U | 0.879 |
+| eGFR | 120.03 (34.10) | 95.88 (19.63) | Welch t | 4.64e-20 |
+| eGFR < 90 (CKD90) | 860 (16.89%) | 32 (34.78%) | Chi-square | 6.55e-06 |
+| CaI (unnamed; not in Wang Table 1) | 37.37 (61.64) | 40.55 (72.25) | Mann–Whitney U | 0.051 |
+| Fibrinogen, g/L | 3.17 (0.88) | 3.37 (1.01) | Mann–Whitney U | 0.012 |
+| Stents per lesion | 1.21 (0.46) | 1.42 (0.65) | Mann–Whitney U | 0.000 |
+| Total stent length, mm | 31.70 (15.62) | 38.46 (20.71) | Mann–Whitney U | 0.001 |
+| SES (`PES` column) | 3502 (68.76%) | 76 (82.61%) | Chi-square | 0.004 |
+| 1.1:1 post-dilation (CSV as stored) | 2496 (49.01%) | 14 (15.22%) | Chi-square | 1.30e-10 |
+| No postdilation (CSV as stored) | 2597 (50.99%) | 78 (84.78%) | Chi-square | 1.30e-10 |
+| DAPT during follow-up (not index PCI) | 2260 (44.37%) | 35 (38.04%) | Chi-square | 0.226 |
+
+**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](paper_figures/paper_table_c_cohort_characteristics.csv)
 
 ---
 
@@ -176,7 +218,7 @@ Rendered table image: [paper_figures/paper_table3_categorical.png](paper_figures
 
 Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png)
 
-**Table 4.** Exploratory multivariable logistic regression for VLST (**unweighted MLE**, `statsmodels.Logit`). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. Primary interval is the **Wald 95% CI**; SE (log-OR) and Wald p are reported. A 2,000-replicate percentile bootstrap of the same unweighted fit is stored in the numeric CSV as a robustness check. `class_weight="balanced"` is **not** used here (it is a predictive device; it distorts the likelihood used for Wald/LR tests). **EPV = 92 / 17 ≈ 5.4** (92 events, 17 covariates), below the conventional EPV ≥ 10 rule. Adjusted ORs are for screening/confounding context, **not prediction**. Re-run `eda.ipynb` cell 10f to refresh the numbers below.
+**Table 4.** Exploratory multivariable logistic regression for VLST as stored from `eda.ipynb` (17 covariates). Continuous predictors are scaled per 1 SD. `Time since stent implantation` is excluded. **This specification is not identified:** `1.1:1Post dilation` sits beside its exact complement `No postdilation` (VIF = ∞), and `eGFR` sits beside `CKD5` / `CKD90`. `CKD90`’s Wald interval is 2.708–639.506. **EPV = 92 / 17 ≈ 5.4**. Do **not** publish Table 4 as the clinical multivariable model. Quote **Table 4b**. Adjusted ORs are for screening/confounding context, **not prediction**. `class_weight="balanced"` is **not** used here.
 
 **OR estimators (do not mix).** Table 4 “Univariate OR” is from this unweighted logit (one covariate at a time, same scaling). Table 2 OR is the **2×2 / Fisher** estimator. Supplementary Figure S4 “Univariate OR” is from the joint-domain specification. For `Previous PCI` those three numbers are **6.46 / 6.49 / 6.73**. OR < 1 for `1.1:1Post dilation` or `Clopidogrel` is not a treatment benefit.
 
@@ -201,6 +243,32 @@ Rendered table image: [paper_figures/paper_table4_multivariable_or.png](paper_fi
 | PES | binary | 2.16 | 1.24 | [0.585, 4.056] |
 
 **Source files:** [paper_figures/paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png), [paper_figures/paper_table4_multivariable_or.csv](paper_figures/paper_table4_multivariable_or.csv)
+
+### Table 4b. Reduced specification (one representative per collinear block)
+
+Rendered table image: [paper_figures/paper_table4b_reduced_or.png](paper_figures/paper_table4b_reduced_or.png)
+
+**Table 4b.** Same unweighted Bernoulli logit, **13 covariates**, one name per collinear block. Dropped: `No postdilation` (exact complement of `1.1:1Post dilation`); `CKD5` and `CKD90` (deterministic encodings of `eGFR`); `3-vessel disease` (vessel-count family; `NO.of vessels` kept). Continuous covariates per 1 SD (population SD). Primary interval is the **Wald 95% CI**; a stratified 2,000-replicate percentile bootstrap of the same fit is in the CSV. **EPV = 92 / 13 ≈ 7.1** (still below EPV ≥ 10). All Table 4b VIFs are finite (max 4.02, `Total stent length`; post-dilation VIF 1.07 vs ∞ in Table 4). Univariate OR here is the same unweighted 1-SD logit as the adjusted column — not Table 2’s 2×2 estimator and not Table 4’s stored univariate column. OR < 1 is not a treatment benefit.
+
+| Feature | Type | VIF | Univariate OR | Adjusted OR | Wald 95% CI |
+| --- | --- | ---: | ---: | ---: | --- |
+| WBC | continuous (per 1 SD) | 1.05 | 2.090 | 1.972 | [1.667, 2.331] |
+| eGFR | continuous (per 1 SD) | 1.04 | 0.469 | 0.568 | [0.449, 0.717] |
+| LV | continuous (per 1 SD) | 1.03 | 2.098 | 1.832 | [1.539, 2.181] |
+| No.of stents per lesion | continuous (per 1 SD) | 3.96 | 1.383 | 1.421 | [0.970, 2.080] |
+| HbA1c | continuous (per 1 SD) | 1.79 | 1.282 | 0.960 | [0.724, 1.272] |
+| NO.of vessels | continuous (per 1 SD) | 1.06 | 1.469 | 1.212 | [0.954, 1.539] |
+| Total stent length | continuous (per 1 SD) | 4.02 | 1.378 | 1.160 | [0.777, 1.731] |
+| Fiberinogen | continuous (per 1 SD) | 1.03 | 1.206 | 1.024 | [0.845, 1.240] |
+| 1.1:1Post dilation | binary | 1.07 | 0.187 | 0.152 | [0.081, 0.286] |
+| Previous PCI | binary | 1.01 | 6.485 | 6.710 | [2.884, 15.610] |
+| Clopidogrel | binary | 1.00 | 0.503 | 0.480 | [0.293, 0.787] |
+| Diabetes | binary | 1.77 | 1.889 | 1.452 | [0.795, 2.652] |
+| PES | binary | 1.03 | 2.158 | 1.734 | [0.953, 3.154] |
+
+VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png). Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py`.
+
+**Source files:** [paper_figures/paper_table4b_reduced_or.png](paper_figures/paper_table4b_reduced_or.png), [paper_figures/paper_table4b_reduced_or.csv](paper_figures/paper_table4b_reduced_or.csv), [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png), [paper_figures/paper_table4b_vif_comparison.csv](paper_figures/paper_table4b_vif_comparison.csv)
 
 ### Figure 6. Univariate versus multivariable associations
 
@@ -348,6 +416,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Fig 1 | Figure | [paper_fig1_test_selection_map.png](paper_figures/paper_fig1_test_selection_map.png) |
 | Table R | Table | [paper_table_test_rationale.png](paper_figures/paper_table_test_rationale.png) |
 | Fig 2 | Figure | [paper_fig2_univariate_significance.png](paper_figures/paper_fig2_univariate_significance.png) |
+| Table C | Table | [paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png) |
 | Table 1 | Table | [paper_table1_continuous_fdr.png](paper_figures/paper_table1_continuous_fdr.png) |
 | Fig 3 | Figure | [paper_fig3_continuous_effect_sizes.png](paper_figures/paper_fig3_continuous_effect_sizes.png) |
 | Fig 4 | Figure | [paper_fig4_binary_odds_ratios.png](paper_figures/paper_fig4_binary_odds_ratios.png) |
@@ -355,6 +424,8 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Fig 5 | Figure | [paper_fig5_categorical_rates_Stent_type-SES.png](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png) |
 | Table 3 | Table | [paper_table3_categorical.png](paper_figures/paper_table3_categorical.png) |
 | Table 4 | Table | [paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png) |
+| Table 4b | Table | [paper_table4b_reduced_or.png](paper_figures/paper_table4b_reduced_or.png) |
+| Table 4b VIF | Table | [paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png) |
 | Fig 6 | Figure | [paper_fig6_uni_vs_multivariable_or.png](paper_figures/paper_fig6_uni_vs_multivariable_or.png) |
 | Fig S5a | Supp. figure | [03_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png) |
 | Fig S5b | Supp. figure | [03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png) |

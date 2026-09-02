@@ -500,13 +500,22 @@ def rebuild_concat() -> None:
     front_body = "".join(front.splitlines(True)[1:])  # drop original H1
     part0 = "# Part 0. Scope, motivation, terminology, and limitations\n" + front_body
 
-    # Preserve Parts 1–3 from the existing concat (link rewriting already done).
-    p1_start = rest.find("# Part 1. Statistical EDA")
+    # Preserve Parts 2–3 from the existing concat (link rewriting already done).
+    p2_start = rest.find("# Part 2. Classic-model feature selection")
     p4_start = rest.find("# Part 4. Nested-CV baselines plus TabPFN")
-    parts_1_3 = rest[p1_start:p4_start].rstrip()
-    if parts_1_3.endswith("---"):
-        parts_1_3 = parts_1_3[: -3].rstrip()
-    parts_1_3 += "\n"
+    parts_2_3 = rest[p2_start:p4_start].rstrip()
+    if parts_2_3.endswith("---"):
+        parts_2_3 = parts_2_3[: -3].rstrip()
+    parts_2_3 += "\n"
+
+    part1 = demote_h1(
+        prefix_assets(_load("01_eda/EDA_paper_figures_and_tables.md"), "01_eda"),
+        "Part 1. Statistical EDA",
+    )
+    part1 = part1.replace(
+        "**Asset root:** [01_eda/paper_figures/](01_eda/paper_figures/)",
+        "**Asset root:** [paper_figures/](01_eda/paper_figures/)",
+    )
 
     part4 = demote_h1(
         prefix_assets(_load("04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md"), "04_tabpfn_rating"),
@@ -530,7 +539,7 @@ def rebuild_concat() -> None:
         "**Asset root:** [paper_figures/](05_tabpfn_interpretability/paper_figures/)",
     )
 
-    out = header + "\n" + part0.rstrip() + "\n\n---\n" + parts_1_3 + "\n---\n" + part4.rstrip() + "\n\n---\n" + part5
+    out = header + "\n" + part0.rstrip() + "\n\n---\n" + part1.rstrip() + "\n\n---\n" + parts_2_3 + "\n---\n" + part4.rstrip() + "\n\n---\n" + part5
     (pr / "paper_results.md").write_text(out)
     print("Wrote paper_results/paper_results.md")
 
