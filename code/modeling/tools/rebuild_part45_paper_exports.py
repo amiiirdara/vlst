@@ -566,6 +566,11 @@ def main() -> None:
                     (P4_NB_FIGS / f"cell{i}_out{j}.png").write_bytes(base64.b64decode(png))
 
     copy_part4_figures()
+    # Notebook cells label the client arm as "TabPFN". Overwrite those four
+    # PNGs from committed OOF so thinking-high and local cannot collapse.
+    from relabel_part4_tabpfn_display_names import main as relabel_tabpfn_arms
+
+    relabel_tabpfn_arms()
     write_part4_tables()
     copy_part5_assets()
     write_part5_tables()

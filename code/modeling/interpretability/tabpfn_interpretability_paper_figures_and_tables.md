@@ -4,11 +4,11 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 **Cohort / protocol.** Raw VLST.csv, n = 5,185, 81 features after dropping identifiers (`NO.`, `Name`) and `Time since stent implantation` (time-at-risk / follow-up, not a baseline covariate). Target = `Stent thrombosis`. EDA found **no missing values** — there is no missingness to “keep.” `Stent type-SES` is collapsed with the **shared 9-level encoder** (106 raw brand strings → 9 levels, min_count=30), then coded as integer categoricals with the other text columns (no scaling / one-hot). That is the TabPFN-native representation: 9 brand codes, not 106 strings and not the Part 2/4 one-hot. A PDP sweep across those integers is still not a meaningful nominal contrast, so continuous PDP drops the brand column. Feature ranking, PDP, and SHAP are **interpretation / attribution** — not prediction, not external validation, and not a locked-in feature mask for Part 4.
 
-**This run (D4).** Kaggle Tesla T4, notebook commit `645fb0e` (Interpretability plus Version 2). Protocol met: 9-level encoder; MI CSV **all 81 scores**; SFS 10 seeds on the full cohort; PDP `balance_probabilities=False` on n = 5,185; SHAP **15 VLST=1 + 15 VLST=0** with **client thinking succeeding** (`Explaining all 30 rows`); k-SII / SHAP-IQ remain **one illustrative VLST=1 row** (cohort index **5099**).
+**This run (D4).** Kaggle Tesla T4, notebook commit `e356bb1` (Interpretability Version 5, papermill 2026-09-08–09). Protocol: stratified `train_test_split(test_size=0.3, random_state=42)` → train **3,629 / 64 events**, held-out **1,556 / 28 events**. MI, stability SFS, and PDP **fit/average on train**. `SHAP_EXPLAIN_HELDOUT=True`: SHAP explains **all 1,556 held-out rows**; fit/background = train. k-SII / waterfall / SHAP-IQ = first held-out VLST=1 (held-out position 20, **cohort row 5176**). `FS_THINKING_MODE=False`; `PDP_USE_CLIENT=False`; `INTERP_THINKING_MODE=True` (effort high, metric average_precision). Client SHAP started then hit HTTP **429** (~row 550/1556); **[3/5] and [4/5] finished on local `tabpfn` + KV cache**. Local constructors omit `balance_probabilities`.
 
-**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and PDP use the **full cohort**. SHAP explains **15 VLST=1 + 15 VLST=0** (`SHAP_N_PER_CLASS`, seed 42); the model is still fit on all 5,185 rows. Indices are stored in `interpretability_shap_explain_indices.csv`. k-SII / SHAP-IQ force and network plots remain that one VLST=1 row from the slice. Do not SHAP all 5,185 rows on the client.
+**Methods note — selection vs explanation.** Mutual information, stability (repeated forward SFS), and PDP use the **train split**. SHAP explains **every held-out row** (28 events / 1,528 non-events). k-SII / SHAP-IQ remain **one** held-out VLST=1 patient (row **5176**). Do not describe this run as full-cohort MI/SFS/PDP, as 15+15 SHAP, or as SHAP-all 5,185.
 
-**Backends.** Mutual information, stability selection, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ on this run used **tabpfn-client + thinking** (`effort=high`, `metric=average_precision`) — the client did **not** fall back to local. Ranking / SHAP / stability use `balance_probabilities=True` so a 1.8% outcome is visible on the attribution scale. **PDP only** uses `balance_probabilities=False` (empirical prior; y-axis near prevalence; **not Part 4 nested-CV risk**). PDP fit and average are on the **full cohort**, not a 70/30 test slice. The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing.
+**Backends.** Mutual information, stability, and PDP use **local** `tabpfn` (0 client thinking fits). SHAP and SHAP-IQ **tried** tabpfn-client + thinking, then **fell back to local** after HTTP 429. PDP uses the empirical prior (`PDP_USE_CLIENT=False`; y-axis near prevalence; **not Part 4 nested-CV risk**). The shapiq `imputer="baseline"` is **not** a missing-value fill: it replaces *hidden* features with a baseline value while attributing.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -33,16 +33,16 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 0](paper_figures/paper_table0_methods.png)
 
-**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 resamples). MI and SFS use the **full cohort**. SHAP uses **15 VLST=1 + 15 VLST=0**. Pairwise k-SII is a one-row interaction view (row 5099, VLST=1), not a global interaction ranking.
+**Table 0.** Five signals plus a Borda-style consensus. No single method is trusted alone. Stability frequency is the reliability signal (how often forward SFS keeps a feature across 10 **train** resamples). MI and SFS use **train**. SHAP uses **all 1,556 held-out rows** (local after 429). Pairwise k-SII is a one-row interaction view (row **5176**, VLST=1), not a global interaction ranking.
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
-| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; median fill is inert (no NaNs); all 81 scores stored |
-| Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring, full cohort |
-| PDP | Average predicted probability (empirical prior) | local TabPFN | Full cohort; `balance_probabilities=False`; y-axis labeled “empirical prior / not Part 4 risk”. Ranking / SHAP stay True |
-| SHAP (shapiq SV) | Local attributions | tabpfn-client + thinking | 15 VLST=1 + 15 VLST=0; fit/background = full cohort; budget=256 |
-| k-SII / SHAP-IQ | Pairwise interactions | tabpfn-client + thinking | One VLST=1 row (5099) from that 15+15 slice; budget=256 |
-| Consensus (Borda) | Mean of normalized ranks | aggregate | MI + stability frequency + mean(\|SHAP\|); MI not fill-zeroed |
+| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; **train** n=3629; all 81 scores written on Kaggle |
+| Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring, **train** |
+| PDP | Average predicted probability (empirical prior) | local TabPFN | **Train** n=3629; `PDP_USE_CLIENT=False`; y-axis “empirical prior / not Part 4 risk” |
+| SHAP (shapiq SV) | Local attributions | client 429 → local KV cache | All 1,556 held-out rows; fit/background = train; budget=256 |
+| k-SII / SHAP-IQ | Pairwise interactions | client 429 → local KV cache | One held-out VLST=1 (pos 20, cohort **5176**); budget=256 |
+| Consensus (Borda) | Mean of normalized ranks | aggregate | Train MI + train stability + held-out mean(\|SHAP\|) |
 
 **Source files:** [paper_figures/paper_table0_methods.png](paper_figures/paper_table0_methods.png), [paper_figures/paper_table0_methods.csv](paper_figures/paper_table0_methods.csv)
 
@@ -54,55 +54,49 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ![Table 1](paper_figures/paper_table1_mutual_info.png)
 
-**Table 1.** `mutual_info_classif` ranking of the **81-column** raw matrix on the **full cohort**. The code applies a column-median fill before MI; the CSV has no missing values, so that fill does nothing. All 81 scores are stored (`paper_table1_mutual_info.csv` / `interpretability_mutual_info_ranking.csv`). Calcium index (`CaI`), `WBC`, and `LV` lead, then `eGFR` and `1.1:1Post dilation`. `Fast-Glu` is 10th (0.0044) and `ZES` is 13th (0.0038) — those cells are measured, not blanks. `Cre` is 25th (**0.0023**), not a fill-zero. `Stent type-SES` is 32nd (0.0016) after the 9-level encoder, not a top-5 MI name. This is a marginal association screen, not a model attribution.
+**Table 1.** `mutual_info_classif` ranking of the **81-column** matrix on the **train split** (n=3629). Top 15 from `interpretability_mutual_info_ranking.csv`. `Fast-Glu` / `ZES` are **not** in this train top 15. `Cre` is 51st of 81 with train MI **0.000000**. This is a marginal association screen, not a model attribution.
 
 | Rank | Feature | Mutual information |
-| ---: | --- | ---: |
-| 1 | CaI | 0.019224 |
-| 2 | WBC | 0.018360 |
-| 3 | LV | 0.015178 |
-| 4 | eGFR | 0.009931 |
-| 5 | 1.1:1Post dilation | 0.007932 |
-| 6 | LDL | 0.007693 |
-| 7 | No postdilation | 0.007535 |
-| 8 | HbA1c | 0.007439 |
-| 9 | HGB | 0.004606 |
-| 10 | Fast-Glu | 0.004429 |
-| 11 | TCL | 0.004257 |
-| 12 | Fiberinogen | 0.004040 |
-| 13 | ZES | 0.003783 |
-| 14 | Visual thrombus | 0.003707 |
-| 15 | CKD5 | 0.003145 |
+| ---: | --- | --- |
+| 1 | CaI | 0.022005 |
+| 2 | WBC | 0.020165 |
+| 3 | LV | 0.012768 |
+| 4 | LDL | 0.009893 |
+| 5 | eGFR | 0.009830 |
+| 6 | HDL | 0.005353 |
+| 7 | HGB | 0.005327 |
+| 8 | Lesion location-Ostial | 0.005128 |
+| 9 | HbA1c | 0.004805 |
+| 10 | Clopidogrel | 0.004669 |
+| 11 | Stent type-SES | 0.004587 |
+| 12 | No.of stents per lesion | 0.004371 |
+| 13 | Multi-vessel CAD | 0.003733 |
+| 14 | NSTEMI | 0.003606 |
+| 15 | Fiberinogen | 0.003007 |
 
-**Source files:** [paper_figures/paper_table1_mutual_info.png](paper_figures/paper_table1_mutual_info.png), [paper_figures/paper_table1_mutual_info.csv](paper_figures/paper_table1_mutual_info.csv)
+**Source files:** [paper_figures/paper_table1_mutual_info.png](paper_figures/paper_table1_mutual_info.png), [paper_figures/paper_table1_mutual_info.csv](paper_figures/paper_table1_mutual_info.csv), [paper_figures/interpretability_mutual_info_ranking.csv](paper_figures/interpretability_mutual_info_ranking.csv)
 
 ### Table 2. Stability selection frequency
 
 ![Table 2](paper_figures/paper_table2_stability.png)
 
-**Table 2.** Forward sequential feature selection (keep 10 of 81, 5-fold CV, average precision) repeated over 10 shuffled seeds on the **full cohort**. The only 10/10 feature is **`WBC`**. Selected in 7/10: `Staged PCI`. Selected in 6/10: `Fiberinogen`, `LV`, `ZES`. Selected in 5/10: `Cre`, `PES`, `eGFR`. **`Stent type-SES` is not a 10/10 feature on this run** (it does not appear in the selected-feature list). A long tail of names appears only once and should not be treated as robust TabPFN features.
+**Table 2.** Forward sequential feature selection (keep 10 of 81, 5-fold CV, average precision) repeated over 10 shuffled seeds on the **train split**. The only 10/10 feature is **`WBC`**. Selected in 8/10: `Cre`, `LV`. Selected in 7/10: `eGFR`. Selected in 5/10: `Previous PCI`, `Staged PCI`. **`Stent type-SES` is not a high-frequency feature on this run.**
 
 | Feature | Selected | Frequency |
 | --- | --- | ---: |
 | WBC | 10/10 | 1.0 |
-| Staged PCI | 7/10 | 0.7 |
-| Fiberinogen | 6/10 | 0.6 |
-| LV | 6/10 | 0.6 |
-| ZES | 6/10 | 0.6 |
-| Cre | 5/10 | 0.5 |
-| PES | 5/10 | 0.5 |
-| eGFR | 5/10 | 0.5 |
-| Age | 4/10 | 0.4 |
-| STEMI | 4/10 | 0.4 |
+| Cre | 8/10 | 0.8 |
+| LV | 8/10 | 0.8 |
+| eGFR | 7/10 | 0.7 |
+| Previous PCI | 5/10 | 0.5 |
+| Staged PCI | 5/10 | 0.5 |
+| Fiberinogen | 4/10 | 0.4 |
+| LVEF | 4/10 | 0.4 |
+| UA | 4/10 | 0.4 |
 | 1.1:1Post dilation | 3/10 | 0.3 |
-| Dissection | 3/10 | 0.3 |
+| Age | 3/10 | 0.3 |
 | HbA1c | 3/10 | 0.3 |
-| Ticagrelor | 3/10 | 0.3 |
-| Aneurysm | 2/10 | 0.2 |
-| CaI | 2/10 | 0.2 |
-| LVEF | 2/10 | 0.2 |
-| No postdilation | 2/10 | 0.2 |
-| No.of stents per lesion | 2/10 | 0.2 |
+| ZES | 3/10 | 0.3 |
 
 **Source files:** [paper_figures/paper_table2_stability.png](paper_figures/paper_table2_stability.png), [paper_figures/paper_table2_stability.csv](paper_figures/paper_table2_stability.csv), [paper_figures/interpretability_feature_stability_summary.csv](paper_figures/interpretability_feature_stability_summary.csv)
 
@@ -110,15 +104,15 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 ## 3. Partial dependence
 
-PDP candidates were taken from the stability / MI screens. Continuous PDP uses grid resolution 30. Binary PDP forces each flag to 0 vs 1 and reports the change in average predicted P[Stent thrombosis]. Fit and average are on the **full cohort**.
+PDP candidates were taken from the stability / MI screens. Continuous PDP uses grid resolution 30. Binary PDP forces each flag to 0 vs 1 and reports the change in average predicted P[Stent thrombosis]. Fit and average are on the **train split** (n=3629, events=64).
 
-**Methods note — PDP is empirical prior, not Part 4 risk.** PDP uses `balance_probabilities=False`. Average predicted probabilities sit near prevalence 0.0177 (binary P(y=1) ≈ 0.017–0.023). Do **not** quote 0.13–0.26 or “toward ~0.6” as clinical risk — those were the old balanced-prior / test-slice export. Ranking / SHAP / stability still use `balance_probabilities=True` on a separate fit. Neither scale is the Part 4 nested-CV client.
+**Methods note — PDP is empirical prior, not Part 4 risk.** PDP uses local TabPFN with empirical class prior (`PDP_USE_CLIENT=False`). Average predicted probabilities sit near prevalence (~0.018). Do **not** quote 0.13–0.26 or “toward ~0.6” as clinical risk. Neither scale is the Part 4 nested-CV client.
 
 ### Figure 1. Continuous partial dependence
 
 ![Figure 1](paper_figures/paper_fig1_pdp_continuous.png)
 
-**Figure 1.** Continuous PDP on the **empirical-prior** scale, full cohort (n = 5,185), y-axis labeled **empirical prior / not Part 4 risk**, dashed prevalence line. Nominal `Stent type-SES` is dropped from continuous curves (integer brand codes are not a meaningful grid). Shapes are average predicted probability under local TabPFN, not Part 4 nested-CV risk and not a treatment effect.
+**Figure 1.** Continuous PDP on the **empirical-prior** scale, **train** (n = 3,629), features `WBC`, `Cre`, `LV`, `eGFR`. Nominal `Stent type-SES` is dropped from continuous curves. Dashed line = cohort prevalence. Not Part 4 nested-CV risk and not a treatment effect.
 
 **Source file:** [paper_figures/paper_fig1_pdp_continuous.png](paper_figures/paper_fig1_pdp_continuous.png)
 
@@ -126,7 +120,7 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Figure 2](paper_figures/paper_fig2_pdp_binary.png)
 
-**Figure 2.** Binary flags forced to 0 vs 1 and averaged over the **full cohort** on the same empirical-prior axis as Figure 1. Largest Δ is `1.1:1Post dilation` (0.0234 → 0.0191). Do not mix this axis with ranking/SHAP (`balance_probabilities=True`). A negative Δ is a lower modelled probability of recorded VLST, not a treatment benefit (confounding by indication).
+**Figure 2.** Binary flags forced to 0 vs 1 and averaged over **train**. Largest |Δ| is `1.1:1Post dilation` (0.0258 → 0.0165, Δ **−0.0093**). Largest positive Δ is `Previous PCI` (+0.0137). A negative Δ is a lower modelled probability of recorded VLST, not a treatment benefit (confounding by indication).
 
 **Source file:** [paper_figures/paper_fig2_pdp_binary.png](paper_figures/paper_fig2_pdp_binary.png)
 
@@ -134,16 +128,16 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ![Table 3](paper_figures/paper_table3_pdp_binary.png)
 
-**Table 3.** Empirical-prior binary PDP on n = 5,185 (prevalence 0.0177). These values are **not** clinical risk and **not** Part 4 nested-CV probabilities.
+**Table 3.** Empirical-prior binary PDP on **train** n=3629. These values are **not** clinical risk and **not** Part 4 nested-CV probabilities.
 
 | Feature | P(y=1 \| 0) | P(y=1 \| 1) | ΔP |
 | --- | ---: | ---: | ---: |
-| Staged PCI | 0.0184 | 0.0169 | −0.0015 |
-| ZES | 0.0184 | 0.0174 | −0.0010 |
-| PES | 0.0170 | 0.0183 | +0.0013 |
-| STEMI | 0.0189 | 0.0172 | −0.0017 |
-| 1.1:1Post dilation | 0.0234 | 0.0191 | −0.0043 |
-| Dissection | 0.0183 | 0.0165 | −0.0018 |
+| Previous PCI | 0.0175 | 0.0312 | +0.0137 |
+| UA | 0.0177 | 0.0205 | +0.0028 |
+| Staged PCI | 0.0184 | 0.0172 | −0.0011 |
+| ZES | 0.0184 | 0.0170 | −0.0014 |
+| Cardiogenic shock | 0.0184 | 0.0158 | −0.0026 |
+| 1.1:1Post dilation | 0.0258 | 0.0165 | −0.0093 |
 
 **Source files:** [paper_figures/paper_table3_pdp_binary.png](paper_figures/paper_table3_pdp_binary.png), [paper_figures/paper_table3_pdp_binary.csv](paper_figures/paper_table3_pdp_binary.csv)
 
@@ -151,13 +145,13 @@ PDP candidates were taken from the stability / MI screens. Continuous PDP uses g
 
 ## 4. SHAP attributions
 
-Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0** (client thinking-high succeeded). Mean(|SHAP|) is that 30-row slice, **not** global SHAP on 5,185 rows. The attribution scale uses `balance_probabilities=True` (stretched 1.8% prior). Waterfall E[f(x)] ≈ 0.90 is that scale, not the PDP empirical prior (~0.018).
+Fit on **train**; explain **all 1,556 held-out rows** (client thinking started, HTTP 429 at ~row 550, finished **local**). Mean(|SHAP|) below is the top 15 of the **81-column** ranking (`interpretability_shap_mean_abs.csv`). Indices: `interpretability_shap_explain_indices.csv` (1,556 rows; 28 events). Do not call this 15+15 or global SHAP on 5,185.
 
 ### Figure 3. SHAP summary
 
 ![Figure 3](paper_figures/paper_fig3_shap_summary.png)
 
-**Figure 3.** SHAP summary / beeswarm for the 15+15 slice (colour = feature value). Client thinking-high; 30 rows explained.
+**Figure 3.** SHAP summary / beeswarm for the **1,556-row held-out** slice (local after 429).
 
 **Source file:** [paper_figures/paper_fig3_shap_summary.png](paper_figures/paper_fig3_shap_summary.png)
 
@@ -165,15 +159,15 @@ Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0** (client thinking-high 
 
 ![Figure 4](paper_figures/paper_fig4_shap_scatter_age.png)
 
-**Figure 4.** Age versus SHAP on the same 15+15 slice. A local scatter, not a cohort dose–response.
+**Figure 4.** Age versus SHAP on the held-out slice. A local scatter, not a cohort dose–response.
 
 **Source file:** [paper_figures/paper_fig4_shap_scatter_age.png](paper_figures/paper_fig4_shap_scatter_age.png)
 
-### Figure 5. Mean absolute SHAP (global bar)
+### Figure 5. Mean absolute SHAP (bar)
 
 ![Figure 5](paper_figures/paper_fig5_shap_bar.png)
 
-**Figure 5.** Mean(|SHAP|) on the 30-row slice. **`Cre` leads** (0.158), then `eGFR` (0.077), `WBC` (0.061), `LV` (0.052). This ranking is not the old 15-case-only list (`LV` 1.24 / `WBC` 1.16).
+**Figure 5.** Mean(|SHAP|) on the 1,556-row held-out slice. Scale is ~1.0 for leading names (`eGFR` 1.04, `WBC` 1.02, `LV` 0.87 in the consensus print) — **not** the old 30-row Cre-leading 0.158 ranking.
 
 **Source file:** [paper_figures/paper_fig5_shap_bar.png](paper_figures/paper_fig5_shap_bar.png)
 
@@ -181,7 +175,7 @@ Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0** (client thinking-high 
 
 ![Figure 6](paper_figures/paper_fig6_shap_beeswarm.png)
 
-**Figure 6.** Compact beeswarm of the same 15+15 attributions.
+**Figure 6.** Compact beeswarm of the same held-out attributions.
 
 **Source file:** [paper_figures/paper_fig6_shap_beeswarm.png](paper_figures/paper_fig6_shap_beeswarm.png)
 
@@ -189,47 +183,47 @@ Fit on the full cohort; explain **15 VLST=1 + 15 VLST=0** (client thinking-high 
 
 ![Figure 7](paper_figures/paper_fig7_shap_waterfall.png)
 
-**Figure 7.** Waterfall for the first VLST=1 patient in the slice (**row 5099**). Baseline E[f(x)] ≈ **0.903** → f(x) ≈ **1.00** on the **balanced-prior SHAP scale**. `LV` and `WBC` raise the output; `Cre` lowers it on this row. Local explanation for one patient, not a global ranking, and not the PDP 0.018 axis.
+**Figure 7.** Waterfall for the first held-out VLST=1 patient (held-out pos 20, **cohort row 5176**). Local explanation for one patient, not a global ranking, and not the PDP ~0.018 axis.
 
 **Source file:** [paper_figures/paper_fig7_shap_waterfall.png](paper_figures/paper_fig7_shap_waterfall.png)
 
-### Table 4. Mean(|SHAP|) ranking
+### Table 4. Mean(|SHAP|) ranking (held-out, top 15 of 81)
 
 ![Table 4](paper_figures/paper_table4_shap_mean_abs.png)
 
-**Table 4.** Mean absolute SHAP on **15 VLST=1 + 15 VLST=0**. Used as the SHAP column of Table 5.
+**Table 4.** mean(|SHAP|) top 15 of all 81 columns on **1,556 held-out rows**. `CKD5`, `Stent type-SES`, and `Men` enter this SHAP top 15 but are not 3/3 consensus names.
 
 | Rank | Feature | mean(\|SHAP\|) |
 | ---: | --- | ---: |
-| 1 | Cre | 0.1585 |
-| 2 | eGFR | 0.0771 |
-| 3 | WBC | 0.0609 |
-| 4 | LV | 0.0525 |
-| 5 | No.of stents per lesion | 0.0477 |
-| 6 | Men | 0.0455 |
-| 7 | Aspirin | 0.0388 |
-| 8 | CKD5 | 0.0313 |
-| 9 | DAPT | 0.0273 |
-| 10 | LDL | 0.0253 |
-| 11 | 1.1:1Post dilation | 0.0172 |
-| 12 | No postdilation | 0.0139 |
-| 13 | CaI | 0.0135 |
-| 14 | TCL | 0.0111 |
-| 15 | HbA1c | 0.0091 |
+| 1 | eGFR | 1.0439 |
+| 2 | WBC | 1.0202 |
+| 3 | LV | 0.8695 |
+| 4 | 1.1:1Post dilation | 0.6906 |
+| 5 | LDL | 0.4973 |
+| 6 | No postdilation | 0.2958 |
+| 7 | Cre | 0.2449 |
+| 8 | CKD5 | 0.1872 |
+| 9 | HbA1c | 0.1783 |
+| 10 | Previous PCI | 0.1356 |
+| 11 | Stent type-SES | 0.1125 |
+| 12 | CaI | 0.0793 |
+| 13 | HGB | 0.0664 |
+| 14 | Men | 0.0553 |
+| 15 | Fiberinogen | 0.0502 |
 
-**Source files:** [paper_figures/paper_table4_shap_mean_abs.png](paper_figures/paper_table4_shap_mean_abs.png), [paper_figures/paper_table4_shap_mean_abs.csv](paper_figures/paper_table4_shap_mean_abs.csv), [paper_figures/interpretability_shap_explain_indices.csv](paper_figures/interpretability_shap_explain_indices.csv)
+**Source files:** [paper_figures/paper_table4_shap_mean_abs.png](paper_figures/paper_table4_shap_mean_abs.png), [paper_figures/paper_table4_shap_mean_abs.csv](paper_figures/paper_table4_shap_mean_abs.csv), [paper_figures/interpretability_shap_mean_abs.csv](paper_figures/interpretability_shap_mean_abs.csv), [paper_figures/interpretability_shap_explain_indices.csv](paper_figures/interpretability_shap_explain_indices.csv)
 
 ---
 
 ## 5. Pairwise interactions — k-SII
 
-k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (row **5099**, budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are **not** a cohort interaction screen. The notebook print lists the top-20 |SV| names for this row as `LV`, `WBC`, `CKD5`, `eGFR`, `Men`, `No postdilation`, `Cre`, … — not a statement about the 5,185-row cohort.
+k-SII plots use **one illustrative held-out VLST=1 row** (held-out pos 20, **cohort row 5176**, budget = 256). Node size is the main effect; edge width is the pairwise interaction. They illustrate how TabPFN combines features for that row; they are **not** a cohort interaction screen. The [3/5] print lists the top-20 |SV| names for this row as `LV`, `WBC`, `1.1:1Post dilation`, `LDL`, `eGFR`, `Stent type-SES`, `No postdilation`, … — not a statement about the 5,185-row cohort.
 
 ### Figure 8. k-SII network (SHAP section)
 
 ![Figure 8](paper_figures/paper_fig8_ksii_network.png)
 
-**Figure 8.** Circular k-SII network for the top features by |Shapley value| on **one VLST=1 row**. Thick edges are pairwise terms **for that patient**. Do not treat them as cohort interactions.
+**Figure 8.** Circular k-SII network for the top features by |Shapley value| on **one held-out VLST=1 row** (cohort **5176**). Thick edges are pairwise terms **for that patient**. Do not treat them as cohort interactions.
 
 **Source file:** [paper_figures/paper_fig8_ksii_network.png](paper_figures/paper_fig8_ksii_network.png)
 
@@ -237,7 +231,7 @@ k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (row *
 
 ![Figure 9](paper_figures/paper_fig9_ksii_upset.png)
 
-**Figure 9.** UpSet-style listing of the largest main effects and pairwise k-SII values for the same row. Some panels show a large intercept / base term near 0.90 on the balanced-prior scale; that is the SHAP baseline for this explainer, not cohort prevalence.
+**Figure 9.** UpSet-style listing of the largest main effects and pairwise k-SII values for the same row. The intercept / base term is the explainer baseline for this one-row plot, not cohort prevalence.
 
 **Source file:** [paper_figures/paper_fig9_ksii_upset.png](paper_figures/paper_fig9_ksii_upset.png)
 
@@ -245,13 +239,13 @@ k-SII plots use **one illustrative VLST=1 row** from the 15+15 SHAP slice (row *
 
 ## 6. SHAP-IQ native plots
 
-Section [4/5] of the notebook recomputes imputation-based Shapley values and k-SII with shapiq’s native plotting API, again on **tabpfn-client + thinking**. Figures 10–12 are a second view of the **same one-row explanation** (row 5099), not an independent replication on new rows.
+Section [4/5] of the notebook recomputes imputation-based Shapley values and k-SII with shapiq’s native plotting API. Client thinking **failed immediately** (HTTP 429); the plots finished on **local `tabpfn` + KV cache**. Figures 10–12 are a second view of the **same one-row explanation** (cohort row **5176**), not an independent replication on new rows.
 
 ### Figure 10. SHAP-IQ force plot (one row)
 
 ![Figure 10](paper_figures/paper_fig10_shapiq_force.png)
 
-**Figure 10.** Force / additive layout for row 5099. Read it as the compact counterpart of the waterfall in Figure 7, on the same balanced-prior attribution scale.
+**Figure 10.** Force / additive layout for held-out pos 20 / cohort row **5176**. Read it as the compact counterpart of the waterfall in Figure 7.
 
 **Source file:** [paper_figures/paper_fig10_shapiq_force.png](paper_figures/paper_fig10_shapiq_force.png)
 
@@ -259,7 +253,7 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ![Figure 11](paper_figures/paper_fig11_shapiq_network.png)
 
-**Figure 11.** Native shapiq network for the same one-row k-SII. Layout is a restyle of Figure 8, not a new sample of patients. Printed top-20 |SV| names on this pass include `LV`, `WBC`, `eGFR`, `Men`, `Cre`, `CKD5`, …
+**Figure 11.** Native shapiq network for the same one-row k-SII. Layout is a restyle of Figure 8, not a new sample of patients. Printed top-20 |SV| names on this pass include `LV`, `WBC`, `1.1:1Post dilation`, `eGFR`, `LDL`, `No postdilation`, `Previous PCI`, …
 
 **Source file:** [paper_figures/paper_fig11_shapiq_network.png](paper_figures/paper_fig11_shapiq_network.png)
 
@@ -275,13 +269,13 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ## 7. Consensus ranking
 
-Ranking uses a **Borda-style mean of normalized ranks** across mutual information, stability frequency, and mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values come from the full 81-row ranking (no fill-zero for names outside a truncated top-15).
+Ranking uses a **Borda-style mean of normalized ranks** across **train** mutual information, **train** stability frequency, and **held-out** mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values in Table 5 come from the consensus print (the full 81-row MI CSV stayed on Kaggle). `Cre` prints **0.000000** on train — a measured train-split zero, not a truncated-top-15 fill-zero.
 
 ### Figure 13. Top 15 by consensus
 
 ![Figure 13](paper_figures/paper_fig13_consensus_ranking.png)
 
-**Figure 13.** Aggregated importance (1 = strongest mean normalized rank). Annotations give how many of the three signals placed the feature in their top set. **`WBC`, `LV`, and `eGFR` are 3/3.** `Stent type-SES` is **not** a 3/3 name on this run. `LVEF` and `STEMI` rank 11–12 on Borda with **0/3** top-set membership — middling ranks on all three lists can still enter the top 15.
+**Figure 13.** Aggregated importance (1 = strongest mean normalized rank). Annotations give how many of the three signals placed the feature in their top set. **`WBC`, `LV`, and `eGFR` are 3/3.** `Stent type-SES` is **not** a 3/3 name on this run. `History of HF` and `Cardiogenic shock` enter the top 15 with **0/3** top-set membership — middling ranks on all three lists can still enter the top 15.
 
 **Source file:** [paper_figures/paper_fig13_consensus_ranking.png](paper_figures/paper_fig13_consensus_ranking.png)
 
@@ -289,25 +283,25 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ![Table 5](paper_figures/paper_table5_consensus.png)
 
-**Table 5.** The notebook’s `interpretability_feature_importance_report` top 15. `importance_score` is the Borda aggregate. `n_methods` counts how many of {MI top, stability, SHAP top} contributed. The three names with n_methods = 3 (`WBC`, `LV`, `eGFR`) are the most consistent TabPFN associations in this run. `Cre` has measured MI **0.0023** (25th of 81) and leads mean(|SHAP|); it is 2/3, not a fill-zero. `CaI` is first on MI but only 2/10 in stability. `ZES` is 6/10 stable and in the MI top 15 but not the SHAP top (2/3).
+**Table 5.** The notebook’s `[5/5]` `interpretability_feature_importance_report` top 15. `importance_score` is the Borda aggregate. `n_methods` counts how many of {MI top, stability, SHAP top} contributed. The three names with n_methods = 3 (`WBC`, `LV`, `eGFR`) are the most consistent TabPFN associations in this run. `Cre` is 2/3 (stability 8/10, SHAP yes) with train MI **0.000000**. `CaI` is first on train MI but **0/10** in stability. `1.1:1Post dilation` is 1/3 (SHAP yes; not in the MI top). Do not quote the old 30-row Cre-leading SHAP (0.158) as this table.
 
 | Rank | Feature | Score | n methods | Stability | mean(\|SHAP\|) | MI | In MI top | In SHAP top |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| 1 | WBC | 0.9875 | 3/3 | 1.0 | 0.0609 | 0.018360 | yes | yes |
-| 2 | LV | 0.9667 | 3/3 | 0.6 | 0.0525 | 0.015178 | yes | yes |
-| 3 | eGFR | 0.9583 | 3/3 | 0.5 | 0.0771 | 0.009931 | yes | yes |
-| 4 | 1.1:1Post dilation | 0.8937 | 2/3 | 0.3 | 0.0172 | 0.007932 | yes | yes |
-| 5 | CaI | 0.8833 | 2/3 | 0.2 | 0.0135 | 0.019224 | yes | yes |
-| 6 | Cre | 0.8750 | 2/3 | 0.5 | 0.1585 | 0.002281 | no | yes |
-| 7 | HbA1c | 0.8646 | 2/3 | 0.3 | 0.0091 | 0.007439 | yes | yes |
-| 8 | No postdilation | 0.8625 | 2/3 | 0.2 | 0.0139 | 0.007535 | yes | yes |
-| 9 | LDL | 0.8229 | 2/3 | 0.1 | 0.0253 | 0.007693 | yes | yes |
-| 10 | Fiberinogen | 0.8000 | 2/3 | 0.6 | 0.0040 | 0.004040 | yes | no |
-| 11 | LVEF | 0.7417 | 0/3 | 0.2 | 0.0047 | 0.002604 | no | no |
-| 12 | STEMI | 0.7313 | 0/3 | 0.4 | 0.0086 | 0.001086 | no | no |
-| 13 | HGB | 0.7229 | 1/3 | 0.1 | 0.0045 | 0.004606 | yes | no |
-| 14 | Fast-Glu | 0.7104 | 1/3 | 0.1 | 0.0043 | 0.004429 | yes | no |
-| 15 | ZES | 0.6875 | 2/3 | 0.6 | 0.0019 | 0.003783 | yes | no |
+| 1 | WBC | 0.9917 | 3/3 | 1.0 | 1.0202 | 0.020165 | yes | yes |
+| 2 | LV | 0.9771 | 3/3 | 0.8 | 0.8695 | 0.012768 | yes | yes |
+| 3 | eGFR | 0.9708 | 3/3 | 0.7 | 1.0439 | 0.009830 | yes | yes |
+| 4 | LDL | 0.9062 | 2/3 | 0.2 | 0.4973 | 0.009893 | yes | yes |
+| 5 | HbA1c | 0.8896 | 2/3 | 0.3 | 0.1783 | 0.004805 | yes | yes |
+| 6 | 1.1:1Post dilation | 0.8729 | 1/3 | 0.3 | 0.6906 | 0.002637 | no | yes |
+| 7 | Previous PCI | 0.8604 | 2/3 | 0.5 | 0.1356 | 0.002358 | no | yes |
+| 8 | Fiberinogen | 0.8542 | 2/3 | 0.4 | 0.0502 | 0.003007 | yes | yes |
+| 9 | HGB | 0.8042 | 2/3 | 0.1 | 0.0664 | 0.005327 | yes | yes |
+| 10 | No postdilation | 0.7833 | 1/3 | 0.1 | 0.2958 | 0.002406 | no | yes |
+| 11 | Lesion location-Ostial | 0.7292 | 1/3 | 0.1 | 0.0222 | 0.005128 | yes | no |
+| 12 | History of HF | 0.7292 | 0/3 | 0.1 | 0.0483 | 0.002289 | no | no |
+| 13 | Cardiogenic shock | 0.7271 | 0/3 | 0.2 | 0.0316 | 0.001431 | no | no |
+| 14 | Cre | 0.7083 | 2/3 | 0.8 | 0.2449 | 0.000000 | no | yes |
+| 15 | CaI | 0.7042 | 2/3 | 0.0 | 0.0793 | 0.022005 | yes | yes |
 
 **Source files:** [paper_figures/paper_table5_consensus.png](paper_figures/paper_table5_consensus.png), [paper_figures/paper_table5_consensus.csv](paper_figures/paper_table5_consensus.csv)
 
@@ -339,4 +333,4 @@ Ranking uses a **Borda-style mean of normalized ranks** across mutual informatio
 
 ---
 
-*Figures are the executed PNG outputs from `tabpfn_interpretability.ipynb` (`645fb0e`). Tables are rebuilt from the Kaggle CSVs. SHAP / SHAP-IQ used tabpfn-client thinking (no local fallback). MI, stability, and PDP use the full cohort; SHAP explains 15 VLST=1 + 15 VLST=0; k-SII is one VLST=1 row (5099). Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*
+*Figures are the executed PNG outputs from `tabpfn_interpretability.ipynb` (`e356bb1` Version 5), copied from the Kaggle working tree. Tables 0–5 are rebuilt from those CSVs (81-row MI and SHAP rankings are in this folder). SHAP / SHAP-IQ started on tabpfn-client thinking then fell back to local after HTTP 429. MI, stability, and PDP use the **train** split (n=3629); SHAP explains all 1,556 held-out rows; k-SII / waterfall / SHAP-IQ are one held-out VLST=1 row (**5176**). Rankings are for interpretation only and should not be reused as a leakage-free feature mask.*

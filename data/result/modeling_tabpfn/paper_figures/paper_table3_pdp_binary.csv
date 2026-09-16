@@ -1,7 +1,0 @@
-Feature,P(y=1 | 0),P(y=1 | 1),ΔP,scale,n,prevalence
-Staged PCI,0.0184,0.0169,-0.0015,empirical_prior_not_part4,5185,0.0177
-ZES,0.0184,0.0174,-0.001,empirical_prior_not_part4,5185,0.0177
-PES,0.017,0.0183,0.0013,empirical_prior_not_part4,5185,0.0177
-STEMI,0.0189,0.0172,-0.0017,empirical_prior_not_part4,5185,0.0177
-1.1:1Post dilation,0.0234,0.0191,-0.0043,empirical_prior_not_part4,5185,0.0177
-Dissection,0.0183,0.0165,-0.0018,empirical_prior_not_part4,5185,0.0177

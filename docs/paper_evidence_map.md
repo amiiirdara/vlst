@@ -36,6 +36,108 @@ under `data/result/modeling_results/oof/` and `tables/`; B3 stratified bootstrap
 on those files; B4 Table 4b reduced logit; B7 clinical Table C from `VLST.csv`. **B11 remains blocked** (no
 Shantou / Cox LP / Dangas DCA this cycle). D4: quote the notebooks if a later re-run disagrees with these exports.
 
+**Revision 9 (2026-09-07 pull — notebook *source* only; no new scored dump).** Fast-forward
+`0cbc91b..152c5d1`. Part 4 current source is `139d143` (Kaggle `baseline_plus_tabpfn` Version 4, outputs
+stripped). Part 5 current source is `152c5d1` (Kaggle interpretability Version 3, outputs stripped).
+Protocol changes in those notebooks are **not** in `paper_results/` or the committed OOF:
+
+- **Part 4 local arm.** Constructor no longer sets `balance_probabilities=True`. After nested CV,
+  `restore_tabpfn_empirical_prior` maps local OOF through
+  `p_raw = (p * π1) / (p * π1 + (1-p) * π0)` when the mean predicted probability is far above
+  prevalence. The notebook states PR-AUC / ROC are unchanged and nested hard labels are unchanged;
+  **Brier would change**. `RUN_MODELS` keys are now `"TabPFN thinking mode"` (client) and `"TabPFN"`
+  (local). Thinking-high constructor is still unchanged.
+- **Part 5.** `SHAP_EXPLAIN_ALL=True` (explain all 5,185 rows, not 15+15). PDP / SHAP / SHAP-IQ
+  primary backend is client thinking (`INTERP_THINKING_MODE=True`); stability / MI stay local
+  (`FS_THINKING_MODE=False`). k-SII / waterfall use the **first VLST=1 in file order** (raw index
+  **5093**, not stored 5099). Local constructors omit `balance_probabilities=True`.
+
+**Quote rule after this pull.** Numbers, CIs, and stored Part 4/5 figures remain the Revision 7/8
+dumps (`de46f92`, `645fb0e`) until B13 / B14 re-runs exist. Methods sentences about *current code*
+must follow `139d143` / `152c5d1`. Do not write “local uses `balance_probabilities=True`” or
+“SHAP is 15+15” as the live notebook protocol.
+
+**Revision 10 (2026-09-09 pull — Part 5 Version 5 scored in-notebook; Part 4 Version 4 already had outputs).**
+Fast-forward `152c5d1..e356bb1` (`a722a1c` interpretability on train; `16f6340` strip then `e356bb1`
+Kaggle interpretability Version 5). **`152c5d1` (SHAP-all, k-SII row 5093) was never scored and is
+superseded.** It is not the live protocol.
+
+- **Part 5 live (`e356bb1`, papermill 2026-09-08, Tesla T4).** Held-out protocol: stratified
+  `train_test_split(test_size=0.3, random_state=42)` → train **3,629 / 64 events**, test **1,556 / 28
+  events** (same counts as the TSSI 70/30 notebooks). MI, stability SFS, and PDP **fit/average on
+  train only**. `SHAP_EXPLAIN_HELDOUT=True`: SHAP explains **all 1,556 held-out rows** (28 events),
+  fit/background = train. k-SII / waterfall / SHAP-IQ = **first VLST=1 in the held-out split**
+  (held-out position 20, **cohort row 5176** — not 5099, not 5093). `FS_THINKING_MODE=False`;
+  `PDP_USE_CLIENT=False`; `INTERP_THINKING_MODE=True` (effort high, metric average_precision).
+  Local constructors still omit `balance_probabilities`. Client SHAP started then hit HTTP **429**
+  (~row 550/1556); **[3/5] and [4/5] finished on local `tabpfn` + KV cache**. Consensus 3/3 remains
+  `{WBC, LV, eGFR}`. Artifacts were written to `/kaggle/working/modeling_tabpfn`. **They are not in
+  `paper_results/05_*/paper_figures/`** (those CSVs still match `645fb0e`: 15+15, row 5099, Cre
+  mean|SHAP| 0.158). B14 is now “copy Version 5 exports,” not “re-run SHAP-all.”
+- **Part 4 live (`139d143`, Kaggle Version 4, papermill 2026-09-04 12:56–14:57 UTC, Tesla T4).**
+  Revision 9 called this “outputs stripped”; the committed notebook **has** a finished nested CV
+  (cells 5–17 executed). `RUN_MODELS` keys `"TabPFN thinking mode"` and `"TabPFN"`. Local ctor is
+  `LocalTabPFNClassifier(device=cuda, n_estimators="auto", random_state=42)` — **no**
+  `balance_probabilities`. `restore_tabpfn_empirical_prior` is defined and called after the nest
+  (cell 5) and again before calibration (cell 11). **It never printed** (`p.mean() <= 4×prevalence`
+  skip). Local Brier **0.0102** is therefore the **unbalanced constructor**, not a logged invert of
+  0.0673. Thinking-high PR-AUC **0.8553** / ROC **0.9905** / Brier **0.0064** and all five thinking
+  fold PRs match `de46f92`. Local fold PRs also match; pooled local PR displays **0.6742** (committed
+  **0.6754**). LightGBM pooled PR is **0.6942** here vs **0.6926** on `de46f92` (GPU wobble). Nested
+  local 2×2 is still 5041/52/29/63; nested *t* is **0.166 ± 0.020** not 0.915. F2 is
+  `sklearn.metrics.fbeta_score(..., beta=2.0)`. Kaggle OOF was **not** copied into
+  `data/result/modeling_results/` (B13). Do not put 0.0102 in the paper ranking table until that copy.
+
+**Quote rule after Revision 10.** Paper tables/figures: still `de46f92` / `645fb0e`. Live *code*
+protocol: Part 4 `139d143` (no `balance_probabilities`; restore **skipped**; notebook local Brier
+**0.0102**, nested *t* **0.166**); Part 5 `e356bb1` (70/30, SHAP 1,556 held-out, k-SII row **5176**,
+local SHAP after 429). Do not write SHAP-all 5,185, row 5093, or 15+15 as the live notebook. Do not
+write that restore mapped 0.0673 → 0.0102.
+
+**Revision 11 (2026-09-14 — docs drafts deleted; notebook vs Markdown audit).** `docs/` now holds
+**only** this evidence map. Deleted and **not** sources for the paper: `docs/paper_outline.md`,
+`docs/paper_methods.md`, `docs/paper_results_exploratory.md`, `docs/paper_results_prediction.md`,
+`docs/paper_discussion.md`, `docs/paper_audit.md`, `docs/figure_table_selection.md`. Canonical
+prose for writing is `paper_results/` (§0.4). Dual tree under `code/**` is a byte-identical copy
+except Part 3’s notebook hyperlink (relative path). Cross-section conflicts and “was this notebook
+run with its final source?” are §0.5–§0.6.
+
+**Revision 12 (2026-09-16 — paper Markdown follows live notebooks).** D4 applied: Parts 4 and 5
+reports, front matter, dual-tree copies, and `paper_results.md` now quote the executed notebooks,
+not `de46f92` / `645fb0e`.
+
+- **Part 4 paper = `139d143` Version 4.** Local: no `balance_probabilities`; restore skipped;
+  PR **0.6742**, Brier **0.0102**, nested *t* **0.166 ± 0.020**. LightGBM pooled PR **0.6942**.
+  Figures 1–3 and ranking / nested / pooled tables rebuilt from notebook cells + prints.
+  Committed `data/result/modeling_results/oof/` remains `de46f92`. Bootstrap Table S-CI /
+  Table S-Δ are **withdrawn** (those CIs are not Version 4). Table S-folds stays (fold PR-AUC
+  from the live notebook). Relabel-from-OOF was **not** re-run.
+- **Part 5 paper = `e356bb1` Version 5.** Train MI/SFS/PDP (n=3629/64); SHAP all 1,556 held-out
+  (HTTP 429 → local); k-SII / waterfall / SHAP-IQ = cohort row **5176**. Consensus 3/3
+  `{WBC, LV, eGFR}`; Cre train MI **0.000000**; binary PDP largest |Δ| `1.1:1Post dilation`
+  −0.0093, `Previous PCI` +0.0137. Full 81-row MI/SHAP CSVs and the 1,556-row index list stayed
+  on Kaggle. Leftover `interpretability_shap_explain_indices.csv` is the old 15+15 dump (starts
+  5099) — do not quote it. Table 4 is mean(|SHAP|) among consensus-15 names, not the full 81-row
+  SHAP CSV.
+- **B13 remaining:** copy Version 4 OOF arrays so CIs can be recomputed. **B14 remaining:** copy
+  the 81-row MI/SHAP CSVs and the 1,556-row explain indices. Neither gap authorises quoting the
+  old dumps as current.
+
+**Quote rule after Revision 12.** Paper tables, figures, and captions: Part 4 `139d143`, Part 5
+`e356bb1`. Historical Revisions 7–11 below still describe the old dumps; do not copy those
+numbers into `paper_results/` as if they were current. Parts 1–3 unchanged (already matched
+their notebooks; Table 4b / Table C remain the hygiene-script products).
+
+**Revision 13 (2026-09-16 — Kaggle working copies inserted).** The Version 4 OOF
+(`code/modeling/rating/baseline_plust_tabpfn_results/modeling_results/`) and Version 5
+interpretability tree (`code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/`)
+were copied into `data/result/modeling_results/` and the three `paper_figures/` trees.
+Old playground dumps (`tabpfn_*_20260412*`, `tabpfn_cv_summary`, 15+15 SHAP indices) were
+deleted. Bootstrap Table S-CI / S-Δ were recomputed on Version 4 OOF. Part 5 Table 1/4 now
+use the 81-row MI and SHAP CSVs. B13 / B14 **closed for the copy**. Table C / 4b generating
+code is `run_b7` / `run_b4` (hygiene script; also last cells of `eda.ipynb`). S-CI / S-Δ / S-TSSI
+are the hygiene / TSSI scripts only — **not** cells in the Kaggle nested-CV or TSSI notebooks.
+
 **Revision 6.** Superseded by Revision 7 as the *current* Part 4/5 snapshot. That revision documented the
 Kaggle **local-only** nested CV (`RUN_MODELS["TabPFN"]=False`): LightGBM PR-AUC 0.6937, TabPFN (local)
 0.6754 / 0.9845 / Brier 0.0673. Keep those numbers only when explicitly labelled as the six-model local-only
@@ -75,7 +177,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 
 ## Contents
 
-1. [Scope in force](#0-scope-in-force)
+1. [Scope in force](#0-scope-in-force) — includes [canonical writing files](#04-canonical-files-the-paper-results-are-written-from), [cross-section conflicts](#05-cross-section-conflicts-do-not-collapse), [notebook execution](#06-was-each-in-scope-notebook-run-with-its-final-source)
 2. [Clinical and scientific motivation](#1-clinical-and-scientific-motivation)
 3. [Dataset, target, event count, prevalence](#2-dataset-target-event-count-prevalence)
 4. [Variable dictionary](#3-variable-dictionary)
@@ -99,7 +201,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 
 | #      | Decision                                                                                                                                                                                                                                                                                         | Effect on this audit                                                                                                                                                               |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **D1** | `code/failed_hypothesis/`** **is out of scope** — all ten notebooks (`anomaly_detection`, `baseline_blending`, `baseline_plus_tabpfn_blending`, `ffs`, `fp_precision_mining`, `llm_tabular_small_n`, `tabpfn_5fold_fp_mining`, `tabpfn_fp_followup`, `tabpfn_oversampling`, `tabpfn_synthesis`). | The selective-reporting finding built on this directory is **withdrawn** (§12.11).                                                                                                 |
+| **D1** | **`code/failed_hypothesis/` is out of scope** — every notebook under that tree, currently twelve: `anomaly_detection`, `baseline_blending`, `baseline_plus_tabpfn_blending`, `causal_analysis`, `ffs`, `fp_precision_mining`, `llm_tabular_small_n`, `tabpfn_5fold_fp_mining`, `tabpfn_fp_followup`, `tabpfn_oversampling`, `tabpfn_synthesis`, `tabpfn_extension/interpretability`. | The selective-reporting finding built on this directory is **withdrawn** (§12.11). Do not cite those notebooks for a paper number. |
 | **D2** | **TabPFN comes from exactly two notebooks:** `rating/baseline_plus_tabpfn.ipynb` (performance) and `interpretability/tabpfn_interpretability.ipynb` (interpretability). `rating/tabpfn_playground.ipynb` is out of scope.                                                                        | No other file may be cited for a TabPFN number.                                                                                                                                    |
 | **D4** | **The Markdown reports remain part of the analysis and are read on their merits — but where a report and the code disagree, the code is authoritative.**                                                                                                                                         | Every `[DISCREPANCY]` below now carries an explicit resolution. Reports still count as the source for *reasoning, framing and caveats*; the notebooks are the source for *values*. |
 
@@ -107,19 +209,20 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 ### 0.2 In-scope notebooks
 
 
-| #   | Notebook                                                      | Written up as | Export status                              |
-| --- | ------------------------------------------------------------- | ------------- | ------------------------------------------ |
-| 1   | `analyzes/eda.ipynb`                                          | Part 1        | verified against notebook                  |
-| 2   | `modeling/interpretability/baseline_feature_selections.ipynb` | Part 2        | verified against notebook                  |
-| 3   | `modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4        | **Current** — 7-arm nested CV, both TabPFN arms (§5.8, `de46f92`) |
-| 4   | `modeling/interpretability/tabpfn_interpretability.ipynb`     | Part 5        | **Current** — 15+15 SHAP, empirical PDP, 81-row MI (`645fb0e`) |
-| 5   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 supp.  | stored metrics → Table S-TSSI              |
-| 6   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 supp.  | stored metrics → Table S-TSSI              |
-| 7   | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | artefacts unused by any analysis (§12.5)   |
-| 8   | `modeling/rating/wang_vlst_score.ipynb`                       | Part 4 supp.  | frozen Wang integer score → Table S-Wang   |
+| #   | Notebook                                                      | Written up as | Paper Markdown describes | Notebook on disk executed? |
+| --- | ------------------------------------------------------------- | ------------- | ------------------------ | -------------------------- |
+| 1   | `analyzes/eda.ipynb`                                          | Part 1        | Univariates / Table 4 / stent χ² from this notebook. Table C / Table 4b: `run_b7` / `run_b4` in `paper_hygiene_b3_b4_b7.py`, **also the last EDA cells**. | Yes — 48/49 original code cells have outputs (cell 11 is a no-missing skip) plus the Table C / 4b cells. |
+| 2   | `modeling/interpretability/baseline_feature_selections.ipynb` | Part 2        | 2026-08-31 Kaggle Version 5 paper protocol (4,148/1,037, PR-AUC, 88 columns). | Yes — papermill 2026-08-31 (`1a7a369`). Cells 5–8 are function defs (no outputs by design); cell 9 ran the selectors. Later `802d885` changed an unused TabPFN factory (`balance_probabilities=True` → `random_state=seed`); **selectors were not re-run**. |
+| 3   | `analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`           | Part 3        | Jaccard 5/28, hardcoded FDR 20 + ML 13 lists. | Yes — cell 4 printed `Jaccard=0.1786` and wrote both `paper_figures/` trees. Cells 2–3 are defs. |
+| 4   | `modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4        | **`139d143` Version 4** (local Brier **0.0102**, nested *t* **0.166**, no `balance_probabilities`; restore skipped). S-CI/S-Δ from `run_b3()` on Version 4 OOF, not a notebook cell. | Yes — papermill 2026-09-04; the 9 Kaggle code cells. OOF in `data/result/modeling_results/oof/` (B13 closed). |
+| 5   | `modeling/interpretability/tabpfn_interpretability.ipynb`     | Part 5        | **`e356bb1` Version 5** (train MI/SFS/PDP; SHAP 1,556 held-out; k-SII **5176**; HTTP 429 → local). | Yes — papermill 2026-09-08–09; all 9 code cells. 81-row MI/SHAP CSVs and 1,556-row indices copied (B14 closed). |
+| 6   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 S-TSSI | Logistic PR-AUC 0.958 with TSSI. | Yes — outputs present. Two helper cells have no display (defs). |
+| 7   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 S-TSSI | Logistic PR-AUC 0.508 without TSSI. | Yes — outputs present. Cell 9 (`exec=None`) is an unused SMOTE sketch, not the paper path. |
+| 8   | `modeling/rating/wang_vlst_score.ipynb`                       | Part 4 S-Wang | Frozen integer ROC **0.8013** / PR **0.1032**. | Yes — those prints are in the outputs. Comparator table now reads Version 4 OOF (thinking-high 0.8553 / LightGBM 0.6942 / local 0.6742). |
+| 9   | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | — | Executed (12/12 code cells) but artefacts unused by any paper analysis (§12.5). |
 
 
-Eleven notebooks on disk are excluded by D1–D2 and are not audited (ten under `failed_hypothesis/`, plus `tabpfn_playground.ipynb`). D4 is a reading rule, not an exclusion.
+Thirteen notebooks on disk are excluded by D1–D2 and are not audited (twelve under `failed_hypothesis/`, plus `tabpfn_playground.ipynb`). D4 is a reading rule, not an exclusion.
 
 ### 0.3 Part 3 now has generating code
 
@@ -132,13 +235,83 @@ It recomputes the overlap from the verified
 `paper_results/03_stats_vs_ml/paper_figures/` and `code/analyzes/stats_vs_ml/paper_figures/`.
 **[TODO-P3 — closed]**
 
+### 0.4 Canonical files the paper results are written from
+
+**Use `paper_results/` as the Markdown tree.** `code/**` copies of the same reports are duplicates
+(E1). `paper_results/paper_results.md` is the concatenation of Parts 0–5. `docs/paper_evidence_map.md`
+is the provenance audit, not manuscript prose.
+
+| Paper part | Markdown (write from these) | Generating notebook / script |
+| --- | --- | --- |
+| 0 Front matter (W2–W5) | `paper_results/00_front_matter.md` | No notebook. Numbers it quotes must match Parts 1 / 4 / 5 **live** notebooks (`139d143` / `e356bb1`). |
+| 1 EDA | `paper_results/01_eda/EDA_paper_figures_and_tables.md` + `paper_figures/` | `code/analyzes/eda.ipynb` (univariates, Table 4, stent χ²). Table C + Table 4b: `run_b7` / `run_b4` (hygiene script **and** last EDA cells). |
+| 2 Selectors | `paper_results/02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md` + `paper_figures/` | `code/modeling/interpretability/baseline_feature_selections.ipynb` (`1a7a369` / 2026-08-31). Restyle: `rebuild_part2_paper_figures.py`. Kaggle `selector_summary_long.csv` was never downloaded. |
+| 3 Stats vs ML | `paper_results/03_stats_vs_ml/feature_extraction_comparison.md` + `paper_figures/` | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb` (asserts Jaccard 5/28 from hardcoded catalogues). |
+| 4 Nested CV | `paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md` + `paper_figures/` | **Numbers / figures / OOF:** executed notebook `139d143` Version 4 plus Kaggle working copy in `data/result/modeling_results/{oof,tables}/` and `code/modeling/rating/baseline_plust_tabpfn_results/`. Bootstrap: `run_b3()` in `paper_hygiene_b3_b4_b7.py` (script only). |
+| 4 S-TSSI | same Part 4 Markdown, Table S-TSSI / Fig S-TSSI | `baseline_tssi_leakage.ipynb` and `baseline_without_tssi.ipynb` (the 70/30 fits). Table S-TSSI: `rebuild_tssi_leakage_table.py`. |
+| 4 S-Wang | same Part 4 Markdown, Table S-Wang | `code/modeling/rating/wang_vlst_score.ipynb`. |
+| 5 Interpretability | `paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md` + `paper_figures/` | **`e356bb1` Version 5** Kaggle working copy (81-row MI/SHAP CSVs, 1,556-row indices, native PNGs). |
+| Concat pack | `paper_results/paper_results.md`, `paper_results/README.md` | Concatenation of the files above. |
+| Audit only | `docs/paper_evidence_map.md` | This file. |
+
+**Do not write from:** `code/failed_hypothesis/**`, `tabpfn_playground.ipynb`, `preprocessing.ipynb`,
+deleted `docs/paper_*.md` drafts. Quote Version 4 OOF CIs, not the previous dump’s 0.0673 intervals.
+
+**Dual-tree check (Revision 13).** Parts 1, 2, 4, 5 Markdown files are byte-identical across
+`paper_results/` and `code/`. Part 3 differs by one hyperlink (`../../code/analyzes/...` vs
+`stats_vs_ml_comparison.ipynb`). Quote `paper_results/`.
+
+### 0.5 Cross-section conflicts (do not collapse)
+
+These are the disagreements that would put two parts of the pack in contradiction if mixed.
+
+1. **Part 4 Markdown vs live `baseline_plus_tabpfn.ipynb`.** **Closed in Revision 12; OOF/CIs closed in Revision 13.** Reports +
+   `00_front_matter.md` quote Version 4 (`139d143`): no `balance_probabilities`, restore skipped,
+   Brier **0.0102**, nested *t* **0.166**, LightGBM PR **0.6942**, local PR **0.6742**. Version 4 OOF
+   is in `data/result/modeling_results/oof/`; Table S-CI / S-Δ are those arrays (`n_boot=2000`).
+2. **Part 5 Markdown vs live `tabpfn_interpretability.ipynb`.** **Closed in Revision 12; full CSVs closed in Revision 13.** Reports +
+   front matter quote Version 5 (`e356bb1`): 70/30, train MI/SFS/PDP, SHAP 1,556 held-out, k-SII
+   **5176**, local after HTTP 429. Consensus 3/3 `{WBC, LV, eGFR}`. Table 4 is top 15 of the 81-row
+   SHAP CSV; explain indices are 1,556 held-out rows.
+3. **Front matter “Part 5 MI = full-cohort association” vs live Part 5.** **Closed in Revision 12.**
+   Front matter now says Part 5 MI is the Version 5 **train** split.
+4. **Part 1 Table 4 vs Table 4b.** The notebook still contains the unidentified 17-covariate Table 4.
+   Table 4b and Table C are built by `run_b4` / `run_b7` and are **also printed by the last EDA cells**.
+   Quote Table 4b, not Table 4.
+5. **Part 4 Table 0 vs live constructor.** **Closed in Revision 12.** Table 0 lists local
+   `n_estimators=auto; no balance_probabilities; restore skipped`.
+6. **Historical Revision 9–11 bullets above** still say paper numbers were `de46f92` / `645fb0e`.
+   That quote rule is **superseded by Revision 12**. Do not copy it into the paper.
+7. **No conflict among Parts 1–3 catalogues** used for Jaccard: Part 3 hardcodes the Part 1 FDR-20
+   and Part 2 ML-13 lists and asserts 5/28. Re-run Part 3 if either catalogue changes.
+
+### 0.6 Was each in-scope notebook run with its final source?
+
+| Notebook | Final source = executed source? | Note |
+| --- | --- | --- |
+| `eda.ipynb` | **Yes** (outputs match the committed source). | Uncommitted kernel-name bump only. Table C / 4b are the last cells (`run_b7` / `run_b4`). |
+| `baseline_feature_selections.ipynb` | **Yes for the scored selectors** (`1a7a369`). | `802d885` edited an unused TabPFN constructor after the Kaggle run; paper models did not use it. |
+| `stats_vs_ml_comparison.ipynb` | **Yes.** | Catalogues are still Part 1 FDR-20 and Part 2 ML-13 (Part 5 TabPFN is a different extractor). Last cell prints Jaccard 0.1786 (=5/28) and the four membership tables. |
+| `baseline_plus_tabpfn.ipynb` | **Yes for Version 4** (papermill 2026-09-04; all Kaggle code cells have outputs). | Paper Markdown / `paper_figures/` / OOF match this execution (`139d143`). S-CI is `run_b3()` on that OOF, not a notebook cell. |
+| `tabpfn_interpretability.ipynb` | **Yes for Version 5** (papermill 2026-09-08–09; all code cells have outputs). | Paper Markdown / 81-row MI/SHAP CSVs / 1,556-row indices match this execution (`e356bb1`). B14 closed. |
+| `baseline_tssi_leakage.ipynb` / `baseline_without_tssi.ipynb` | **Yes** for the GridSearch 70/30 path quoted in S-TSSI. | Helper / unused SMOTE cells without outputs are not the quoted path. |
+| `wang_vlst_score.ipynb` | **Yes** for ROC 0.8013 / PR 0.1032. | Post-run display-name edit in `802d885` only. |
+| `preprocessing.ipynb` | Executed, unused. | Do not cite. |
+
+**Verdict.** Every paper-facing notebook that still has outputs was executed with its final source.
+Parts 4 and 5 Markdown describe those executions (Revision 12). Version 4 OOF and Version 5 81-row
+CSVs were copied in Revision 13 (B13 / B14 closed). Remaining open item is **B11** (Shantou file).
+
 ---
 
 ## 1. Clinical and scientific motivation
 
 ### What the repository actually states
 
-The **only** motivation text anywhere in the repository is the root `README.md`, in full:
+**Revision 11.** Motivation for the *paper pack* is `paper_results/00_front_matter.md` (W2–W5). The
+root README is still the only repo-level slogan and is **not** a result claim.
+
+The README, in full:
 
 > `# vlst`
 > `Personalized Risk prediction  for very late Stent Thrombosis (VLST) after PCI in ACS using Machin Learning`
@@ -200,14 +373,16 @@ high risk of VLST so that intensive follow-up and treatment choices after year 1
 **[VERIFIED]** All five Markdown reports state n = 5,185, 92 events, prevalence 0.0177. This is internally
 consistent and matches the raw file. It is the one set of numbers with no ambiguity anywhere in the repository.
 
-**How far D4 actually bites.** Parts 1, 2 and 5 were spot-checked report-vs-notebook and **agree**: `LV`
-Cohen d = 1.127413 with q = 3.262999e-16 appears identically in `.nbdump/code__analyzes__eda.txt` L1961/L3772 and
-in `paper_table1_continuous_univariate.csv`; Part 2's consensus tables at
-`.nbdump/code__modeling__interpretability__baseline_feature_selections.txt` L1468–1535 reproduce Part 2's
-Tables 1–4 exactly. So D4 does **not** invalidate Parts 1–3 wholesale. **Part 4 and Part 5 Markdown /
-`paper_figures/` now match the Revision 7 notebooks** (§5.8–5.9, §7.1–7.4): seven-arm thinking-high-first
-scoreboard; 15+15 SHAP with client thinking; empirical-prior PDP. OOF prediction CSVs are committed (B2);
-bootstrap CIs and the paired test are Part 4 Table S-CI / Table S-Δ (B3).
+**How far D4 actually bites.** Parts 1, 2 and 5 were spot-checked report-vs-notebook and **agree** on the
+**stored** dumps: `LV` Cohen d = 1.127413 with q = 3.262999e-16 appears identically in
+`.nbdump/code__analyzes__eda.txt` L1961/L3772 and in `paper_table1_continuous_univariate.csv`; Part 2's
+consensus tables at `.nbdump/code__modeling__interpretability__baseline_feature_selections.txt`
+L1468–1535 reproduce Part 2's Tables 1–4 exactly. So D4 does **not** invalidate Parts 1–3 wholesale.
+**Part 4 and Part 5 Markdown / `paper_figures/` now match the live notebooks** (Revision 12) **and
+the Kaggle working copies** (Revision 13): Part 4 `139d143` (local Brier **0.0102**, nested *t*
+**0.166**, no `balance_probabilities`; OOF + S-CI on disk); Part 5 `e356bb1` (70/30, SHAP 1,556
+held-out, k-SII **5176**; 81-row MI/SHAP CSVs). Historical Revision 7 numbers (`0.0673` / 15+15 /
+row 5099) stay in this map as dump history only.
 
 ### 2.2 Events per variable
 
@@ -474,10 +649,11 @@ Part 4 nested CV now uses the shared 9-level encoder (Kaggle run). Classics one-
 
 ### 4.5 Non-leakage but comparability-breaking design choices
 
-- **Feature-selection ranking in Part 5 uses the full cohort.** Mutual information and stability selection run on
-`X_all, y_all` (all 5,185 rows). The report acknowledges this ("should not be reused as a leakage-free feature mask").
-Keep that caveat. (A train-only ranking in this notebook was applied briefly and **reverted** so TabPFN interpretability
-code stays as stored.)
+- **Feature-selection ranking in Part 5 — two layers.** **Stored catalogue `645fb0e`:** MI and
+  stability on the **full cohort** (`X_all`, n = 5,185). **Live notebook `e356bb1`:** MI, SFS, and
+  PDP rank/average on **train only** (3,629 rows / 64 events); SHAP is reserved for the 1,556-row
+  hold-out. Neither layer is a feature mask for Part 4. Do not mix a train-only MI ranking with the
+  stored Table 1 PNG.
 - **No feature selection feeds the Part 4 models.** Nested-CV uses all 81 features (IDs and TSSI dropped). Part 2
 / Part 5 selection leakage does **not** contaminate the headline Part 4 metrics. Stated explicitly in the Part 4
 protocol paragraph.
@@ -502,7 +678,7 @@ protocol paragraph.
 | Preprocessing artefacts              | `code/modeling/preprocessing/preprocessing.ipynb`                                    | not reported; artefacts unused (§12.5) |
 
 
-Excluded by D1–D2 and not audited: the ten `code/failed_hypothesis/*.ipynb` and `rating/tabpfn_playground.ipynb`.
+Excluded by D1–D2 and not audited: the twelve `code/failed_hypothesis/` notebooks and `rating/tabpfn_playground.ipynb`.
 
 **Selective-reporting finding withdrawn.** Revision 1 raised a `[RISK — selective reporting]` because exploratory
 notebooks were unreported. D1–D2 declare those out of scope, so the previous framing — that the
@@ -602,7 +778,7 @@ Dump: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`.
 | Arm | Implementation | This run |
 | --- | --- | --- |
 | **TabPFN** | `tabpfn_client.TabPFNClassifier` (`thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Constructor unchanged. | Fit. Pooled PR-AUC **0.8553**, ROC **0.9905**, Brier **0.0064** (best of seven). |
-| **TabPFN (local)** | `from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, `device=cuda` | Fit. PR **0.6754**, ROC **0.9845**, Brier **0.0673** (worst of seven). |
+| **TabPFN (local)** | `from tabpfn import TabPFNClassifier`, `n_estimators="auto"`, `balance_probabilities=True`, `device=cuda` | Fit. PR **0.6754**, ROC **0.9845**, Brier **0.0673** (worst of seven). **Paper tables only.** Live notebook omits `balance_probabilities` (§5.8.1). |
 
 Shared 9-level stent encoder (106 raw strings → 9 levels, min_count=30) is applied **before** the split. Classics
 then `ColumnTransformer` scale + `OneHotEncoder(handle_unknown="ignore")` on that 9-level column inside each CV
@@ -618,6 +794,47 @@ The six-model local-only snapshot (Rev 6: LightGBM PR-AUC 0.6937, thinking-high 
 LightGBM on this GPU pass is PR-AUC **0.6926** (small non-determinism vs 0.6937). Historical thinking-high
 prints of PR-AUC 0.8534 / Brier 0.0060 or 0.0360 / nested recall 0.7174 are nearby client numbers, not this
 dump (this dump: 0.8553 / 0.0064 / nested recall 0.7065).
+
+#### 5.8.1 Live notebook `139d143` Version 4 (executed; not the paper CSV)
+
+Source: `code/modeling/rating/baseline_plus_tabpfn.ipynb` cell 15 HTML tables (papermill 2026-09-04).
+Same nested 5×4, same 9-level encoder, Tesla T4. Display names: `"TabPFN thinking mode"` and `"TabPFN"`.
+
+**Constructor (cell 5).** Client unchanged (`thinking_mode=True`, `thinking_effort="high"`,
+`thinking_metric="average_precision"`, `random_state=42`). Local: `n_estimators="auto"`, `device=cuda`,
+`random_state=42` — **no** `balance_probabilities`. Classics: LR `class_weight="balanced"`, `max_iter=1000`;
+RF `class_weight="balanced"` (tree count not set → sklearn default); XGB `eval_metric=aucpr`,
+`scale_pos_weight` from the training fold; LGB `class_weight="balanced"`, `metric=average_precision`;
+CatBoost `auto_class_weights="Balanced"`, `eval_metric=PRAUC`, GPU. F2 in cell 15 is
+`fbeta_score(..., beta=2.0)` — that ACR is closed for this notebook.
+
+**Restore.** `restore_tabpfn_empirical_prior` maps `p_raw = (p * π1) / (p * π1 + (1-p) * π0)` on the
+`"TabPFN"` OOF only, and maps `fold_thresholds` the same way. Skip if `mean(p) <= 4 * prevalence`.
+Called after the nest and again before the calibration panel. **No “restored empirical prior” line in
+any output** → skip fired. Do not write “this dump inverted 0.0673 into 0.0102.” 0.0102 is the Brier of
+the unbalanced local ctor.
+
+**Notebook super-table vs committed `de46f92` paper table** (Revision 12: **quote the notebook**; the CSV is the previous dump):
+
+| Model | Notebook PR / ROC / Brier | Paper CSV PR / ROC / Brier | Nested *t* notebook vs CSV | Nested 2×2 |
+| --- | --- | --- | --- | --- |
+| TabPFN thinking mode | **0.8553 / 0.9905 / 0.0064** | same | 0.271 ± 0.067 both; 5076/17/27/65 both | same |
+| LightGBM | **0.6942** / 0.9681 / 0.0093 | 0.6926 / 0.9680 / 0.0093 | 0.112 ± 0.090, 5060/33/30/62 vs 0.117 ± 0.087, 5062/31/31/61 | GPU wobble |
+| XGBoost | 0.6815 / 0.9439 / 0.0088 | same | 0.225 ± 0.060, 5060/33/32/60 both | same |
+| TabPFN (local) | **0.6742 / 0.9845 / 0.0102** | 0.6754 / 0.9845 / **0.0673** | **0.166 ± 0.020** vs **0.915 ± 0.012** | **same** 5041/52/29/63 |
+| CatBoost / RF / LR | 0.6172 / 0.4865 / 0.3326 | same | same nested rows | same |
+
+Fold PR-AUC for both TabPFN arms matches §7.4 to 4 d.p. LightGBM folds in the notebook: 0.7528, 0.7138,
+0.5473, 0.7731, 0.6916 (CSV: 0.7505, 0.7130, 0.5399, 0.7727, 0.6919). Thinking-high still beats LightGBM
+in 5/5 folds on both dumps. Local still 2/5.
+
+Pooled F1 (optimistic, §7.2) in the notebook: thinking-high unchanged (*t* = 0.193, TP 75); local
+*t* = **0.119**, recall **0.8478**, 5015/78/14/78 (CSV *t* = 0.886, recall 0.8261, 5019/74/16/76);
+LightGBM *t* = 0.109, recall 0.6196 (CSV 0.064 / 0.6739). Still do not quote pooled as nested.
+
+**Calibration.** Notebook cell 11 Briers: thinking 0.0064 (best), local **0.0102** (now in the booster
+band: XGB 0.0088, LGB 0.0093, Cat 0.0101). On this executed notebook, “local TabPFN has the worst Brier”
+is **false**. That sentence remains true for the **paper CSV** (`0.0673`). Name the dump.
 
 ### 5.9 TabPFN interpretability (Part 5)
 
@@ -635,6 +852,18 @@ dump (this dump: 0.8553 / 0.0064 / nested recall 0.7065).
 **[MET in this run]** SHAP explains **15 VLST=1 + 15 VLST=0**, not 15 cases only and not 5,185 rows. Client
 thinking-high **did not fall back** to local. k-SII remains one illustrative VLST=1 row.
 
+**Live `e356bb1` Version 5 (Kaggle 2026-09-08; stdout in the notebook; not in paper_figures).**
+
+| Block | Live configuration | Backend that finished |
+| --- | --- | --- |
+| Split | `TEST_SIZE=0.3`, `random_state=42`; train 3629/64, test 1556/28 | — |
+| MI | `mutual_info_classif` on **X_train** (81 scores) | sklearn |
+| Stability | 10 seeds × keep 10, 5-fold AP, **X_train**; 28,776 s | local TabPFN |
+| PDP | Fit+average on train; continuous `{WBC, Cre, LV, eGFR}`; 6 binaries; empirical prior | local TabPFN (`PDP_USE_CLIENT=False`) |
+| SHAP | All **1,556** held-out rows; background = train; budget 256 | Client started, **429 → local KV cache** |
+| k-SII / SHAP-IQ | One held-out VLST=1, pos 20, **cohort 5176** | SHAP-IQ: client 429 → local |
+| Consensus | Borda MI + SFS freq + mean\|SHAP\|; 3/3 = WBC, LV, eGFR | mixed train MI/SFS + held-out local SHAP |
+
 **[MET in this run — PDP]** Empirical prior on the full cohort. Do **not** quote stored Table 3 0.24 / Figure 1
 ~0.6 as this run. Binary Δ on this dump is small (e.g. `1.1:1Post dilation` P(y=1\|0)=0.0234 vs P(y=1\|1)=0.0191).
 
@@ -642,7 +871,15 @@ thinking-high **did not fall back** to local. k-SII remains one illustrative VLS
 MI is 0.002281, not a fill-zero. Dual-tree `paper_table1_mutual_info.csv` is the 81-row file (B6 closed).
 
 **[CLOSED — stored assets]** `paper_figures/` in both Part 5 trees (and `data/result/modeling_tabpfn/`) were
-copied from `645fb0e` (B12).
+copied from `645fb0e` (B12). Those files still match 15+15 / row 5099.
+
+**[STALE vs live notebook — Revision 10]** Do not describe `152c5d1` as current. Live protocol is
+`e356bb1` Version 5 (§0 Revision 10): 70/30, train-only MI/SFS/PDP, SHAP on 1,556 held-out rows,
+k-SII cohort row **5176**, SHAP/SHAP-IQ **local after HTTP 429**. Stored Cre-leading SHAP (0.158)
+is a 30-row `645fb0e` quantity. Version 5 consensus still ranks WBC / LV / eGFR 3/3 but SHAP
+mean|SHAP| is ~1.0 on the 1,556-row slice (different scale). Copy Kaggle
+`/kaggle/working/modeling_tabpfn` into both `paper_figures/` trees before quoting Version 5 as the
+paper catalogue (B14).
 
 ### 5.10 The published clinical baseline — integer score now scored **[CLOSED]**
 
@@ -680,7 +917,7 @@ does not add (3135+1837+473 = 5445 ≠ 5185); low and high n match this file.
 
 | Scheme                             | Where                                                 | Details                                                                                                                                              |
 | ---------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A. 70/30 stratified hold-out**   | `preprocessing.ipynb`, **stored** Part 2 / old Part 5 PDP (code no longer) | `train_test_split(test_size=0.3, stratify=y, random_state=42)` → train 3,629 (64 events) / test 1,556 (28 events). Current Part 5 PDP is full-cohort. |
+| **A. 70/30 stratified hold-out**   | `preprocessing.ipynb`; TSSI leakage notebooks; **live Part 5 `e356bb1`** | `train_test_split(test_size=0.3, stratify=y, random_state=42)` → train 3,629 (64 events) / test 1,556 (28 events). Part 5 Version 5 uses this split: fit on train, SHAP on test. **Stored** Part 5 PDP (`645fb0e`) is still full-cohort. |
 | **B. Nested 5×4 stratified CV**    | Part 4                                                | Outer `StratifiedKFold(5, shuffle=True, random_state=42)`; inner `StratifiedKFold(4, shuffle=True, random_state=10_000 + outer_fold)`                |
 | **C. Single 70/30 + GridSearchCV** | `baseline_tssi_leakage`, `baseline_without_tssi`      | Not reported in any Markdown                                                                                                                         |
 | **D. Full-cohort fit / val**       | Part 2 **current code**                               | One stratified split of all 5,185 rows (`INNER_VAL_SIZE=0.2`, `random_state=42`) → ~4,148 fit / ~1,037 val (~74 / ~18 events). No unused outer test. |
@@ -792,14 +1029,16 @@ Committed `paper_table1_ranking.csv` is **Rev 6 (six models)** and must not be q
 
 **Prevalence baseline for PR-AUC: 0.0177.** Every PR-AUC above should be reported against this reference.
 
-**Notebook.** `code/modeling/rating/baseline_plus_tabpfn.ipynb` on `origin/main` (`de46f92`). Dump
-`.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`.
+**Paper numbers (Revision 12 + 13).** Quote executed notebook `139d143` Version 4. Thinking-high
+**0.8553 / 0.9905 / 0.0064**; local **0.6742 / 0.9845 / 0.0102**; LightGBM **0.6942 / 0.9681 / 0.0093**.
+OOF arrays and bootstrap CIs are Version 4 (B13 closed). The `de46f92` local 0.6754 / 0.0673 dump
+is history only.
 
-**D4 for this snapshot — two TabPFN Briers.** Client thinking-high Brier is **0.0064**, the **best** of the
-seven (calibration cell L1046–1052). TabPFN (local) Brier is **0.0673**, the **worst**. Sentences of the form
-“TabPFN's Brier is worse than the tree ensembles” are **true for the local arm only** and **false for
-thinking-high**. Do not collapse the two arms. Historical 0.0060 vs PNG 0.0360 was client non-determinism on
-a different dump; this dump is 0.0064 and internally consistent.
+**D4 for this snapshot — two TabPFN Briers.** On **`139d143` (current paper)**, thinking-high Brier is
+**0.0064** (best of seven) and local is **0.0102** (booster band). On the previous dump **`de46f92`**,
+local was **0.0673** (worst). “TabPFN's Brier is worse than the tree ensembles” is **false** for both
+arms on Version 4. Name the dump if quoting 0.0673 at all. Historical 0.0060 vs PNG 0.0360 was client
+non-determinism on a different dump.
 
 **Fold mean ± SD.** Ranking super-table L1291–1309. Part 4 Markdown Table 1 and `paper_table1_ranking.csv` in
 both trees now match this dump (B1 closed).
@@ -845,6 +1084,11 @@ Source: dump L1333–1351. Repo `paper_table2_nested_operating_point.csv` now in
 (0.7471) and nested recall (0.7065) among the seven. TabPFN (local) still has more false positives than
 LightGBM (52 vs 31) at similar event capture.
 
+**F2.** Live Part 4 notebook cell 15 uses `sklearn.metrics.fbeta_score(..., beta=2.0)`. Nested F2 values
+in this table are that definition. **Live nested *t* for local** is 0.166 ± 0.020 with the **same**
+5041/52/29/63; LightGBM nested row wobbles (5060/33/30/62 vs 5062/31/31/61). Quote the **notebook**
+nested *t* (local **0.166 ± 0.020**; LightGBM **0.112 ± 0.090**).
+
 ### 7.4 Part 4 — fold-wise ranking metrics
 
 Source: dump L1354–1395. Each fold n = 1,037, with n_pos = 18, 18, 18, 19, 19.
@@ -869,9 +1113,11 @@ Source: dump L1354–1395. Each fold n = 1,037, with n_pos = 18, 18, 18, 19, 19.
 
 
 Thinking-high PR-AUC is higher than LightGBM in **5 of 5** folds. TabPFN (local) is higher than LightGBM in
-**2 of 5** folds (3 and 5), same pattern as Rev 6. Paired stratified bootstrap of pooled OOF (B3, `n_boot=2000`):
-thinking-high − LightGBM Δ PR-AUC **0.1627 (0.1000–0.2301)**, P(Δ ≤ 0) = 0/2000. Local − LightGBM
-**−0.0172 (−0.0951–0.0588)**, two-sided p = 0.707. Do not say the *local* arm wins 5/5.
+**2 of 5** folds (3 and 5), same pattern as Rev 6. Both TabPFN fold-PR columns match `139d143` to 4 d.p.
+LightGBM folds in Version 4 are 0.7528 / 0.7138 / 0.5473 / 0.7731 / 0.6916. Paired stratified bootstrap
+of Version 4 pooled OOF (B3, `n_boot=2000`): thinking-high − LightGBM Δ PR-AUC **0.1611 (0.0984–0.2289)**,
+P(Δ ≤ 0) = 0/2000. Local − LightGBM **−0.0201 (−0.0974–0.0566)** is compatible with no difference.
+Do not say the *local* arm wins 5/5. The previous-dump Δ 0.1627 was `de46f92` and is not Version 4.
 
 ### 7.5 Unreported metrics: single-split baselines with and without the leakage variable
 
@@ -996,10 +1242,19 @@ Presentation 5 / 0; Demographics 4 / 0.
 
 ### 7.7 Part 5 — interpretability quantities
 
-These are **not** performance metrics. They are model-attribution and screening quantities. **Notebook
-`645fb0e` is current** (15+15 SHAP, empirical PDP, 81-row MI). Repo CSVs under
+These are **not** performance metrics. They are model-attribution and screening quantities. **Scored
+dump `645fb0e` is still the published catalogue** (15+15 SHAP, empirical PDP, 81-row MI). Repo CSVs under
 `paper_results/05_tabpfn_interpretability/paper_figures/` match that run (B12 closed). Consensus on this dump
 (top 5): WBC, LV, eGFR, `1.1:1Post dilation`, CaI.
+
+**Live notebook `e356bb1` Version 5 (not copied to paper_figures).** Train-only MI top 15 starts CaI,
+WBC, LV, LDL, eGFR (no Fast-Glu / ZES in the printed top 15). Stability on train (10 seeds, 28,776 s
+≈ 8.0 h): WBC 10/10; Cre and LV 8/10; eGFR 7/10; Previous PCI and Staged PCI 5/10. PDP on train
+n = 3,629, empirical prior; continuous grid `{WBC, Cre, LV, eGFR}`; largest binary Δ `1.1:1Post
+dilation` 0.0258 → 0.0165 (Δ = **−0.0093**), `Previous PCI` Δ = **+0.0137**. SHAP mean|SHAP| on
+1,556 held-out rows (local after 429): consensus table prints eGFR 1.044, WBC 1.020, LV 0.870.
+k-SII one row = cohort **5176**. Cre MI on train prints **0.000000** in the consensus table (a
+train-split measured zero, not the old top-15 fill-zero). Do not mix these with `645fb0e` Table 5.
 
 ### 7.8 Metric comparability audit
 
@@ -1011,7 +1266,7 @@ These are **not** performance metrics. They are model-attribution and screening 
 | Are they compared on identical feature representations?         | **Closer than before.** Shared 9-level encoder; classics still one-hot (~89) while both TabPFN arms see the 9-level frame natively. |
 | Are the Part 4 operating-point metrics unbiased?                | **Table 2 (nested) is the honest protocol.** Figure 3 / Table 3 pooled F1 is optimistically biased (§6.5, §7.3). |
 | Is Part 2 comparable with Part 4?                               | **No.** Part 2 is a full-cohort fit/val discovery split, **88** encoded columns, seven classic models, PR-AUC only. It still does not feed Part 4. |
-| Is Part 5 comparable with Part 4?                               | **No.** Part 5 is full-cohort attribution; Part 4 is nested-CV prediction. Ranking/SHAP in Part 5 use `balance_probabilities=True`; PDP uses `False`. Part 4 both TabPFN arms use `True`. Part 5 SHAP used the **client**; Part 4 scored **both** client and local. |
+| Is Part 5 comparable with Part 4?                               | **No.** Part 4 is nested-CV prediction. **Stored Part 5 (`645fb0e`):** full-cohort MI/SFS/PDP; SHAP 15+15; ranking/SHAP used `balance_probabilities=True`; PDP `False`. **Live Part 5 (`e356bb1`):** 70/30; MI/SFS/PDP on train; SHAP on 1,556 held-out rows; local SHAP after 429; local ctor has no `balance_probabilities`. **Live Part 4 (`139d143`):** unbalanced local ctor; restore skipped; notebook Brier **0.0102** / nested *t* **0.166** vs committed **0.0673** / **0.915**. |
 | Are effect sizes in EDA Table 1 comparable across rows?         | **No.** Cohen's d and Mann–Whitney r are mixed in one column and plotted on one axis in Figure 3. MW r = Z/√N is severely attenuated by 1.77% class imbalance: `WBC` has the second-smallest p-value in the entire study (7.9e-21) but an "effect size" of 0.130, next to `LV`'s d = 1.127. Figure 3 must not be read as a magnitude ranking. |
 | Are univariate ORs consistent across tables?                    | **They are three named estimators, not one OR.** Table 2 = 2×2/Fisher; Table 4 = unweighted logit; Table S4 = joint-domain univariate (§12.4, C13).                                                                                                                                                                                            |
 
@@ -1131,6 +1386,13 @@ from 15 case rows and one of which (stability) comes from an 8.6-hour SFS on the
 `No.of stents per lesion` carry `mutual_info = 0.0` in the consensus table because they fell outside the MI
 top-15 and were filled with zero — those are **imputed zeros, not measured zeros**. Part 5's Table 5 caption
 does not say this; Table 1's caption partly does (L53).
+
+**Live `e356bb1` Version 5 (notebook stdout only; not the CSV above).** Borda top 15 from `[5/5]`:
+WBC 0.992 (3/3, freq 1.0, SHAP 1.020, MI 0.0202); LV 0.977 (3/3, 0.8, 0.870, 0.0128); eGFR 0.971
+(3/3, 0.7, 1.044, 0.0098); then LDL, HbA1c, `1.1:1Post dilation` (1/3), Previous PCI, Fiberinogen,
+HGB, `No postdilation`, `Lesion location-Ostial`, History of HF (0/3), Cardiogenic shock (0/3), Cre
+(2/3, freq 0.8, SHAP 0.245, **MI 0.000**), CaI (2/3, freq 0.0, MI 0.022). SHAP scale is the 1,556-row
+held-out slice after local fallback, not the 30-row client dump.
 
 ### 8.8 What every method agrees on
 
@@ -1299,41 +1561,41 @@ No truncation note.
 
 **[CLOSED]** Generating code: `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`. Jaccard 5/28 and the five-name intersection `{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}` are asserted in the notebook.
 
-### Part 4 — nested-CV rating  — **current (7 arms; paper_figures match notebook)**
+### Part 4 — nested-CV rating  — **current (`139d143` Version 4; paper_figures match notebook)**
 
 
 | ID | Type | File | Status |
 | --- | --- | --- | --- |
-| Table 0 | Table | `paper_table0_models.png/.csv` | Current — seven models including thinking-high |
-| Fig 1 | Figure | `paper_fig1_pr_roc_curves.png` | Current — extracted from `de46f92` cell 9; thinking-high AP 0.855 |
-| Table 1 | Table | `paper_table1_ranking.png/.csv` | Current — dump L1291–1309 |
-| Fig 2 | Figure | `paper_fig2_calibration_curves.png` | Current — thinking-high Brier **0.0064** best; local **0.0673** worst |
-| Fig 3 | Figure | `paper_fig3_confusion_matrices.png` | Current — 7-arm pooled panel from notebook cell 13 |
-| Table 2 | Table | `paper_table2_nested_operating_point.png/.csv` | Current — nested thinking-high 5076/17/27/65 |
-| Table 3 | Table | `paper_table3_pooled_f1.png/.csv` | Current — pooled thinking-high 5072/21/17/75 |
-| Counts | Table | `paper_table3_confusion_counts.png/.csv` | Current — nested counts |
-| Sweep | Figure | `best_model_threshold_fpfn_panel.png` | Current — best-by-PR-AUC = **TabPFN** (0.8553) |
+| Table 0 | Table | `paper_table0_models.png/.csv` | Current — local: no `balance_probabilities`; restore skipped |
+| Fig 1 | Figure | `paper_fig1_pr_roc_curves.png` | Current — extracted from `139d143`; thinking-high AP 0.8553; local 0.6742; LightGBM 0.6942 |
+| Table 1 | Table | `paper_table1_ranking.png/.csv` | Current — Version 4 notebook print; local Brier **0.0102** |
+| Fig 2 | Figure | `paper_fig2_calibration_curves.png` | Current — thinking-high Brier **0.0064** best; local **0.0102** (booster band) |
+| Fig 3 | Figure | `paper_fig3_confusion_matrices.png` | Current — 7-arm pooled panel from notebook; local pooled 5015/78/14/78 |
+| Table 2 | Table | `paper_table2_nested_operating_point.png/.csv` | Current — nested thinking-high 5076/17/27/65; local *t* **0.166**; LightGBM 5060/33/30/62 |
+| Table 3 | Table | `paper_table3_pooled_f1.png/.csv` | Current — pooled thinking-high 5072/21/17/75; local t=0.119 rec 0.8478 |
+| Sweep | Figure | `best_model_threshold_fpfn_panel.png` | Current — best-by-PR-AUC = **TabPFN (thinking-high)** (0.8553) |
 | Table S-TSSI | Table | `paper_table_s_tssi_leakage.png/.csv` | Current — stored 70/30 metrics, not nested-CV |
 | Fig S-TSSI | Figure | `paper_fig_s_tssi_pr_auc.png` | Current — PR-AUC with vs without TSSI |
 | Table S-Wang-bins | Table | `paper_table_s_wang_score_bins.png/.csv` | Current — frozen Wang bins vs published n/rates |
-| Table S-Wang | Table | `paper_table_s_wang_vs_ml.png/.csv` | Current — thinking-high 0.9905 / 0.8553 added |
+| Table S-Wang | Table | `paper_table_s_wang_vs_ml.png/.csv` | Current — LightGBM 0.9681 / 0.6942; local 0.9845 / 0.6742 |
 | Fig S-Wang | Figure | `paper_fig_s_wang_score_rate.png` | Current — observed VLST rate by integer score |
-| Table S-CI | Table | `paper_table_s_bootstrap_ci.png/.csv` | Current — B3 stratified bootstrap 95% CIs |
-| Table S-Δ | Table | `paper_table_s_paired_delta.png/.csv` | Current — thinking-high − LightGBM Δ PR-AUC 0.1627 |
-| Table S-folds | Table | `paper_table_s_fold_pr_wins.png/.csv` | Current — 5/5 vs 2/5 fold PR-AUC wins |
+| Table S-CI | Table | `paper_table_s_bootstrap_ci.png/.csv` | Current — Version 4 OOF, `n_boot=2000` (thinking-high PR 0.8553 [0.7957, 0.9131]) |
+| Table S-Δ | Table | `paper_table_s_paired_delta.png/.csv` | Current — Version 4 Δ thinking−LGB 0.1611 (0.0984–0.2289) |
+| Table S-folds | Table | `paper_table_s_fold_pr_wins.png/.csv` | Current — 5/5 vs 2/5 fold PR-AUC wins from Version 4 |
 
 
 Do **not** quote leftover `paper_table2_f1_operating_point.*` (deleted; it was a prior pooled export with TabPFN t=0.901).
 
-**OOF / table CSVs (B2 closed).** Committed under `data/result/modeling_results/oof/` and `tables/`:
-`oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `model_comparison.csv`,
-`nested_cv_operating_point.csv`, plus bootstrap exports from B3. Reviewers can recompute Part 4 ranking
-metrics and the paired test from these files.
+**OOF / table CSVs (B2 + B13 closed).** Files under `data/result/modeling_results/oof/` and
+`tables/` are Version 4 (`tabpfn_thinking_mode_prob` / `tabpfn_prob`; local Brier **0.0102**,
+LightGBM PR **0.6942**). Bootstrap Table S-CI / S-Δ were recomputed on those arrays.
 
 ### Part 5 — TabPFN interpretability
 
-Notebook `645fb0e` is current. Files below in `paper_figures/` (both report trees + `data/result/modeling_tabpfn/`)
-were copied from that Kaggle run (B12 closed).
+Notebook `e356bb1` Version 5 is what the paper Markdown and rebuilt table PNGs/CSVs now describe
+(Revision 12–13). Native Kaggle PNGs, the 81-row MI/SHAP CSVs, and the 1,556-row explain-index list
+are in the three `paper_figures/` trees (B14 closed). Playground dumps (`tabpfn_*_20260412*`,
+`tabpfn_cv_summary`) were deleted.
 
 
 | ID      | Type   | File                                  |
@@ -1374,10 +1636,10 @@ paper's framing changes and this layout does not apply.
 | Slot         | Item                                                                                                                                                                          | Rationale                                                                                                                                                                                                                                         |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Table 1**  | Baseline cohort characteristics, cases vs controls                                                                                                                            | Part 1 Table C, rebuilt from `VLST.csv` (B7). Cite Wang for 6,038 → 5,185. Do not photocopy Wang’s post-dilation label. `LV` / `CaI` included unnamed. |
-| **Table 2**  | Part 4 ranking + nested operating point from §7.1 / §7.3 | Use the **7-arm** notebook: thinking-high first on PR-AUC (0.8553), local Brier 0.0673 as a separate row. Repo tables now match. |
+| **Table 2**  | Part 4 ranking + nested operating point from §7.1 / §7.3 | Use **`139d143`**: thinking-high first on PR-AUC (0.8553), local Brier **0.0102** as a separate row. Do not put 0.0673 in this table. |
 | **Table 3**  | Part 1 Table 4b (13 covariates, one per collinear block, EPV ≈ 7.1, VIFs reported)                                                                                | Table 4 (17-covariate) stays in the supplement as the unidentified stored spec. |
 | **Figure 1** | Part 4 Figure 1 (PR and ROC curves) with the prevalence line, **PR panel first and larger**                                                                                   | The single most important result. PR-AUC leads because prevalence is 1.77%.                                                                                                                                                                       |
-| **Figure 2** | Part 4 Figure 2 (calibration), 7-arm notebook                                                                 | Thinking-high Brier **0.0064** is best of seven; local **0.0673** is worst. Do not claim “TabPFN is poorly calibrated” without naming the arm. |
+| **Figure 2** | Part 4 Figure 2 (calibration), 7-arm notebook                                                                 | Caption **`139d143`**: thinking-high Brier **0.0064** best; local **0.0102** booster band. Never “TabPFN is poorly calibrated” without the arm. Previous dump 0.0673 is not this figure. |
 | **Figure 3** | A **new** single figure merging Part 1 Figure 4 (binary ORs) and Part 1 Figure 3 (continuous effect sizes) with **separate panels per effect-size metric**                    | Fixes the d-vs-r comparability problem of §7.8 while keeping the association story in one place.                                                                                                                                                  |
 | **Figure 4** | Part 5 Figure 13 (consensus ranking) **or** Part 3 Figure 1 (Venn) — pick one                                                                                                 | Both answer "which variables matter". Two is redundant in the main text. Prefer Figure 13 if the paper's thesis is interpretation; prefer the Venn if the thesis is methods comparison. The Venn is now generated by `stats_vs_ml_comparison.ipynb`.     |
 
@@ -1490,8 +1752,8 @@ Table 4 is unweighted MLE (`class_weight="balanced"` is not used there).
 **88** (drop-first). EDA χ²: 99 raw levels → 9 used, χ² = 44.90, df = 8, V = 0.093.
 `PES` / `ZES` / `EVS` stay as the drug-class partition.
 
-Part 5 **notebook** SHAP/PDP now use the 9-level encoder (`645fb0e`). Stored `paper_figures/` were copied from
-that run (B12).
+Part 5 **notebook** SHAP/PDP use the 9-level encoder (`e356bb1`). Paper figures were extracted from
+that run (Revision 12).
 
 
 | Notebook | Code now | Stored width |
@@ -1511,12 +1773,12 @@ TSSI scout notebooks. Re-run preprocessing before those scouts if you want match
 
 | Claim                                                                             | Actual basis                                                                                                                                                                                                                    | Required restatement                                                                                                                                                                           |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance | **Notebook and stored PNGs:** 15 VLST=1 + 15 VLST=0, client thinking, `Explaining all 30 rows` | Quote the 30-row protocol. Not global SHAP on 5,185 rows. |
-| Part 5 Figures 8, 9, 11, 12 — "dominant pairwise terms" among LV/WBC/eGFR/LDL | **One** VLST=1 patient (row 5099), budget 256 | Keep as illustration, not cohort interactions. |
-| Part 5 Figure 1 / Table 3 0.24 / ~0.6 risk | **Notebook and stored PNGs:** empirical prior, P(y=1) ≈ 0.017–0.023 | Do not quote 0.24 or 0.6. Largest binary Δ is `1.1:1Post dilation` −0.0043. |
-| Part 5 Table 5 `Cre` / stents MI = 0 | **Notebook and stored CSV:** `Cre` MI 0.002281; all 81 scores saved | Fill-zero issue closed (B6). |
-| Part 5 Table 1 `Fast-Glu` / `ZES` as "—" | **Notebook and stored CSV:** Fast-Glu 10th 0.0044; ZES 13th 0.0038 | **[TODO-MI closed]** |
-| Part 5 Table 2 caption "8.6 h" | ~8.56 h on this dump ([1/5] 30824 s) | Fine. |
+| Part 5 Figures 3, 5, 6 and Table 4 presented as global SHAP importance | **Current paper (`e356bb1`):** mean\|SHAP\| over **1,556 held-out rows** (28 events), local backend after 429. Table 4 is the top 15 of the **81-column** SHAP CSV (`CKD5` / `SES` / `Men` enter). `152c5d1` SHAP-all was never scored. | Do not call these figures global SHAP on 5,185. Do not describe this run as 15+15. |
+| Part 5 Figures 8, 9, 11, 12 — "dominant pairwise terms" among LV/WBC/eGFR/LDL | **Current paper:** one held-out VLST=1 (cohort row **5176**). Budget 256. SHAP-IQ also local after 429. | Keep as illustration, not cohort interactions. |
+| Part 5 Figure 1 / Table 3 0.24 / ~0.6 risk | **Current paper (`e356bb1` train PDP):** empirical prior; largest binary Δ `1.1:1Post dilation` −0.0093 and `Previous PCI` +0.0137. | Do not quote 0.24 or 0.6. |
+| Part 5 Table 5 `Cre` / stents MI = 0 | **Current paper:** Cre train MI **0.000000** (2/3; stability 8/10). That is a measured train-split zero, not a truncated-top-15 fill-zero. | Quote Table 5 as printed. The old 0.002281 was `645fb0e` full-cohort MI. |
+| Part 5 Table 1 `Fast-Glu` / `ZES` as "—" | **Current train MI top 15** does not list them (Ostial / Clopidogrel / NSTEMI appear instead). Their scores are in the copied 81-row MI CSV (not the top 15). | Do not back-fill Fast-Glu / ZES into Table 1. |
+| Part 5 Table 2 caption "8.6 h" | Version 5 SFS on train: 28,776 s ≈ **8.0 h**. | Do not keep the 8.6 h full-cohort caption. |
 
 
 ### 12.7 [CLOSED] Part 2 Table 0 CatBoost spec
@@ -1558,7 +1820,7 @@ story.
 
 Revision 1 argued that because many notebooks exist and five analyses are reported, the TabPFN advantage
 "cannot be distinguished from selection over many attempts", and demanded a CONSORT/TRIPOD-style declaration of
-everything tried. **That finding is withdrawn.** The excluded notebooks (ten `failed_hypothesis/`, the TabPFN
+everything tried. **That finding is withdrawn.** The excluded notebooks (twelve `failed_hypothesis/`, the TabPFN
 playground) are out of scope by author decision, contribute no number to the paper, and are
 not cited anywhere in it.
 
@@ -1598,13 +1860,13 @@ Groups B–E are execution work.
 
 | Was                                                        | Now                                                                                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| "Which TabPFN run is authoritative?" (old blocking item 4) | **Revision 7:** quote `de46f92` 7-arm dump. Thinking-high PR **0.8553** / Brier **0.0064** / nested 5076/17/27/65. Local PR 0.6754 / Brier 0.0673 / nested 5041/52/29/63. Rev 6 six-model local-only is historical. |
-| **C1–C16** false or mixed claims in reports                | **C1–C4, C6–C7, C9, C14 closed in Rev 7 reports** after B1/B12 copy. Remaining C items are earlier closures. |
+| "Which TabPFN run is authoritative?" (old blocking item 4) | **Paper numbers (Rev 13):** Part 4 `139d143` Version 4 (unbalanced local; restore skipped; Brier 0.0102; nested *t* 0.166; LightGBM PR 0.6942; OOF + S-CI on disk); Part 5 `e356bb1` Version 5 (70/30 SHAP 1,556; k-SII 5176; 81-row CSVs copied). `de46f92` / `645fb0e` are previous dumps. `152c5d1` SHAP-all superseded, never scored. B13/B14 closed. |
+| **C1–C16** false or mixed claims in reports                | **C1, C3, C6, C7, C9 re-closed in Rev 12 reports** against the live notebooks. Remaining C items are earlier closures. |
 | "Fold-wise mean ± SD are not available"                    | **Closed in the notebook** (§7.1, §7.4). |
 | **A2** How were controls sampled?                          | **Closed by Wang 2020.** Consecutive complete-follow-up cohort, not case-control. 1.77% is published incidence (§2.3, §4.2).   |
 | **A3** What does `Stent thrombosis = 1` mean?              | **Closed by Wang 2020.** ARC 2007 definite ST, angiographically confirmed, > 1 year (§2.3).                                    |
 | **A5** Recruitment frame, ethics, consent                  | **Closed by Wang 2020.** Jilin University, Jan 2014–Jun 2015, NCT03491891, ethics 2013-256 (§2.3).                             |
-| **B10** Wang integer score as comparator                   | **Closed.** Frozen points ROC 0.8013 / PR 0.1032 vs thinking-high **0.9905 / 0.8553**, LightGBM 0.9680 / 0.6926, local 0.9845 / 0.6754 (§5.10). Cox LP / DCA / Shantou still out (B11). |
+| **B10** Wang integer score as comparator                   | **Closed.** Frozen points ROC 0.8013 / PR 0.1032 vs thinking-high **0.9905 / 0.8553**, LightGBM 0.9681 / 0.6942, local 0.9845 / 0.6742 (§5.10). Cox LP / DCA / Shantou still out (B11). |
 
 
 ### A. Remaining author questions after Wang 2020
@@ -1622,17 +1884,19 @@ Groups B–E are execution work.
 | #                         | Task                                                                                                                                                                                                                                                                                         | Cost                                                                                                                                                            | Notes                                                                                                                                                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **B1** [TODO-P4 — **closed**] | **Re-export all of Part 4** from the 7-arm notebook (`de46f92`): Figures 1–3, Tables 0–3, sweep panel. | Done — notebook cell PNGs + rebuilt tables in both trees + `data/result/modeling_results/` | Thinking-high-first 7-arm figures. |
-| **B2** [TODO-REPRO — **closed**] | **Persist** `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `model_comparison.csv`, `nested_cv_operating_point.csv`. | Done — `data/result/modeling_results/oof/` and `tables/` from Kaggle Version 5 | Unblocks B3. |
-| **B3** [TODO-CI — **closed**] | **Bootstrap CIs** and a paired test between thinking-high TabPFN and LightGBM (primary), and local vs LightGBM (secondary). | Done — Part 4 Table S-CI / Table S-Δ (`n_boot=2000`, seed 42) | Thinking-high Δ PR-AUC 0.1627 (0.1000–0.2301), P(Δ ≤ 0) = 0/2000. Local vs LightGBM not distinguishable. 5/5 fold wins retained. |
+| **B2** [TODO-REPRO — **closed**] | **Persist** `oof_predictions.csv`, `fold_thresholds.csv`, `fold_metrics.csv`, `model_comparison.csv`, `nested_cv_operating_point.csv`. | Done — `data/result/modeling_results/oof/` and `tables/` from Kaggle Version 4 (`139d143`) | Unblocks B3. |
+| **B3** [TODO-CI — **closed**] | **Bootstrap CIs** and a paired test between thinking-high TabPFN and LightGBM (primary), and local vs LightGBM (secondary). | Done — Part 4 Table S-CI / Table S-Δ on Version 4 OOF (`n_boot=2000`, seed 42) via `run_b3()` in `paper_hygiene_b3_b4_b7.py` (not a nested-CV notebook cell) | Thinking-high Δ PR-AUC **0.1611 (0.0984–0.2289)**, P(Δ ≤ 0) = 0/2000. Local vs LightGBM **−0.0201 (−0.0974–0.0566)**. 5/5 fold wins retained. |
 | **B6** [TODO-MI — **closed**] | `[1a]` wrote all 81 MI scores; `Fast-Glu` / `ZES` in top 15. Table 1/5 PNGs/CSVs exported from `645fb0e`. | Done | `Cre` MI 0.002281 stored; no fill-zero. |
 | **B4** [TODO-T4 — **closed**] | **Refit EDA Table 4** with one representative per collinear block; report VIFs and EPV; `N_BOOT` ≥ 2,000. | Done as **Table 4b** (13 covariates, EPV ≈ 7.1). Table 4 kept as the unidentified stored spec. | Do not publish Table 4. Quote Table 4b. |
 | **B5** [TODO-P3 — closed] | **Write the missing Part 3 notebook.** Done: `stats_vs_ml_comparison.ipynb`. Jaccard 5/28 asserted after the 2026-08-31 catalogues. | Done | Inputs are the §8.1 FDR set and §8.6 ML consensus. Re-run the notebook if either catalogue changes. |
 | **B8** [CLOSED]           | **Part 2 paper protocol re-run on Kaggle** (2026-08-31): full-cohort discovery, PR-AUC only, independent selectors, top-20 / SHAP 40 / LOCO 60 / FFS 24×12. Parts 2–3 figures replaced. Download `selector_summary_long.csv` when convenient (tables were reconstructed from notebook HTML). | Done | Part 2/3 still do not support a *predictive* claim — they are discovery catalogues on a val slice (§4.4, §9.5). |
 | **B7** [TODO-TABLE1 — **closed**] | **Rebuild Table 1 from** `VLST.csv`, including `LV` and the variables Wang omitted, and cite Wang for the 6,038 → 5,185 flow. Do not photocopy Wang Table 1 (post-dilation label is inconsistent, §3.3). | Done — Part 1 Table C | Wang SES / WBC / LVEF / DAPT / HL recovered. 14 VLST events sit on `1.1:1Post dilation` = 1. `CaI` means match Wang peak troponin I; column still unnamed. |
 | **B9** [encoding — closed] | **Part 4 and Part 5 notebooks use the 9-level encoder.** Optional: tune classics. | Encoding done | Untuned classics vs thinking-high is disclosed (§6.3). |
-| **B10** [TODO-SCORE — closed] | Wang integer score on 5,185 rows: ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV thinking-high **0.9905 / 0.8553**, LightGBM 0.9680 / 0.6926, local 0.9845 / 0.6754. | Done | Cox LP / DCA / Shantou still B11. |
+| **B10** [TODO-SCORE — closed] | Wang integer score on 5,185 rows: ROC-AUC 0.8013, PR-AUC 0.1032 vs nested-CV thinking-high **0.9905 / 0.8553**, LightGBM 0.9681 / 0.6942, local 0.9845 / 0.6742. | Done | Cox LP / DCA / Shantou still B11. |
 | **B12** [TODO-P5 — **closed**] | **Copy Part 5 Kaggle artefacts** (`interpretability_*.csv/png`, SHAP 30-row indices) into both `paper_figures/` trees from `645fb0e`. | Done | Dual tree + `data/result/modeling_tabpfn/`. |
 | **B11** [TODO-EXT — **blocked**] | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used. Cox LP and Dangas DCA wait on the same access. | **Blocked this cycle — no new data.** | State clearly that ML validation is derivation-cohort nested CV only. |
+| **B13** [TODO-P4-SRC — **closed**] | **Copy Part 4 Version 4 OOF** from `139d143` into `data/result/modeling_results/`. Nested CV already finished and is quoted: thinking-high AP **0.8553** / Brier **0.0064**; local PR **0.6742** / Brier **0.0102** / nested *t* **0.166**. Bootstrap CIs recomputed on those arrays (S-CI / S-Δ). | Done — `baseline_plust_tabpfn_results/` → `data/result/modeling_results/{oof,tables}/` | Do not re-run restore on the old 0.0673 arrays. |
+| **B14** [TODO-P5-SRC — **closed**] | **Copy Part 5 Version 5** 81-row MI/SHAP CSVs, 1,556-row explain indices, and Kaggle PNGs from `e356bb1`. | Done — `Kaggle_tabpfn_intrepretebility_results/modeling_tabpfn/` | Captions rebuilt. Do not copy `152c5d1`. |
 
 
 ### C. Rewrite or delete — claims that are now known to be wrong
@@ -1644,15 +1908,15 @@ closures that were not reopened.
 
 | #       | Where                                                                                     | Action                                                                                                                                                                                                                                                         |
 | ------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **C1**  | Part 4 Table 1 / Figure 2 Brier                                                           | **[REV7/closed in reports]** Thinking-high Brier **0.0064** (best of seven); local **0.0673** (worst). Dual-tree PNGs match.                                                                                                                               |
-| **C2**  | Part 4 event counts                                                                       | **[REV7/closed in reports]** Nested thinking-high 5076/17/27/65 (recall 0.7065). Local nested 5041/52/29/63. Pooled local TP=76 is Table 3 only.                                                                                                           |
-| **C3**  | Part 4 provenance / fold SD                                                               | **[REV8/closed]** Fold SD in Table 1. OOF CSVs committed (B2). Bootstrap CIs in Table S-CI. |
-| **C4**  | Part 4 Tables 2–3                                                                         | **[REV7/closed in reports]** Thinking-high nested/pooled rows present; nested vs pooled labels kept.                                                                                                                                                      |
-| **C6**  | Part 5 SHAP captions                                                                      | **[REV7/closed in reports]** 15+15 / client thinking; Cre leads mean(\|SHAP\|).                                                                                                                                                                            |
-| **C7**  | Part 5 PDP captions                                                                       | **[REV7/closed in reports]** Empirical prior (~0.018); largest binary Δ −0.0043.                                                                                                                                                                           |
+| **C1**  | Part 4 Table 1 / Figure 2 Brier                                                           | **[REV12/closed in reports]** Thinking-high **0.0064** best; local **0.0102** booster band. Dual-tree PNGs match `139d143`. Previous dump 0.0673 is labelled previous. |
+| **C2**  | Part 4 event counts                                                                       | **[REV7/closed in reports]** Nested thinking-high 5076/17/27/65 (recall 0.7065). Local nested 5041/52/29/63. Pooled local TP=78 is Table 3 only (Version 4).                                                                                                           |
+| **C3**  | Part 4 provenance / fold SD                                                               | **[REV13/closed]** Fold SD in Table 1 from the live notebook. S-CI / S-Δ are Version 4 OOF. S-folds kept. |
+| **C4**  | Part 4 Tables 2–3                                                                         | **[REV12/closed in reports]** Nested local *t* 0.166; LightGBM nested 5060/33/30/62; pooled local 5015/78/14/78.                                                                                                                                                      |
+| **C6**  | Part 5 SHAP captions                                                                      | **[REV12/closed in reports]** 1,556 held-out rows, local after 429, k-SII row **5176**. |
+| **C7**  | Part 5 PDP captions                                                                       | **[REV12/closed in reports]** Train n=3629 empirical prior; largest binary Δ −0.0093 (`1.1:1Post dilation`) and +0.0137 (`Previous PCI`).                                                                                                                                                                           |
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
 | **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
-| **C9**  | Part 5 Table 5 caption                                                                    | **[REV7/closed in reports]** MI from full 81-row ranking; `Cre` 0.002281 not fill-zero. |
+| **C9**  | Part 5 Table 5 caption                                                                    | **[REV12/closed in reports]** Train MI; `Cre` **0.000000**; 3/3 `{WBC, LV, eGFR}`. |
 | **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (OR 0.144), `Clopidogrel` (OR 0.464) | **[REV4/closed in reports]** Word removed from paper-style reports (Parts 1, 3, 5 and the concatenated bundle). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). Audit text below still names the banned word.          |
 | **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
@@ -1669,9 +1933,9 @@ closures that were not reopened.
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | **W1** [TODO-LEAK — closed] | **The leakage section** — with-TSSI vs without-TSSI contrast is now Part 4 Table S-TSSI / Figure S-TSSI (logistic PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658) plus the event vs follow-up time distribution (controls min 1,241 days, cases min 380), framed as binary-ified survival time with Wang's Cox analysis as the design-correct alternative.                                                           | Closed. Nothing was re-run (§4.1, §4.2, §7.5). Methods paragraph is in the Part 4 header. |
 | **W2** [closed in reports]  | **Clinical motivation and citations.** Drafted in `paper_results/00_front_matter.md` (and concatenated `paper_results.md` Part 0): Wang 2020 definition/cohort/score; why TabPFN; what “personalised” does *not* mean; what this pack adds *beyond* Wang’s 8-variable Cox score. Frozen integer points are now scored (Part 4 S-Wang; B10 closed for that comparator). | Cite Wang; do not write as if no VLST score exists.                                       |
-| **W3** [closed in reports]  | **Limitations** Rev 8 pass: B3 CIs in; Table 4b identified; Table C rebuilt; B11 blocked (no new data). Thinking-high PR 0.8553 (0.7957–0.9131) vs LightGBM 0.6926 (0.6049–0.7772). | Drafted in Part 0. |
+| **W3** [closed in reports]  | **Limitations** Rev 13 pass: Version 4 local Brier 0.0102; Version 4 CIs restored; Version 5 70/30 SHAP; Table 4b identified; Table C rebuilt; B11 blocked (no new data). Thinking-high PR 0.8553 (0.7957–0.9131) vs LightGBM 0.6942 (0.6065–0.7782). | Drafted in Part 0. |
 | **W4** [TODO-EPV — closed]  | **EPV stated explicitly**: Table 4 92 / 17 ≈ **5.4** (unidentified); Table 4b 92 / 13 ≈ **7.1** (quote this).                                                                                                                                                                                                                                                            | Was computed nowhere (§2.2).                                                              |
-| **W5** [closed in reports]  | **Terminology pass** enforcing §12.12 in Part 0 and part headers: association (Parts 1, 5 MI); prediction (Part 4 nested CV only); interpretation/attribution (Parts 2, 5). Banned words removed from captions (“risk factor”, “independent signal”). Wang’s score remains the only result called externally tested.                                                                                  |                                                                                           |
+| **W5** [closed in reports]  | **Terminology pass** enforcing §12.12 in Part 0 and part headers: association (Part 1 full-cohort; Part 5 MI on the Version 5 **train** split); prediction (Part 4 nested CV only); interpretation/attribution (Parts 2, 5). Banned words removed from captions (“risk factor”, “independent signal”). Wang’s score remains the only result called externally tested.                                                                                  |                                                                                           |
 
 
 ### E. Housekeeping
@@ -1693,5 +1957,9 @@ closures that were not reopened.
 2. **B11** (Shantou file / Cox LP / Dangas DCA) remains a data-access ask. **Blocked this cycle — no new data.** Nested CV is derivation-only.
 3. **B2, B3, B4, B7 are closed.** OOF CSVs committed; CIs and paired test in Part 4; Table 4b is the identified logit; Table C is the clinical Table 1.
 4. **C1–C16 report wording is done for Parts 4–5** against Revision 7, with C3 updated for B2/B3. Optional leftover: C12 split-axis Figure 3.
-5. **W1–W5 are drafted** in `paper_results/00_front_matter.md`. Remaining B-list: **B11 only**.
+5. **W1–W5 are drafted** in `paper_results/00_front_matter.md`. Manuscript drafts under `docs/`
+   (`paper_methods.md`, `paper_results_*.md`, `paper_discussion.md`, `paper_audit.md`,
+   `paper_outline.md`, `figure_table_selection.md`) were **deleted**; they are not sources.
+   Remaining B-list: **B11** (blocked). B13 / B14 closed in Revision 13. Canonical
+   writing list: §0.4. Cross-section dump conflicts: §0.5. Notebook execution vs final source: §0.6.
 
