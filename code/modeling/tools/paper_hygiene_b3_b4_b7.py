@@ -95,7 +95,18 @@ TABLE4B = [
     "PES",
 ]
 
-OOF_MODELS = [
+# Version 4 Kaggle OOF (`139d143`): client = tabpfn_thinking_mode_*, local = tabpfn_*.
+# Previous dump used tabpfn_* for thinking-high and tabpfn_(local)_* for local.
+OOF_MODELS_V4 = [
+    ("TabPFN (thinking-high)", "tabpfn_thinking_mode_prob"),
+    ("LightGBM", "lightgbm_prob"),
+    ("XGBoost", "xgboost_prob"),
+    ("TabPFN (local)", "tabpfn_prob"),
+    ("CatBoost", "catboost_prob"),
+    ("Random Forest", "random_forest_prob"),
+    ("Logistic Regression", "logistic_regression_prob"),
+]
+OOF_MODELS_PREV = [
     ("TabPFN (thinking-high)", "tabpfn_prob"),
     ("LightGBM", "lightgbm_prob"),
     ("XGBoost", "xgboost_prob"),
@@ -104,6 +115,12 @@ OOF_MODELS = [
     ("Random Forest", "random_forest_prob"),
     ("Logistic Regression", "logistic_regression_prob"),
 ]
+
+
+def resolve_oof_models(oof: pd.DataFrame) -> list[tuple[str, str]]:
+    if "tabpfn_thinking_mode_prob" in oof.columns:
+        return OOF_MODELS_V4
+    return OOF_MODELS_PREV
 
 
 def _write_df(df: pd.DataFrame, name: str, dirs: list[Path]) -> None:
@@ -303,20 +320,22 @@ def run_b3() -> dict:
     oof = pd.read_csv(OOF_PATH)
     y = oof["y"].to_numpy(dtype=int)
     assert y.size == 5185 and int(y.sum()) == 92
+    oof_models = resolve_oof_models(oof)
+    col_by_label = dict(oof_models)
 
     point = {}
-    for label, col in OOF_MODELS:
+    for label, col in oof_models:
         point[label] = dict(zip(["pr_auc", "roc_auc", "brier"], _metrics(y, oof[col].to_numpy(dtype=float))))
 
     rng = np.random.default_rng(SEED)
     pos = np.where(y == 1)[0]
     neg = np.where(y == 0)[0]
-    boot = {label: {"pr_auc": [], "roc_auc": [], "brier": []} for label, _ in OOF_MODELS}
+    boot = {label: {"pr_auc": [], "roc_auc": [], "brier": []} for label, _ in oof_models}
     d_th_lgb = []
     d_loc_lgb = []
-    p_th = oof["tabpfn_prob"].to_numpy(dtype=float)
-    p_lgb = oof["lightgbm_prob"].to_numpy(dtype=float)
-    p_loc = oof["tabpfn_(local)_prob"].to_numpy(dtype=float)
+    p_th = oof[col_by_label["TabPFN (thinking-high)"]].to_numpy(dtype=float)
+    p_lgb = oof[col_by_label["LightGBM"]].to_numpy(dtype=float)
+    p_loc = oof[col_by_label["TabPFN (local)"]].to_numpy(dtype=float)
 
     for _ in range(N_BOOT):
         idx = np.concatenate(
@@ -326,7 +345,7 @@ def run_b3() -> dict:
             ]
         )
         yb = y[idx]
-        for label, col in OOF_MODELS:
+        for label, col in oof_models:
             pr, roc, br = _metrics(yb, oof[col].to_numpy(dtype=float)[idx])
             boot[label]["pr_auc"].append(pr)
             boot[label]["roc_auc"].append(roc)
@@ -339,7 +358,7 @@ def run_b3() -> dict:
         return float(np.percentile(a, 2.5)), float(np.percentile(a, 97.5))
 
     rows = []
-    for label, _ in OOF_MODELS:
+    for label, _ in oof_models:
         pr_lo, pr_hi = ci(boot[label]["pr_auc"])
         roc_lo, roc_hi = ci(boot[label]["roc_auc"])
         br_lo, br_hi = ci(boot[label]["brier"])
@@ -396,9 +415,11 @@ def run_b3() -> dict:
                 "fold": int(fold),
                 "n": int(len(g)),
                 "n_pos": int(yy.sum()),
-                "tabpfn_thinking_high_pr_auc": average_precision_score(yy, g["tabpfn_prob"]),
-                "lightgbm_pr_auc": average_precision_score(yy, g["lightgbm_prob"]),
-                "tabpfn_local_pr_auc": average_precision_score(yy, g["tabpfn_(local)_prob"]),
+                "tabpfn_thinking_high_pr_auc": average_precision_score(
+                    yy, g[col_by_label["TabPFN (thinking-high)"]]
+                ),
+                "lightgbm_pr_auc": average_precision_score(yy, g[col_by_label["LightGBM"]]),
+                "tabpfn_local_pr_auc": average_precision_score(yy, g[col_by_label["TabPFN (local)"]]),
             }
         )
     fold_df = pd.DataFrame(fold_rows).sort_values("fold")

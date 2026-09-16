@@ -1,40 +1,41 @@
 rank,feature,times_selected,selection_freq
 1,WBC,10,1.0
-2,Staged PCI,7,0.7
-3,Fiberinogen,6,0.6
-4,LV,6,0.6
-5,ZES,6,0.6
-6,Cre,5,0.5
-7,PES,5,0.5
-8,eGFR,5,0.5
-9,Age,4,0.4
-10,STEMI,4,0.4
-11,1.1:1Post dilation,3,0.3
-12,Dissection,3,0.3
-13,HbA1c,3,0.3
-14,Ticagrelor,3,0.3
-15,Aneurysm,2,0.2
-16,CaI,2,0.2
-17,LVEF,2,0.2
-18,No postdilation,2,0.2
-19,No.of stents per lesion,2,0.2
-20,2-vessel disease,1,0.1
-21,Aspirin,1,0.1
-22,Bifurcation,1,0.1
-23,CKD60,1,0.1
-24,CKD90,1,0.1
-25,Clopidogrel,1,0.1
-26,EVS,1,0.1
-27,Fast-Glu,1,0.1
-28,HGB,1,0.1
-29,LDL,1,0.1
-30,Max-stent diameter,1,0.1
-31,No reflow,1,0.1
+2,Cre,8,0.8
+3,LV,8,0.8
+4,eGFR,7,0.7
+5,Previous PCI,5,0.5
+6,Staged PCI,5,0.5
+7,Fiberinogen,4,0.4
+8,LVEF,4,0.4
+9,UA,4,0.4
+10,1.1:1Post dilation,3,0.3
+11,Age,3,0.3
+12,HbA1c,3,0.3
+13,ZES,3,0.3
+14,Cardiogenic shock,2,0.2
+15,Dissection,2,0.2
+16,LDL,2,0.2
+17,Men,2,0.2
+18,Min-stent diameter,2,0.2
+19,Slow flow,2,0.2
+20,3-vessel disease,1,0.1
+21,Bifurcation,1,0.1
+22,CKD5,1,0.1
+23,HDL,1,0.1
+24,HGB,1,0.1
+25,History of HF,1,0.1
+26,History of peripheral vascualr disease,1,0.1
+27,Initial diagnosis-AMI,1,0.1
+28,Lesion location-Ostial,1,0.1
+29,Moderate/severe calcification,1,0.1
+30,No postdilation,1,0.1
+31,P-LM,1,0.1
 32,P-RCA,1,0.1
-33,Platelet,1,0.1
+33,PES,1,0.1
 34,Pre-TIMI flow-3,1,0.1
 35,Previous CABG,1,0.1
-36,Stent release pressure,1,0.1
+36,TCL,1,0.1
 37,TIMI-2,1,0.1
-38,UA,1,0.1
+38,Thrombus aspiration,1,0.1
 39,Ulceration,1,0.1
+40,Visual thrombus,1,0.1

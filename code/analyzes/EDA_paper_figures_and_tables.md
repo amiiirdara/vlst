@@ -61,7 +61,7 @@ Rendered table image: [paper_figures/paper_table_c_cohort_characteristics.png](p
 | No postdilation (CSV as stored) | 2597 (50.99%) | 78 (84.78%) | Chi-square | 1.30e-10 |
 | DAPT during follow-up (not index PCI) | 2260 (44.37%) | 35 (38.04%) | Chi-square | 0.226 |
 
-**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](paper_figures/paper_table_c_cohort_characteristics.csv)
+**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](paper_figures/paper_table_c_cohort_characteristics.csv). Generating code: `run_b7()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py`, also executed at the end of `eda.ipynb`.
 
 ---
 
@@ -266,7 +266,7 @@ Rendered table image: [paper_figures/paper_table4b_reduced_or.png](paper_figures
 | Diabetes | binary | 1.77 | 1.889 | 1.452 | [0.795, 2.652] |
 | PES | binary | 1.03 | 2.158 | 1.734 | [0.953, 3.154] |
 
-VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png). Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py`.
+VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png). Generating code: `run_b4()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py`, also executed at the end of `eda.ipynb`.
 
 **Source files:** [paper_figures/paper_table4b_reduced_or.png](paper_figures/paper_table4b_reduced_or.png), [paper_figures/paper_table4b_reduced_or.csv](paper_figures/paper_table4b_reduced_or.csv), [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png), [paper_figures/paper_table4b_vif_comparison.csv](paper_figures/paper_table4b_vif_comparison.csv)
 

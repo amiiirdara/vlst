@@ -1,0 +1,11 @@
+times_selected,n_features,features
+10,1,WBC
+9,0,
+8,2,Cre; LV
+7,1,eGFR
+6,0,
+5,2,Previous PCI; Staged PCI
+4,3,Fiberinogen; LVEF; UA
+3,4,1.1:1Post dilation; Age; HbA1c; ZES
+2,6,Cardiogenic shock; Dissection; LDL; Men; Min-stent diameter; Slow flow
+1,21,3-vessel disease; Bifurcation; CKD5; HDL; HGB; History of HF; History of peripheral vascualr disease; Initial diagnosis-AMI; Lesion location-Ostial; Moderate/severe calcification; No postdilation; P-LM; P-RCA; PES; Pre-TIMI flow-3; Previous CABG; TCL; TIMI-2; Thrombus aspiration; Ulceration; Visual thrombus
