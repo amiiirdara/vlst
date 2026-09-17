@@ -80,4 +80,4 @@ Moderate/severe tortuosity,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_asso
 Slow flow,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
 TIMI-2,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
 Ticagrelor,1.0,Fisher exact,binary,1.0,1.0,1.0,No,No,No,all_association_tests
-Stent type-SES,3.8480486221745815e-07,Chi-square,categorical,3.155399870183157e-05,2.924516952852682e-05,4.507714100261653e-06,Yes,Yes,Yes,all_association_tests
+Stent type-SES,2.2913029162204483e-09,Chi-square,categorical,1.8788683913007675e-07,1.7413902163275406e-07,2.6840977018582392e-08,Yes,Yes,Yes,all_association_tests

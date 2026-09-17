@@ -68,7 +68,7 @@ Draft from `status: frozen` in the YAML. Headline scalars:
 ### Association (Part 1) — not prediction, not causal
 
 - Quote **Table 4b** (13 covariates, unweighted logit, EPV ≈ **7.1**). Example adjusted ORs: `1.1:1Post dilation` **0.152** [0.081, 0.286]; `Clopidogrel` **0.480** [0.293, 0.787]; WBC **1.972** [1.667, 2.331].
-- Do **not** quote Table 4 (17 covariates, unidentified, EPV ≈ 5.4; adj OR 0.144 / 0.464).
+- Do **not** quote Table 4 (17 covariates, unidentified, EPV ≈ 5.4; adj OR 0.042 / 0.527; Wald CI undefined).
 - Supplementary Table S2: 16 LR interaction tests; q < 0.05 for LV × eGFR and Men × eGFR only. Hypothesis-generating.
 
 ### Prediction (Part 4 nested 5×4 CV, Version 4, TSSI dropped)
@@ -147,7 +147,7 @@ These may appear in Methods. They are not Results claims.
 
 ## 4. Excluded (do not quote as this freeze)
 
-- Table 4 unidentified 17-covariate ORs (0.144 / 0.464).
+- Table 4 unidentified 17-covariate ORs (0.042 / 0.527; Wald undefined).
 - Table 3 pooled F1 / pooled TabPFN recall 0.8152 / 0.8478.
 - EDA χ² helper “Raw levels” = **99**.
 - Evidence-map Revision 7 / old dump: local Brier **0.0673**, local PR-AUC **0.6754**, local nested t **0.915**, SHAP 15+15, Cre |SHAP| 0.158, k-SII rows 5099/5093.
@@ -189,7 +189,7 @@ Ledger items that look like conflicts are **different quantities** (keep both la
 | ID | Pair | Freeze rule |
 | --- | --- | --- |
 | C1 | 106 vs 99 vs 9 | Quote 106 → 9. Exclude 99. |
-| Table 4 vs 4b | 0.144/0.464 vs 0.152/0.480 | Quote 4b. Exclude Table 4 as the clinical model. |
+| Table 4 vs 4b | 0.042/0.527 vs 0.152/0.480 | Quote 4b. Exclude Table 4 as the clinical model. |
 | Nested vs pooled F1 | Table 2 vs Table 3 | Quote Table 2. |
 | Thinking-high vs local | two models | Never collapse. |
 | TSSI SMOTE mismatch | with vs without notebooks | Frozen as leakage demo with mismatch named. |

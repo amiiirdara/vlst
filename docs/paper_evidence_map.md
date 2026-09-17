@@ -692,7 +692,7 @@ Applied to 24 continuous variables. **[VERIFIED]** against
 `paper_results/01_eda/paper_figures/paper_table_test_rationale.csv` — every row obeys the stated rule.
 - **Binary screening.** χ² or Fisher exact across 58 binary variables, reporting OR, RR, φ.
 - **Categorical screening.** One χ² for `Stent type-SES` after collapsing levels with n < 30 to `other`, leaving
-9 levels (χ² = 44.90, df = 8, Cramér's V = 0.093, p = 3.85e-07).
+9 levels (χ² = 56.46, df = 8, Cramér's V = 0.104, p = 2.29e-09; 106 raw CSV strings).
 - **Multiplicity.** Benjamini–Hochberg, applied **within each of the three families separately** (24 continuous,
 58 binary, 1 categorical), not globally. `Time since stent implantation` is included in the continuous family,
 which shifts every other continuous q-value.
@@ -1178,32 +1178,33 @@ Near-misses (informative for the knife-edge nature of the cut-off): `Fast-Glu` q
 
 Note the first pair and the last pair are exact complements: they are two reports of one association.
 
-**Categorical:** `Stent type-SES`, χ² = 44.90, df = 8, Cramér's V = 0.093, p = 3.85e-07, q = 3.85e-07,
-9 levels after collapsing n < 30 to `other`.
+**Categorical:** `Stent type-SES`, χ² = 56.46, df = 8, Cramér's V = 0.104, p = 2.29e-09, q = 2.29e-09,
+9 levels after the shared encoder (106 raw strings; collapse n < 30 to `other`).
 
 **Multivariable adjusted ORs** (`paper_table4_multivariable_or_numeric.csv`; 17 covariates, continuous per 1 SD,
-percentile bootstrap CI, `class_weight="balanced"`, `C=1e6`, N_BOOT = 200):
+unweighted `statsmodels` MLE, N_BOOT = 2000). **Do not quote as the clinical model.** Wald CIs are undefined
+under perfect collinearity; bootstrap CIs below are robustness only. Quote Table 4b.
 
 
-| Feature                 | Type      | Univariate OR | Adjusted OR | 95% CI              |
+| Feature                 | Type      | Univariate OR | Adjusted OR | Boot 95% CI         |
 | ----------------------- | --------- | ------------- | ----------- | ------------------- |
-| WBC                     | cont. /SD | 2.694         | 3.002       | 2.424 – 4.225       |
-| eGFR                    | cont. /SD | 0.334         | 0.113       | 0.060 – 0.158       |
-| LV                      | cont. /SD | 3.116         | 3.282       | 2.335 – 5.254       |
-| CKD5                    | cont. /SD | 1.391         | **0.156**   | 0.023 – 0.285       |
-| No.of stents per lesion | cont. /SD | 1.379         | 1.297       | 0.693 – 2.177       |
-| HbA1c                   | cont. /SD | 1.367         | 0.870       | 0.569 – 1.280       |
-| NO.of vessels           | cont. /SD | 1.456         | 1.498       | 0.774 – 3.392       |
-| Total stent length      | cont. /SD | 1.391         | 1.127       | 0.658 – 2.269       |
-| Fiberinogen             | cont. /SD | 1.220         | 1.045       | 0.804 – 1.348       |
-| 1.1:1Post dilation      | binary    | 0.187         | 0.144       | 0.040 – 0.245       |
-| No postdilation         | binary    | 5.353         | **0.895**   | 0.429 – 1.358       |
-| CKD90                   | binary    | 2.625         | **12.540**  | **2.708 – 639.506** |
-| Previous PCI            | binary    | 6.465         | 8.977       | 3.226 – 28.618      |
-| 3-vessel disease        | binary    | 2.168         | 0.605       | 0.135 – 2.936       |
-| Clopidogrel             | binary    | 0.504         | 0.464       | 0.195 – 0.817       |
-| Diabetes                | binary    | 1.889         | 1.875       | 0.678 – 4.331       |
-| PES                     | binary    | 2.156         | 1.239       | 0.585 – 4.056       |
+| WBC                     | cont. /SD | 2.090         | 2.049       | 1.783 – 2.492       |
+| eGFR                    | cont. /SD | 0.469         | 0.223       | 0.134 – 0.318       |
+| LV                      | cont. /SD | 2.098         | 2.079       | 1.734 – 2.590       |
+| CKD5                    | cont. /SD | 1.298         | **0.278**   | 0.092 – 0.445       |
+| No.of stents per lesion | cont. /SD | 1.383         | 1.376       | 0.864 – 2.164       |
+| HbA1c                   | cont. /SD | 1.282         | 0.944       | 0.716 – 1.201       |
+| NO.of vessels           | cont. /SD | 1.469         | 0.913       | 0.530 – 1.603       |
+| Total stent length      | cont. /SD | 1.378         | 1.181       | 0.746 – 1.970       |
+| Fiberinogen             | cont. /SD | 1.207         | 1.065       | 0.877 – 1.271       |
+| 1.1:1Post dilation      | binary    | 0.187         | 0.042       | 0.018 – 0.067       |
+| No postdilation         | binary    | 5.339         | **0.285**   | 0.180 – 0.396       |
+| CKD90                   | binary    | 2.626         | **4.829**   | **1.278 – 45.12**   |
+| Previous PCI            | binary    | 6.516         | 7.199       | 2.226 – 19.39       |
+| 3-vessel disease        | binary    | 2.170         | 1.730       | 0.584 – 5.551       |
+| Clopidogrel             | binary    | 0.504         | 0.527       | 0.292 – 0.863       |
+| Diabetes                | binary    | 1.889         | 1.583       | 0.856 – 2.874       |
+| PES                     | binary    | 2.158         | 1.850       | 1.001 – 4.116       |
 
 
 **Joint cross-domain model** (`domain_joint_multivariable_or.csv`, 12 covariates):
@@ -1211,18 +1212,18 @@ percentile bootstrap CI, `class_weight="balanced"`, `C=1e6`, N_BOOT = 200):
 
 | Feature                 | Univariate OR | Adjusted OR | 95% CI         |
 | ----------------------- | ------------- | ----------- | -------------- |
-| Age                     | 1.080         | 1.099       | 0.836 – 1.344  |
-| WBC                     | 2.694         | 2.942       | 2.343 – 4.396  |
-| eGFR                    | 0.334         | 0.203       | 0.127 – 0.299  |
-| LV                      | 3.116         | 2.950       | 2.197 – 5.036  |
-| LVEF                    | **0.851**     | **1.650**   | 1.301 – 2.260  |
-| No.of stents per lesion | 1.379         | 1.552       | 1.173 – 2.270  |
-| Men                     | 1.286         | **3.283**   | 1.577 – 7.900  |
-| Current smoker          | 1.105         | 0.976       | 0.541 – 2.074  |
-| Current drinking        | 0.981         | 1.071       | 0.423 – 2.114  |
-| 1.1:1Post dilation      | 0.192         | 0.191       | 0.044 – 0.382  |
-| Previous PCI            | 6.733         | 9.576       | 3.308 – 23.576 |
-| Diabetes                | 1.898         | 1.460       | 0.789 – 2.597  |
+| Age                     | 1.092         | 0.986       | 0.776 – 1.254  |
+| WBC                     | 2.090         | 1.949       | 1.638 – 2.319  |
+| eGFR                    | 0.469         | 0.375       | 0.282 – 0.498  |
+| LV                      | 2.098         | 2.640       | 2.106 – 3.309  |
+| LVEF                    | **0.886**     | **1.793**   | 1.474 – 2.182  |
+| No.of stents per lesion | 1.383         | 1.694       | 1.416 – 2.026  |
+| Men                     | 1.286         | **2.980**   | 1.644 – 5.403  |
+| Current smoker          | 1.105         | 1.209       | 0.739 – 1.979  |
+| Current drinking        | 0.981         | 1.194       | 0.604 – 2.361  |
+| 1.1:1Post dilation      | 0.192         | 0.151       | 0.080 – 0.283  |
+| Previous PCI            | 6.733         | 7.593       | 3.161 – 18.237 |
+| Diabetes                | 1.898         | 1.516       | 0.935 – 2.458  |
 
 
 **Interaction screen** (`domain_interaction_screen.csv`, 16 hand-picked pairs, LR test, BH within the 16):
@@ -1230,9 +1231,9 @@ percentile bootstrap CI, `class_weight="balanced"`, `C=1e6`, N_BOOT = 200):
 
 | Pair                             | LR statistic | p       | Interaction OR | q      |
 | -------------------------------- | ------------ | ------- | -------------- | ------ |
-| LV × eGFR                        | 9.813        | 0.00173 | 1.245          | 0.0277 |
-| Men × eGFR                       | 8.527        | 0.00350 | 0.342          | 0.0280 |
-| WBC × eGFR                       | 2.649        | 0.104   | 1.125          | 0.553  |
+| LV × eGFR                        | 9.800        | 0.00175 | 1.245          | 0.0279 |
+| Men × eGFR                       | 8.513        | 0.00353 | 0.341          | 0.0282 |
+| WBC × eGFR                       | 2.653        | 0.103   | 1.124          | 0.551  |
 | (13 further pairs, all q > 0.55) |              |         |                |        |
 
 
@@ -1292,8 +1293,8 @@ construct), and the renal family (`CKD5`, `CKD90` alongside continuous `eGFR` �
 
 ### 8.2 Multivariable-model survivors (bootstrap CI excluding 1)
 
-From EDA Table 4: `WBC`, `eGFR`, `LV`, `CKD5` (**sign-flipped**), `1.1:1Post dilation`, `CKD90` (CI 2.71–639.5),
-`Previous PCI`, `Clopidogrel`.
+From EDA Table 4 (bootstrap CI, Wald undefined): `WBC`, `eGFR`, `LV`, `CKD5` (**sign-flipped**), `1.1:1Post dilation`, `No postdilation`, `CKD90` (boot 1.28–45.1),
+`Previous PCI`, `Clopidogrel`, `PES` (boot just excludes 1). Do not quote these as the identified screen.
 From the joint domain model: `WBC`, `eGFR`, `LV`, `LVEF` (**sign-flipped**), `No.of stents per lesion`, `Men`,
 `1.1:1Post dilation`, `Previous PCI`.
 
@@ -1694,7 +1695,7 @@ EDA Table 4 contains, simultaneously:
 **Table 4b (B4)** is the identified refit: 13 covariates, one name per block (`1.1:1Post dilation`, `eGFR`,
 `NO.of vessels` kept; complements and extra encodings dropped). Unweighted Newton MLE, Wald 95% CI,
 stratified `n_boot = 2000`. **EPV = 92 / 13 ≈ 7.1**. All VIFs finite (max 4.02, `Total stent length`;
-post-dilation VIF 1.07). `CKD90`’s 2.71–639 interval is gone because `CKD90` is not in the spec. Quote Table 4b.
+post-dilation VIF 1.07). Table 4 Wald CIs are now undefined under that singularity; `CKD90` is not in Table 4b. Quote Table 4b.
 
 ### 12.2 [CLOSED] Part 4 `paper_figures/` match the 7-arm notebook
 
@@ -1749,7 +1750,7 @@ Table 4 is unweighted MLE (`class_weight="balanced"` is not used there).
 `drop="first"` (~89). TabPFN (local) sees the 9-level column natively.
 
 **[REV5]** `eda.ipynb` and `baseline_feature_selections.ipynb` already used that encoder. Part 2 scaled width is
-**88** (drop-first). EDA χ²: 99 raw levels → 9 used, χ² = 44.90, df = 8, V = 0.093.
+**88** (drop-first). EDA χ²: 106 raw strings → 9 used, χ² = 56.46, df = 8, V = 0.104.
 `PES` / `ZES` / `EVS` stay as the drug-class partition.
 
 Part 5 **notebook** SHAP/PDP use the 9-level encoder (`e356bb1`). Paper figures were extracted from
@@ -1917,7 +1918,7 @@ closures that were not reopened.
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
 | **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
 | **C9**  | Part 5 Table 5 caption                                                                    | **[REV12/closed in reports]** Train MI; `Cre` **0.000000**; 3/3 `{WBC, LV, eGFR}`. |
-| **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (Table 4b OR **0.152**), `Clopidogrel` (Table 4b OR **0.480**) | **[REV4/closed in reports]** Word removed from paper-style reports. Quote Table 4b, not Table 4 (0.144 / 0.464). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). |
+| **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (Table 4b OR **0.152**), `Clopidogrel` (Table 4b OR **0.480**) | **[REV4/closed in reports]** Word removed from paper-style reports. Quote Table 4b, not Table 4 (0.042 / 0.527; Wald undefined). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). |
 | **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
 | **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[CLOSED]** Reports name the estimator. Evidence-map §12.4 no longer treats this as an unlabeled discrepancy. Table 2 = 2×2/Fisher (**6.49**); Table 4 = unweighted logit (**6.46**); Table S4 = joint-domain univariate (**6.73**).                             |
