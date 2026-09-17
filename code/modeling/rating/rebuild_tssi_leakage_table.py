@@ -16,11 +16,9 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "code" / "modeling" / "tools"))
 from figure_style import HARMONY, apply_style  # noqa: E402
+from paper_paths import paper_figure_dirs  # noqa: E402
 
-OUT_DIRS = [
-    ROOT / "paper_results" / "04_tabpfn_rating" / "paper_figures",
-    ROOT / "code" / "modeling" / "rating" / "paper_figures",
-]
+OUT_DIRS = paper_figure_dirs("04_tabpfn_rating")
 
 # Stored test-set metrics. Duplicate RF rows in the leaky notebook are collapsed.
 ROWS = [

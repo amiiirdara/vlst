@@ -1,9 +1,0 @@
-Feature,Univariate vs VLST,Why ML consensus keeps it and FDR does not
-Aneurysm,ns (p=0.40),Rare anatomy flag; XGB three-way only — treat as unstable
-CaI,"raw p=0.051, FDR ns","Raw p=0.051, FDR ns. RF_b three-way; near the FDR boundary"
-Cre,ns (p=0.88),Univariate p=0.88 (redundant with eGFR). LR/XGB still use Cre as a renal surrogate
-HGB,"raw p=0.039, FDR ns","Raw p=0.039, FDR ns. CatBoost/RF/XGB three-way — ranking, not a location test"
-LDL,ns (p=0.33),Univariate ns. RF three-way lipid split on the val-slice PR-AUC
-LVEF,"raw p=0.033, FDR ns",Borderline univariate (q=0.067). Joint logistic reverses sign (0.851 to 1.65) with LV in the model; trees still split on systolic function
-Men,ns (p=0.27),Univariate ns. Men×eGFR interaction is FDR-significant; LR uses sex as an additive offset
-UA,ns (p=0.17),Univariate ns. LR three-way ACS-presentation offset

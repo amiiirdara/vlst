@@ -30,17 +30,14 @@ from sklearn.metrics import (
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "code" / "modeling" / "tools"))
 from figure_style import HARMONY, apply_style  # noqa: E402
+from paper_paths import paper_figure_dirs  # noqa: E402
 
 OOF_PATH = ROOT / "data" / "result" / "modeling_results" / "oof" / "oof_predictions.csv"
 POOLED_PATH = (
     ROOT / "paper_results" / "04_tabpfn_rating" / "paper_figures" / "paper_table3_pooled_f1.csv"
 )
 
-P4_DIRS = [
-    ROOT / "paper_results" / "04_tabpfn_rating" / "paper_figures",
-    ROOT / "code" / "modeling" / "rating" / "paper_figures",
-    ROOT / "data" / "result" / "modeling_results" / "paper_figures",
-]
+P4_DIRS = paper_figure_dirs("04_tabpfn_rating")
 
 # Notebook column -> publication display name. The client column was exported as
 # `tabpfn_*` with legend text "TabPFN"; that is the thinking-high arm.

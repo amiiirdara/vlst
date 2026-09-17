@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy Revision-7 Part 4/5 Kaggle artefacts into the dual (and data/result) trees.
+"""Copy Revision-7 Part 4/5 Kaggle artefacts into paper_results only.
 
 Part 4 figures come from executed cells in origin/main baseline_plus_tabpfn.ipynb.
 Part 5 figures/CSVs come from the user-attached Kaggle download.
@@ -19,6 +19,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "code" / "modeling" / "tools"))
 from figure_style import HARMONY, apply_style  # noqa: E402
+from paper_paths import paper_figure_dirs  # noqa: E402
 
 ASSETS = Path("/home/fadia/.cursor/projects/home-fadia-Documents-vlst/assets")
 ATTACH = Path(
@@ -27,16 +28,8 @@ ATTACH = Path(
 )
 P4_NB_FIGS = Path("/tmp/vlst_newruns/p4_figs")
 
-P4_DIRS = [
-    ROOT / "paper_results" / "04_tabpfn_rating" / "paper_figures",
-    ROOT / "code" / "modeling" / "rating" / "paper_figures",
-    ROOT / "data" / "result" / "modeling_results" / "paper_figures",
-]
-P5_DIRS = [
-    ROOT / "paper_results" / "05_tabpfn_interpretability" / "paper_figures",
-    ROOT / "code" / "modeling" / "interpretability" / "paper_figures",
-    ROOT / "data" / "result" / "modeling_tabpfn" / "paper_figures",
-]
+P4_DIRS = paper_figure_dirs("04_tabpfn_rating")
+P5_DIRS = paper_figure_dirs("05_tabpfn_interpretability")
 
 
 def _copy_to(src: Path, dest_name: str, dirs: list[Path]) -> None:
