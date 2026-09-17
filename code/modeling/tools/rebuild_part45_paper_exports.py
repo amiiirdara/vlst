@@ -115,7 +115,7 @@ def write_part4_tables() -> None:
                 "TabPFN (local)",
                 "Foundation (tabular)",
                 "Yes (Kaggle T4)",
-                "from tabpfn import TabPFNClassifier; n_estimators=auto; balance_probabilities=True; no thinking",
+                "from tabpfn import TabPFNClassifier; n_estimators=auto; no balance_probabilities; restore skipped",
             ],
         ],
         columns=["Model", "Family", "GPU", "Specification (notebook)"],
@@ -133,9 +133,9 @@ def write_part4_tables() -> None:
     ranking = pd.DataFrame(
         [
             [1, "TabPFN (thinking-high)", 0.8553, 0.9905, 0.0064, "0.8488 ± 0.0861", "0.9906 ± 0.0070"],
-            [2, "LightGBM", 0.6926, 0.9680, 0.0093, "0.6936 ± 0.0915", "0.9694 ± 0.0165"],
+            [2, "LightGBM", 0.6942, 0.9681, 0.0093, "0.6957 ± 0.0889", "0.9695 ± 0.0165"],
             [3, "XGBoost", 0.6815, 0.9439, 0.0088, "0.6928 ± 0.1288", "0.9431 ± 0.0418"],
-            [4, "TabPFN (local)", 0.6754, 0.9845, 0.0673, "0.6739 ± 0.0812", "0.9846 ± 0.0030"],
+            [4, "TabPFN (local)", 0.6742, 0.9845, 0.0102, "0.6739 ± 0.0812", "0.9846 ± 0.0030"],
             [5, "CatBoost", 0.6172, 0.9594, 0.0101, "0.6353 ± 0.0540", "0.9612 ± 0.0137"],
             [6, "Random Forest", 0.4865, 0.9209, 0.0143, "0.5034 ± 0.0793", "0.9206 ± 0.0423"],
             [7, "Logistic Regression", 0.3326, 0.9224, 0.0563, "0.3451 ± 0.1213", "0.9235 ± 0.0251"],
@@ -157,13 +157,13 @@ def write_part4_tables() -> None:
 
     nested = pd.DataFrame(
         [
-            ["TabPFN (thinking-high)", "0.271 ± 0.067", 0.9915, 0.7927, 0.7065, 0.9967, 0.7471, 0.7222, 5076, 17, 27, 65],
-            ["LightGBM", "0.117 ± 0.087", 0.9880, 0.6630, 0.6630, 0.9939, 0.6630, 0.6630, 5062, 31, 31, 61],
-            ["XGBoost", "0.225 ± 0.060", 0.9875, 0.6452, 0.6522, 0.9935, 0.6486, 0.6508, 5060, 33, 32, 60],
-            ["TabPFN (local)", "0.915 ± 0.012", 0.9844, 0.5478, 0.6848, 0.9898, 0.6087, 0.6522, 5041, 52, 29, 63],
-            ["CatBoost", "0.167 ± 0.040", 0.9815, 0.4836, 0.6413, 0.9876, 0.5514, 0.6020, 5030, 63, 33, 59],
-            ["Random Forest", "0.118 ± 0.013", 0.9840, 0.5517, 0.5217, 0.9923, 0.5363, 0.5275, 5054, 39, 44, 48],
-            ["Logistic Regression", "0.947 ± 0.035", 0.9769, 0.3654, 0.4130, 0.9870, 0.3878, 0.4025, 5027, 66, 54, 38],
+            ["TabPFN (thinking-high)", "0.271 ± 0.067", 0.9915, 0.7927, 0.7065, 0.9967, 0.9947, 0.7471, 0.7222, 5076, 17, 27, 65],
+            ["LightGBM", "0.112 ± 0.090", 0.9878, 0.6526, 0.6739, 0.9935, 0.9941, 0.6631, 0.6695, 5060, 33, 30, 62],
+            ["XGBoost", "0.225 ± 0.060", 0.9875, 0.6452, 0.6522, 0.9935, 0.9937, 0.6486, 0.6508, 5060, 33, 32, 60],
+            ["TabPFN (local)", "0.166 ± 0.020", 0.9844, 0.5478, 0.6848, 0.9898, 0.9943, 0.6087, 0.6522, 5041, 52, 29, 63],
+            ["CatBoost", "0.167 ± 0.040", 0.9815, 0.4836, 0.6413, 0.9876, 0.9935, 0.5514, 0.6020, 5030, 63, 33, 59],
+            ["Random Forest", "0.118 ± 0.013", 0.9840, 0.5517, 0.5217, 0.9923, 0.9914, 0.5363, 0.5275, 5054, 39, 44, 48],
+            ["Logistic Regression", "0.947 ± 0.035", 0.9769, 0.3654, 0.4130, 0.9870, 0.9894, 0.3878, 0.4025, 5027, 66, 54, 38],
         ],
         columns=[
             "Model",
@@ -172,6 +172,7 @@ def write_part4_tables() -> None:
             "Precision",
             "Recall",
             "Specificity",
+            "NPV",
             "F1",
             "F2",
             "TN",
@@ -182,23 +183,23 @@ def write_part4_tables() -> None:
     )
     _write_df(nested, "paper_table2_nested_operating_point.csv", P4_DIRS)
     nd = nested.copy()
-    for col in ["Accuracy", "Precision", "Recall", "Specificity", "F1", "F2"]:
+    for col in ["Accuracy", "Precision", "Recall", "Specificity", "NPV", "F1", "F2"]:
         nd[col] = nd[col].map(lambda x: f"{x:.4f}")
     save_table_png(
         nd,
         title="Honest nested-CV F1 operating point (inner-fold threshold applied once to unseen outer fold)",
         filename="paper_table2_nested_operating_point.png",
         dirs=P4_DIRS,
-        figsize=(14.5, 3.9),
+        figsize=(15.8, 3.9),
         fontsize=7,
     )
 
     pooled = pd.DataFrame(
         [
             ["TabPFN (thinking-high)", 0.193, 0.9927, 0.7812, 0.8152, 0.9959, 0.7979, 0.8082, 5072, 21, 17, 75],
-            ["LightGBM", 0.064, 0.9871, 0.6263, 0.6739, 0.9927, 0.6492, 0.6638, 5056, 37, 30, 62],
+            ["LightGBM", 0.109, 0.9882, 0.6867, 0.6196, 0.9949, 0.6514, 0.6319, 5067, 26, 35, 57],
             ["XGBoost", 0.203, 0.9884, 0.6739, 0.6739, 0.9941, 0.6739, 0.6739, 5063, 30, 30, 62],
-            ["TabPFN (local)", 0.886, 0.9826, 0.5067, 0.8261, 0.9855, 0.6281, 0.7336, 5019, 74, 16, 76],
+            ["TabPFN (local)", 0.119, 0.9823, 0.5000, 0.8478, 0.9847, 0.6290, 0.7443, 5015, 78, 14, 78],
             ["CatBoost", 0.416, 0.9873, 0.6806, 0.5326, 0.9955, 0.5976, 0.5568, 5070, 23, 43, 49],
             ["Random Forest", 0.104, 0.9826, 0.5098, 0.5652, 0.9902, 0.5361, 0.5532, 5043, 50, 40, 52],
             ["Logistic Regression", 0.985, 0.9819, 0.4857, 0.3696, 0.9929, 0.4198, 0.3881, 5057, 36, 58, 34],
@@ -500,13 +501,31 @@ def rebuild_concat() -> None:
     front_body = "".join(front.splitlines(True)[1:])  # drop original H1
     part0 = "# Part 0. Scope, motivation, terminology, and limitations\n" + front_body
 
-    # Preserve Parts 2–3 from the existing concat (link rewriting already done).
-    p2_start = rest.find("# Part 2. Classic-model feature selection")
-    p4_start = rest.find("# Part 4. Nested-CV baselines plus TabPFN")
-    parts_2_3 = rest[p2_start:p4_start].rstrip()
-    if parts_2_3.endswith("---"):
-        parts_2_3 = parts_2_3[: -3].rstrip()
-    parts_2_3 += "\n"
+    part2 = demote_h1(
+        prefix_assets(
+            _load("02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md"),
+            "02_ml_selectors",
+        ),
+        "Part 2. Classic-model feature selection",
+    )
+    part2 = part2.replace(
+        "**Asset root:** [02_ml_selectors/paper_figures/](02_ml_selectors/paper_figures/)",
+        "**Asset root:** [paper_figures/](02_ml_selectors/paper_figures/)",
+    )
+
+    part3 = demote_h1(
+        prefix_assets(_load("03_stats_vs_ml/feature_extraction_comparison.md"), "03_stats_vs_ml"),
+        "Part 3. Statistical vs ML feature extraction",
+    )
+    part3 = part3.replace("](../01_eda/", "](01_eda/")
+    part3 = part3.replace("](../02_ml_selectors/", "](02_ml_selectors/")
+    part3 = part3.replace("](../../code/analyzes/stats_vs_ml/", "](../code/analyzes/stats_vs_ml/")
+    part3 = part3.replace(
+        "**Asset root:** [03_stats_vs_ml/paper_figures/](03_stats_vs_ml/paper_figures/)",
+        "**Asset root:** [paper_figures/](03_stats_vs_ml/paper_figures/)",
+    )
+
+    parts_2_3 = part2.rstrip() + "\n\n---\n" + part3.rstrip() + "\n"
 
     part1 = demote_h1(
         prefix_assets(_load("01_eda/EDA_paper_figures_and_tables.md"), "01_eda"),
@@ -578,6 +597,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
-    if "--concat" in sys.argv:
+    # `main()` copies figures from a historical ATTACH dump. Use `--concat-only`
+    # to rebuild paper_results.md without touching PNGs/CSVs.
+    if "--concat-only" in sys.argv:
         rebuild_concat()
+    else:
+        main()
+        if "--concat" in sys.argv:
+            rebuild_concat()

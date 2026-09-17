@@ -3,6 +3,8 @@
 
 B3  Stratified bootstrap CIs and paired PR-AUC tests on committed OOF CSVs.
 B4  Table 4b: one representative per collinear block, VIF, EPV, N_BOOT=2000.
+    Firth (Jeffreys) sensitivity on the same 13-covariate design — association,
+    not a nested-CV prediction arm.
 B7  Clinical cohort-characteristics table from VLST.csv (not a photocopy of Wang Table 1).
 
 B11 is data-access and is not computed here.
@@ -210,6 +212,46 @@ def fit_logit(X: np.ndarray, y: np.ndarray, max_iter: int = 80, tol: float = 1e-
     return beta, cov, ok
 
 
+def fit_firth_logit(X: np.ndarray, y: np.ndarray, max_iter: int = 80, tol: float = 1e-8):
+    """Firth bias-reduced Bernoulli logit (Heinze / Kosmidis half-correction).
+
+    Score uses hat-diagonal adjustment h_i (0.5 − μ_i). Covariance is the usual
+    inverse information at the penalized MLE (Wald). Not a nested-CV classifier.
+    """
+    n = X.shape[0]
+    z = np.column_stack([np.ones(n), X])
+    pdim = z.shape[1]
+    beta = np.zeros(pdim)
+    ok = False
+    hmat = np.eye(pdim)
+    for _ in range(max_iter):
+        eta = np.clip(z @ beta, -30.0, 30.0)
+        mu = 1.0 / (1.0 + np.exp(-eta))
+        w = np.clip(mu * (1.0 - mu), 1e-12, None)
+        zw = z * np.sqrt(w)[:, None]
+        hmat = zw.T @ zw
+        try:
+            hinv = np.linalg.inv(hmat)
+        except np.linalg.LinAlgError:
+            hinv = np.linalg.pinv(hmat)
+        hat = np.sum((zw @ hinv) * zw, axis=1)
+        g = z.T @ (y - mu + hat * (0.5 - mu))
+        try:
+            step = np.linalg.solve(hmat, g)
+        except np.linalg.LinAlgError:
+            step, *_ = np.linalg.lstsq(hmat, g, rcond=None)
+        beta = beta + step
+        if np.max(np.abs(step)) < tol:
+            ok = True
+            break
+    try:
+        cov = np.linalg.inv(hmat)
+    except np.linalg.LinAlgError:
+        cov = np.linalg.pinv(hmat)
+        ok = False
+    return beta, cov, ok
+
+
 def vif_series(X: np.ndarray, names: list[str]) -> pd.Series:
     out = {}
     for j, name in enumerate(names):
@@ -298,6 +340,44 @@ def logit_or_table(df: pd.DataFrame, names: list[str], y: np.ndarray, n_boot: in
                 "Boot CI low": float(boot_lo[j]),
                 "Boot CI high": float(boot_hi[j]),
                 "n_boot_ok": int(len(boots)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def firth_or_table(df: pd.DataFrame, names: list[str], y: np.ndarray) -> pd.DataFrame:
+    """Table 4b design, Firth-penalized MLE, Wald OR. No bootstrap (Wald only)."""
+    x, names = scale_design(df, names)
+    beta, cov, ok = fit_firth_logit(x, y)
+    if not ok:
+        print("WARNING: Firth logit did not report a clean Newton stop")
+    se = np.sqrt(np.clip(np.diag(cov)[1:], 0, None))
+    z = beta[1:] / np.where(se == 0, np.nan, se)
+    p_wald = 2.0 * stats.norm.sf(np.abs(z))
+    or_adj = np.exp(beta[1:])
+    wald_lo = np.exp(beta[1:] - 1.96 * se)
+    wald_hi = np.exp(beta[1:] + 1.96 * se)
+
+    uni_or = []
+    for j in range(x.shape[1]):
+        b, _, _ = fit_firth_logit(x[:, [j]], y)
+        uni_or.append(float(np.exp(b[1])))
+
+    vif = vif_series(x, names)
+    rows = []
+    for j, name in enumerate(names):
+        rows.append(
+            {
+                "Feature": name,
+                "Type": "continuous (per 1 SD)" if name in CONTINUOUS else "binary",
+                "VIF": vif[name],
+                "Univariate OR (Firth)": uni_or[j],
+                "Adjusted OR (Firth)": float(or_adj[j]),
+                "Wald SE (log-OR)": float(se[j]),
+                "Wald z": float(z[j]),
+                "Wald p": float(p_wald[j]),
+                "Wald CI low": float(wald_lo[j]),
+                "Wald CI high": float(wald_hi[j]),
             }
         )
     return pd.DataFrame(rows)
@@ -580,7 +660,36 @@ def run_b4() -> dict:
     )
     print("B4 EPV", 92 / len(TABLE4B))
     print(or_df[["Feature", "VIF", "Adjusted OR", "Wald CI low", "Wald CI high"]].to_string(index=False))
-    return {"or": or_df, "vif": vif_cmp}
+
+    firth_df = firth_or_table(raw, TABLE4B, y)
+    firth_df["EPV"] = 92 / len(TABLE4B)
+    firth_df["n_covariates"] = len(TABLE4B)
+    firth_df["n_events"] = 92
+    firth_df["estimator"] = "Firth (Jeffreys / half-correction)"
+    _write_df(firth_df, "paper_table4b_firth_or.csv", EDA_DIRS)
+    fdisp = pd.DataFrame(
+        {
+            "Feature": firth_df["Feature"],
+            "Type": firth_df["Type"],
+            "Uni. OR": firth_df["Univariate OR (Firth)"].map(lambda v: f"{v:.3f}"),
+            "Adj. OR": firth_df["Adjusted OR (Firth)"].map(lambda v: f"{v:.3f}"),
+            "Wald 95% CI": [
+                fmt_ci(lo, hi, nd=3)
+                for lo, hi in zip(firth_df["Wald CI low"], firth_df["Wald CI high"])
+            ],
+        }
+    )
+    save_table_png(
+        fdisp,
+        title="Table 4b Firth sensitivity (same 13 covariates; Wald CI at penalized MLE)",
+        filename="paper_table4b_firth_or.png",
+        dirs=EDA_DIRS,
+        figsize=(14.8, 6.4),
+        fontsize=7,
+    )
+    print("B4 Firth (do not replace Table 4b MLE as the primary association model)")
+    print(firth_df[["Feature", "Adjusted OR (Firth)", "Wald CI low", "Wald CI high"]].to_string(index=False))
+    return {"or": or_df, "vif": vif_cmp, "firth": firth_df}
 
 
 # ---------------------------------------------------------------------------
