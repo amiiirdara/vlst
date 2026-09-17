@@ -25,22 +25,14 @@ from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_s
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "code" / "modeling" / "tools"))
 from figure_style import HARMONY, apply_style  # noqa: E402
+from paper_paths import paper_figure_dirs  # noqa: E402
 
 N_BOOT = 2000
 SEED = 42
 TARGET = "Stent thrombosis"
 
-P4_DIRS = [
-    ROOT / "paper_results" / "04_tabpfn_rating" / "paper_figures",
-    ROOT / "code" / "modeling" / "rating" / "paper_figures",
-    ROOT / "data" / "result" / "modeling_results" / "paper_figures",
-]
-P4_TABLES = ROOT / "data" / "result" / "modeling_results" / "tables"
-EDA_DIRS = [
-    ROOT / "paper_results" / "01_eda" / "paper_figures",
-    ROOT / "code" / "analyzes" / "paper_figures",
-    ROOT / "data" / "result" / "eda" / "paper_figures",
-]
+P4_DIRS = paper_figure_dirs("04_tabpfn_rating")
+EDA_DIRS = paper_figure_dirs("01_eda")
 
 OOF_PATH = ROOT / "data" / "result" / "modeling_results" / "oof" / "oof_predictions.csv"
 VLST_PATH = ROOT / "data" / "raw" / "VLST.csv"
@@ -509,9 +501,6 @@ def run_b3() -> dict:
     _write_df(ci_df, "paper_table_s_bootstrap_ci.csv", P4_DIRS)
     _write_df(paired_df, "paper_table_s_paired_delta.csv", P4_DIRS)
     _write_df(fold_df, "paper_table_s_fold_pr_wins.csv", P4_DIRS)
-    P4_TABLES.mkdir(parents=True, exist_ok=True)
-    ci_df.to_csv(P4_TABLES / "bootstrap_ci.csv", index=False)
-    paired_df.to_csv(P4_TABLES / "paired_pr_auc_delta.csv", index=False)
 
     disp = pd.DataFrame(
         {

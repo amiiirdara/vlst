@@ -1,8 +1,0 @@
-model,metric,n_common,features
-cat,pr_auc,3,1.1:1Post dilation; HGB; WBC
-lgb,pr_auc,2,HbA1c; LV
-lr,pr_auc,6,Cre; LV; Men; UA; WBC; eGFR
-rf,pr_auc,6,HGB; LDL; LVEF; Men; WBC; eGFR
-rf_b,pr_auc,4,CaI; HGB; LVEF; WBC
-xgb,pr_auc,7,1.1:1Post dilation; Aneurysm; Cre; HGB; LV; WBC; eGFR
-xgb_b,pr_auc,5,1.1:1Post dilation; LV; LVEF; WBC; eGFR

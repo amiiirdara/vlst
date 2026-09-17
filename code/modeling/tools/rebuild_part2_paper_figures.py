@@ -23,12 +23,9 @@ import seaborn as sns
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "code" / "modeling" / "tools"))
 from figure_style import HARMONY, apply_style  # noqa: E402
+from paper_paths import paper_figure_dirs, paper_figures  # noqa: E402
 
-OUT_DIRS = [
-    ROOT / "paper_results" / "02_ml_selectors" / "paper_figures",
-    ROOT / "code" / "modeling" / "interpretability" / "paper_figures",
-    ROOT / "data" / "result" / "model_feature_selectors",
-]
+OUT_DIRS = paper_figure_dirs("02_ml_selectors")
 
 FAMILY = {
     "lr": "Linear",
@@ -308,7 +305,7 @@ def write_manifest() -> None:
         "stent_encoding": "9-level shared encoder, then OHE drop-first",
     }
     text = json.dumps(manifest, indent=2)
-    dest = ROOT / "data" / "result" / "model_feature_selectors" / "split_manifest.json"
+    dest = paper_figures("02_ml_selectors") / "split_manifest.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(text, encoding="utf-8")
 
