@@ -2,7 +2,7 @@
 
 This document gathers publication-oriented figures and tables from the exploratory data analysis of very late stent thrombosis (VLST) in `eda.ipynb`.
 
-**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed to levels with n ≥ 30 plus `other` (**9 levels**) for the χ² screen via the shared encoder (`code/modeling/tools/stent_encoding.py`). Part 2 now uses that same 9-level column and one-hots it (drop-first → **88** scaled columns). Part 4 nested CV uses the same encoder, then one-hots without drop-first (~89 columns); TabPFN (local) sees the 9-level frame natively. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical association.
+**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed with the shared encoder (`code/modeling/tools/stent_encoding.py`): **106** raw CSV strings (`nunique`) → **9** levels (`min_count=30`, plus `other`). That is the Kaggle Part 4/5 print (`Stent brand: 106 raw strings -> 9 levels`). Part 2 one-hots the 9-level column (drop-first → **88** scaled columns). Part 4 nested CV uses the same encoder, then one-hots without drop-first (~89 columns); both TabPFN arms see the 9-level frame natively. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical association.
 
 **Asset root:** [paper_figures/](paper_figures/)
 
@@ -61,7 +61,7 @@ Rendered table image: [paper_figures/paper_table_c_cohort_characteristics.png](p
 | No postdilation (CSV as stored) | 2597 (50.99%) | 78 (84.78%) | Chi-square | 1.30e-10 |
 | DAPT during follow-up (not index PCI) | 2260 (44.37%) | 35 (38.04%) | Chi-square | 0.226 |
 
-**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](paper_figures/paper_table_c_cohort_characteristics.csv). Generating code: `run_b7()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py`, also executed at the end of `eda.ipynb`.
+**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](paper_figures/paper_table_c_cohort_characteristics.csv)
 
 ---
 
@@ -192,7 +192,7 @@ Rendered table image: [paper_figures/paper_table2_binary_fdr.png](paper_figures/
 
 ![Figure 5](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
-**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after the shared encoder (canonicalize aliases, collapse n < 30 → `other`, **9 levels**). Raw distinct strings in this run: **99**. Rates: `other` 5.5%, `xiencev` 3.3%, `partner` 2.3%, `excel` 2.1%, `firebird` 1.6%, `tivoli` 0.83%, `resolute` 0.82%, `xv` 0%, `xx` 0%. Part 2 one-hots these 9 levels. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
+**Figure 5.** Observed VLST rate (%) by the **9** shared-encoder levels of `Stent type-SES` (106 raw CSV strings → canonicalize aliases → collapse n < 30 to `other`; `min_count=30`). Same codebook as Kaggle Part 4/5. The PNG is this 9-level bar chart (`paper_fig5_categorical_rates_Stent_type-SES.png`); it does not plot 106 or 99 brands. Rates: `other` 5.5% (n=311), `xiencev` 3.3% (n=184), `partner` 2.3% (n=1034), `excel` 2.1% (n=989), `firebird` 1.6% (n=766), `tivoli` 0.83% (n=602), `resolute` 0.82% (n=852), `xv` 0% (n=198), `xx` 0% (n=249). Part 2 one-hots these 9 levels. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
 
 **Source file:** [paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png](paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
@@ -266,9 +266,33 @@ Rendered table image: [paper_figures/paper_table4b_reduced_or.png](paper_figures
 | Diabetes | binary | 1.77 | 1.889 | 1.452 | [0.795, 2.652] |
 | PES | binary | 1.03 | 2.158 | 1.734 | [0.953, 3.154] |
 
-VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png). Generating code: `run_b4()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py`, also executed at the end of `eda.ipynb`.
+VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png). Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py`.
 
 **Source files:** [paper_figures/paper_table4b_reduced_or.png](paper_figures/paper_table4b_reduced_or.png), [paper_figures/paper_table4b_reduced_or.csv](paper_figures/paper_table4b_reduced_or.csv), [paper_figures/paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png), [paper_figures/paper_table4b_vif_comparison.csv](paper_figures/paper_table4b_vif_comparison.csv)
+
+### Table 4b Firth sensitivity (same 13 covariates)
+
+Rendered table image: [paper_figures/paper_table4b_firth_or.png](paper_figures/paper_table4b_firth_or.png)
+
+**Table 4b Firth.** Same design matrix as Table 4b; Firth (Jeffreys / half-correction) bias-reduced logit. Wald 95% CI at the penalized MLE. Association sensitivity for EPV ≈ 7.1 — **not** a nested-CV prediction model and **not** a GridSearch classifier. Quote **Table 4b MLE** as the primary association specification.
+
+| Feature | Univariate OR (Firth) | Adjusted OR (Firth) | Wald 95% CI |
+| --- | ---: | ---: | --- |
+| WBC | 2.089 | 1.952 | [1.657, 2.300] |
+| eGFR | 0.470 | 0.574 | [0.458, 0.721] |
+| LV | 2.098 | 1.813 | [1.529, 2.150] |
+| No.of stents per lesion | 1.390 | 1.407 | [0.970, 2.040] |
+| HbA1c | 1.288 | 0.968 | [0.736, 1.272] |
+| NO.of vessels | 1.466 | 1.208 | [0.958, 1.523] |
+| Total stent length | 1.385 | 1.168 | [0.791, 1.726] |
+| Fiberinogen | 1.216 | 1.029 | [0.854, 1.240] |
+| 1.1:1Post dilation | 0.192 | 0.160 | [0.087, 0.293] |
+| Previous PCI | 6.733 | 6.736 | [2.954, 15.360] |
+| Clopidogrel | 0.508 | 0.491 | [0.304, 0.792] |
+| Diabetes | 1.898 | 1.444 | [0.803, 2.596] |
+| PES | 2.107 | 1.687 | [0.947, 3.005] |
+
+**Source files:** [paper_figures/paper_table4b_firth_or.png](paper_figures/paper_table4b_firth_or.png), [paper_figures/paper_table4b_firth_or.csv](paper_figures/paper_table4b_firth_or.csv)
 
 ### Figure 6. Univariate versus multivariable associations
 
@@ -426,6 +450,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 | Table 4 | Table | [paper_table4_multivariable_or.png](paper_figures/paper_table4_multivariable_or.png) |
 | Table 4b | Table | [paper_table4b_reduced_or.png](paper_figures/paper_table4b_reduced_or.png) |
 | Table 4b VIF | Table | [paper_table4b_vif_comparison.png](paper_figures/paper_table4b_vif_comparison.png) |
+| Table 4b Firth | Table | [paper_table4b_firth_or.png](paper_figures/paper_table4b_firth_or.png) |
 | Fig 6 | Figure | [paper_fig6_uni_vs_multivariable_or.png](paper_figures/paper_fig6_uni_vs_multivariable_or.png) |
 | Fig S5a | Supp. figure | [03_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03_correlation_heatmap_top42_vs_next41_with_target.png) |
 | Fig S5b | Supp. figure | [03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png](paper_figures/03b_spearman_correlation_heatmap_top42_vs_next41_with_target.png) |

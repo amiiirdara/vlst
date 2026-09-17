@@ -37,7 +37,7 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
-| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; **train** n=3629; all 81 scores written on Kaggle |
+| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; **train** n=3629; all 81 scores in `interpretability_mutual_info_ranking.csv` (Kaggle insert) |
 | Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring, **train** |
 | PDP | Average predicted probability (empirical prior) | local TabPFN | **Train** n=3629; `PDP_USE_CLIENT=False`; y-axis “empirical prior / not Part 4 risk” |
 | SHAP (shapiq SV) | Local attributions | client 429 → local KV cache | All 1,556 held-out rows; fit/background = train; budget=256 |
@@ -269,7 +269,7 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ## 7. Consensus ranking
 
-Ranking uses a **Borda-style mean of normalized ranks** across **train** mutual information, **train** stability frequency, and **held-out** mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values in Table 5 come from the consensus print (the full 81-row MI CSV stayed on Kaggle). `Cre` prints **0.000000** on train — a measured train-split zero, not a truncated-top-15 fill-zero.
+Ranking uses a **Borda-style mean of normalized ranks** across **train** mutual information, **train** stability frequency, and **held-out** mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values in Table 5 come from the consensus print; the full 81-row MI ranking is `interpretability_mutual_info_ranking.csv` in this folder (Kaggle Version 5 insert). `Cre` prints **0.000000** on train — a measured train-split zero, not a truncated-top-15 fill-zero.
 
 ### Figure 13. Top 15 by consensus
 

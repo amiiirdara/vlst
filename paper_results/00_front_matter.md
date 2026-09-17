@@ -16,7 +16,7 @@ This note is the manuscript front matter that Parts 1–5 previously lacked. It 
 
 Do **not** use: “risk factor”, “causal”, “protective”, “independent predictor”, “clinically useful”, or “validated” for any result in this pack. Wang’s 8-variable Cox score *was* externally tested on Shantou data; that word is reserved for **their** score. Nested-CV discrimination on the derivation cohort is not external validation, and it does not transfer to TabPFN by contagion.
 
-An adjusted OR < 1 (`1.1:1Post dilation` 0.144; `Clopidogrel` 0.464) or a negative PDP shift is a lower modelled odds / probability of recorded VLST, not a treatment benefit (confounding by indication).
+An adjusted OR < 1 from the identified **Table 4b** screen (`1.1:1Post dilation` 0.152; `Clopidogrel` 0.480) or a negative PDP shift is a lower modelled odds / probability of recorded VLST, not a treatment benefit (confounding by indication). Do not quote Table 4’s unidentified 17-covariate fit for these examples.
 
 ---
 

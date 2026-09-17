@@ -209,7 +209,7 @@ Statistics therefore still “owns” **anatomy coding and most stent-technique 
 - Interactions: `Men × eGFR` is an EDA FDR hit; univariate `Men` is not. LR consensus includes `Men`.
 - Independent selectors disagree. LightGBM’s three-way set is `HbA1c; LV` only. Some ML-only names (`Aneurysm`) are **algorithm artefacts**, not cohort discoveries.
 
-**Practical reading.** Treat the 5-name intersection (`WBC`, `eGFR`, `LV`, `HbA1c`, `1.1:1Post dilation`) as the robust extraction set: associated in the cohort *and* used by fitted classic models under PR-AUC. Treat statistical-only anatomy/stent/drug names as **association findings that need a non-redundant representative** before they enter a predictor. Treat ML-only names as **hypothesis-generating predictive correlates** until they pass a pre-specified association or external-validation bar. This comparison is a **methods result**, not a biological ranking of “true” risk markers.
+**Practical reading.** Treat the 5-name intersection (`WBC`, `eGFR`, `LV`, `HbA1c`, `1.1:1Post dilation`) as the robust extraction set: associated in the cohort *and* used by fitted classic models under PR-AUC. Treat statistical-only anatomy/stent/drug names as **association findings that need a non-redundant representative** before they enter a predictor. Treat ML-only names as **hypothesis-generating predictive correlates** until they pass a pre-specified association screen or a **held-out / external cohort** that this pack does not contain. This comparison is a **methods result**, not a biological ranking of “true” risk markers.
 
 ---
 

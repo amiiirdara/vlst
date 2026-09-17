@@ -33,7 +33,7 @@ This note is the manuscript front matter that Parts 1–5 previously lacked. It 
 
 Do **not** use: “risk factor”, “causal”, “protective”, “independent predictor”, “clinically useful”, or “validated” for any result in this pack. Wang’s 8-variable Cox score *was* externally tested on Shantou data; that word is reserved for **their** score. Nested-CV discrimination on the derivation cohort is not external validation, and it does not transfer to TabPFN by contagion.
 
-An adjusted OR < 1 (`1.1:1Post dilation` 0.144; `Clopidogrel` 0.464) or a negative PDP shift is a lower modelled odds / probability of recorded VLST, not a treatment benefit (confounding by indication).
+An adjusted OR < 1 from the identified **Table 4b** screen (`1.1:1Post dilation` 0.152; `Clopidogrel` 0.480) or a negative PDP shift is a lower modelled odds / probability of recorded VLST, not a treatment benefit (confounding by indication). Do not quote Table 4’s unidentified 17-covariate fit for these examples.
 
 ---
 
@@ -115,7 +115,7 @@ TabPFN configuration actually used: `code/modeling/rating/baseline_plus_tabpfn.i
 
 This document gathers publication-oriented figures and tables from the exploratory data analysis of very late stent thrombosis (VLST) in `eda.ipynb`.
 
-**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed to levels with n ≥ 30 plus `other` (**9 levels**) for the χ² screen via the shared encoder (`code/modeling/tools/stent_encoding.py`). Part 2 now uses that same 9-level column and one-hots it (drop-first → **88** scaled columns). Part 4 nested CV uses the same encoder, then one-hots without drop-first (~89 columns); TabPFN (local) sees the 9-level frame natively. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical association.
+**Cohort context.** Analyses use the VLST dataset (n = 5,185; 92 VLST events; prevalence 0.0177). The notebook printed **no missing values** in any column — univariate screens do not impute. Univariate continuous tests use Welch t-test when abs(skew) ≤ 1 and excess kurtosis ≤ 3, otherwise Mann–Whitney U. Binary associations use recommended 2×2 tests (chi-square / Fisher / related). Multiplicity is controlled with Benjamini–Hochberg FDR unless noted. Multivariable models are exploratory and sparse given the limited number of events. `Stent type-SES` is collapsed with the shared encoder (`code/modeling/tools/stent_encoding.py`): **106** raw CSV strings (`nunique`) → **9** levels (`min_count=30`, plus `other`). That is the Kaggle Part 4/5 print (`Stent brand: 106 raw strings -> 9 levels`). Part 2 one-hots the 9-level column (drop-first → **88** scaled columns). Part 4 nested CV uses the same encoder, then one-hots without drop-first (~89 columns); both TabPFN arms see the 9-level frame natively. `Time since stent implantation` is treated as a **time-at-risk / follow-up** variable and is **not** interpreted as a baseline clinical association.
 
 **Asset root:** [paper_figures/](01_eda/paper_figures/)
 
@@ -174,7 +174,7 @@ Rendered table image: [paper_figures/paper_table_c_cohort_characteristics.png](0
 | No postdilation (CSV as stored) | 2597 (50.99%) | 78 (84.78%) | Chi-square | 1.30e-10 |
 | DAPT during follow-up (not index PCI) | 2260 (44.37%) | 35 (38.04%) | Chi-square | 0.226 |
 
-**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](01_eda/paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](01_eda/paper_figures/paper_table_c_cohort_characteristics.csv). Generating code: `run_b7()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py`, also executed at the end of `eda.ipynb`.
+**Source files:** [paper_figures/paper_table_c_cohort_characteristics.png](01_eda/paper_figures/paper_table_c_cohort_characteristics.png), [paper_figures/paper_table_c_cohort_characteristics.csv](01_eda/paper_figures/paper_table_c_cohort_characteristics.csv)
 
 ---
 
@@ -305,7 +305,7 @@ Rendered table image: [paper_figures/paper_table2_binary_fdr.png](01_eda/paper_f
 
 ![Figure 5](01_eda/paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
-**Figure 5.** Observed VLST rate (%) across categories of `Stent type-SES` after the shared encoder (canonicalize aliases, collapse n < 30 → `other`, **9 levels**). Raw distinct strings in this run: **99**. Rates: `other` 5.5%, `xiencev` 3.3%, `partner` 2.3%, `excel` 2.1%, `firebird` 1.6%, `tivoli` 0.83%, `resolute` 0.82%, `xv` 0%, `xx` 0%. Part 2 one-hots these 9 levels. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
+**Figure 5.** Observed VLST rate (%) by the **9** shared-encoder levels of `Stent type-SES` (106 raw CSV strings → canonicalize aliases → collapse n < 30 to `other`; `min_count=30`). Same codebook as Kaggle Part 4/5. The PNG is this 9-level bar chart (`paper_fig5_categorical_rates_Stent_type-SES.png`); it does not plot 106 or 99 brands. Rates: `other` 5.5% (n=311), `xiencev` 3.3% (n=184), `partner` 2.3% (n=1034), `excel` 2.1% (n=989), `firebird` 1.6% (n=766), `tivoli` 0.83% (n=602), `resolute` 0.82% (n=852), `xv` 0% (n=198), `xx` 0% (n=249). Part 2 one-hots these 9 levels. Wang 2020 used a **binary SES class flag**. Rates are descriptive; formal association testing is summarized in Table 3.
 
 **Source file:** [paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png](01_eda/paper_figures/paper_fig5_categorical_rates_Stent_type-SES.png)
 
@@ -379,7 +379,7 @@ Rendered table image: [paper_figures/paper_table4b_reduced_or.png](01_eda/paper_
 | Diabetes | binary | 1.77 | 1.889 | 1.452 | [0.795, 2.652] |
 | PES | binary | 1.03 | 2.158 | 1.734 | [0.953, 3.154] |
 
-VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](01_eda/paper_figures/paper_table4b_vif_comparison.png). Generating code: `run_b4()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py`, also executed at the end of `eda.ipynb`.
+VIF comparison (Table 4 vs 4b): [paper_figures/paper_table4b_vif_comparison.png](01_eda/paper_figures/paper_table4b_vif_comparison.png). Script: `code/modeling/tools/paper_hygiene_b3_b4_b7.py`.
 
 **Source files:** [paper_figures/paper_table4b_reduced_or.png](01_eda/paper_figures/paper_table4b_reduced_or.png), [paper_figures/paper_table4b_reduced_or.csv](01_eda/paper_figures/paper_table4b_reduced_or.csv), [paper_figures/paper_table4b_vif_comparison.png](01_eda/paper_figures/paper_table4b_vif_comparison.png), [paper_figures/paper_table4b_vif_comparison.csv](01_eda/paper_figures/paper_table4b_vif_comparison.csv)
 
@@ -569,7 +569,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 **Selectors.** LOCO = drop-one and refit on the val slice (cheap-importance prefix of 60). Coalition SHAP = permutation coalitions on a cheap-importance universe of 40 (not LOCO’s names). FFS = greedy forward search on its own 24-name pool, stop at 12 steps or when PR-AUC stops rising. Objective: **`pr_auc` only**. These catalogues are **interpretation / attribution**, not prediction, and do **not** feed Part 4. SMOTE is not used.
 
-**Asset root:** [02_ml_selectors/paper_figures/](02_ml_selectors/paper_figures/)
+**Asset root:** [paper_figures/](02_ml_selectors/paper_figures/)
 
 ---
 
@@ -843,7 +843,6 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list (Wang Table 1 Engl
 *Numbers from the 2026-08-31 paper-protocol Kaggle run of* `baseline_feature_selections.ipynb` *(seven classic models, PR-AUC, independent selectors, 9-level stent encoder → 88 columns, fit/val 4148/1037). Regenerated by* `code/modeling/tools/rebuild_part2_paper_figures.py`.
 
 ---
-
 # Part 3. Statistical vs ML feature extraction
 
 ### Statistical vs machine-learning feature extraction in VLST
@@ -852,7 +851,7 @@ This note compares **what was extracted** from the same VLST cohort by (i) class
 
 Sources: [EDA_paper_figures_and_tables.md](01_eda/EDA_paper_figures_and_tables.md) (`eda.ipynb`) and [baseline_feature_selections_paper_figures_and_tables.md](02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md) (`baseline_feature_selections.ipynb`). Overlap arithmetic and figures are produced by [`stats_vs_ml_comparison.ipynb`](../code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb).
 
-**Asset root:** [03_stats_vs_ml/paper_figures/](03_stats_vs_ml/paper_figures/)
+**Asset root:** [paper_figures/](03_stats_vs_ml/paper_figures/)
 
 ---
 
@@ -1057,7 +1056,7 @@ Statistics therefore still “owns” **anatomy coding and most stent-technique 
 - Interactions: `Men × eGFR` is an EDA FDR hit; univariate `Men` is not. LR consensus includes `Men`.
 - Independent selectors disagree. LightGBM’s three-way set is `HbA1c; LV` only. Some ML-only names (`Aneurysm`) are **algorithm artefacts**, not cohort discoveries.
 
-**Practical reading.** Treat the 5-name intersection (`WBC`, `eGFR`, `LV`, `HbA1c`, `1.1:1Post dilation`) as the robust extraction set: associated in the cohort *and* used by fitted classic models under PR-AUC. Treat statistical-only anatomy/stent/drug names as **association findings that need a non-redundant representative** before they enter a predictor. Treat ML-only names as **hypothesis-generating predictive correlates** until they pass a pre-specified association or external-validation bar. This comparison is a **methods result**, not a biological ranking of “true” risk markers.
+**Practical reading.** Treat the 5-name intersection (`WBC`, `eGFR`, `LV`, `HbA1c`, `1.1:1Post dilation`) as the robust extraction set: associated in the cohort *and* used by fitted classic models under PR-AUC. Treat statistical-only anatomy/stent/drug names as **association findings that need a non-redundant representative** before they enter a predictor. Treat ML-only names as **hypothesis-generating predictive correlates** until they pass a pre-specified association screen or a **held-out / external cohort** that this pack does not contain. This comparison is a **methods result**, not a biological ranking of “true” risk markers.
 
 ---
 
@@ -1290,7 +1289,7 @@ These numbers are **not** the nested-CV headline. They come from the two single-
 
 ![Table S-TSSI](04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.png)
 
-**Table S-TSSI.** Same stratified 70/30 split and tuning protocol. Logistic regression PR-AUC falls from 0.958 to 0.508 when the column is dropped; CatBoost from 0.977 to 0.658. Gaussian NB is unaffected (it never used the column). Nested-CV models in the main tables use the *without-TSSI* protocol.
+**Table S-TSSI.** Same stratified 70/30 split and GridSearch family. The with-TSSI notebook applied SMOTE on the training set (`USE_SMOTE=True`); the without-TSSI notebook did not (`USE_SMOTE=False`). Quote the table as a leakage demonstration, not as a ceteris-paribus SMOTE-matched experiment. Nested-CV Part 4 does not use SMOTE and drops TSSI. Logistic regression PR-AUC falls from 0.9575 to 0.5077 when the column is dropped; CatBoost from 0.9773 to 0.6582. Gaussian NB is unchanged (it never used the column).
 
 **Source files:** [paper_figures/paper_table_s_tssi_leakage.png](04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.png), [paper_figures/paper_table_s_tssi_leakage.csv](04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.csv)
 
@@ -1429,7 +1428,7 @@ This document gathers publication-oriented figures and tables from the TabPFN in
 
 | Method | Question | Backend | Notebook setting |
 | --- | --- | --- | --- |
-| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; **train** n=3629; all 81 scores written on Kaggle |
+| mutual_info_classif | Univariate association | sklearn | 0 TabPFN calls; **train** n=3629; all 81 scores in `interpretability_mutual_info_ranking.csv` (Kaggle insert) |
 | Stability (repeated SFS) | Selection frequency | local TabPFN | 10 resamples × top-10 forward SFS, AP scoring, **train** |
 | PDP | Average predicted probability (empirical prior) | local TabPFN | **Train** n=3629; `PDP_USE_CLIENT=False`; y-axis “empirical prior / not Part 4 risk” |
 | SHAP (shapiq SV) | Local attributions | client 429 → local KV cache | All 1,556 held-out rows; fit/background = train; budget=256 |
@@ -1661,7 +1660,7 @@ Section [4/5] of the notebook recomputes imputation-based Shapley values and k-S
 
 ## 7. Consensus ranking
 
-Ranking uses a **Borda-style mean of normalized ranks** across **train** mutual information, **train** stability frequency, and **held-out** mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values in Table 5 come from the consensus print (the full 81-row MI CSV stayed on Kaggle). `Cre` prints **0.000000** on train — a measured train-split zero, not a truncated-top-15 fill-zero.
+Ranking uses a **Borda-style mean of normalized ranks** across **train** mutual information, **train** stability frequency, and **held-out** mean(|SHAP|), with `n_methods` (out of 3) as a consensus count. The notebook reports the top 15 as *associations* with stent thrombosis under TabPFN — exploratory, not causal, on a ~2% prevalence cohort. MI values in Table 5 come from the consensus print; the full 81-row MI ranking is `interpretability_mutual_info_ranking.csv` in this folder (Kaggle Version 5 insert). `Cre` prints **0.000000** on train — a measured train-split zero, not a truncated-top-15 fill-zero.
 
 ### Figure 13. Top 15 by consensus
 

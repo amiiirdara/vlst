@@ -153,17 +153,17 @@ Two cuts exist in the executed notebook. **Quote Table 2 (honest nested).** Figu
 
 ![Table 2](paper_figures/paper_table2_nested_operating_point.png)
 
-**Table 2.** Per-fold inner-CV F1 thresholds applied once to the unseen outer fold. TabPFN (thinking-high): mean threshold 0.271 ± 0.067, precision 0.7927, recall **0.7065**, F1 **0.7471**, TN/FP/FN/TP = **5076/17/27/65**. LightGBM: 0.112 ± 0.090, precision 0.6526, recall **0.6739**, F1 0.6631, **5060/33/30/62**. TabPFN (local): **0.166 ± 0.020**, precision 0.5478, recall **0.6848**, F1 0.6087, 5041/52/29/63 — more events caught than LightGBM, more false positives. The nested 2×2 for local matches the previous dump; the threshold scale does not (old *t* was 0.915 under `balance_probabilities=True`).
+**Table 2.** Per-fold inner-CV F1 thresholds applied once to the unseen outer fold. NPV = TN/(TN+FN). TabPFN (thinking-high): mean threshold 0.271 ± 0.067, precision 0.7927, recall **0.7065**, NPV **0.9947**, F1 **0.7471**, TN/FP/FN/TP = **5076/17/27/65**. LightGBM: 0.112 ± 0.090, precision 0.6526, recall **0.6739**, NPV **0.9941**, F1 0.6631, **5060/33/30/62**. TabPFN (local): **0.166 ± 0.020**, precision 0.5478, recall **0.6848**, NPV **0.9943**, F1 0.6087, 5041/52/29/63 — more events caught than LightGBM, more false positives. The nested 2×2 for local matches the previous dump; the threshold scale does not (old *t* was 0.915 under `balance_probabilities=True`).
 
-| Model | Threshold (mean ± SD) | Accuracy | Precision | Recall | Specificity | F1 | F2 | TN | FP | FN | TP |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| TabPFN (thinking-high) | 0.271 ± 0.067 | 0.9915 | 0.7927 | 0.7065 | 0.9967 | 0.7471 | 0.7222 | 5076 | 17 | 27 | 65 |
-| LightGBM | 0.112 ± 0.090 | 0.9878 | 0.6526 | 0.6739 | 0.9935 | 0.6631 | 0.6695 | 5060 | 33 | 30 | 62 |
-| XGBoost | 0.225 ± 0.060 | 0.9875 | 0.6452 | 0.6522 | 0.9935 | 0.6486 | 0.6508 | 5060 | 33 | 32 | 60 |
-| TabPFN (local) | 0.166 ± 0.020 | 0.9844 | 0.5478 | 0.6848 | 0.9898 | 0.6087 | 0.6522 | 5041 | 52 | 29 | 63 |
-| CatBoost | 0.167 ± 0.040 | 0.9815 | 0.4836 | 0.6413 | 0.9876 | 0.5514 | 0.6020 | 5030 | 63 | 33 | 59 |
-| Random Forest | 0.118 ± 0.013 | 0.9840 | 0.5517 | 0.5217 | 0.9923 | 0.5363 | 0.5275 | 5054 | 39 | 44 | 48 |
-| Logistic Regression | 0.947 ± 0.035 | 0.9769 | 0.3654 | 0.4130 | 0.9870 | 0.3878 | 0.4025 | 5027 | 66 | 54 | 38 |
+| Model | Threshold (mean ± SD) | Accuracy | Precision | Recall | Specificity | NPV | F1 | F2 | TN | FP | FN | TP |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| TabPFN (thinking-high) | 0.271 ± 0.067 | 0.9915 | 0.7927 | 0.7065 | 0.9967 | 0.9947 | 0.7471 | 0.7222 | 5076 | 17 | 27 | 65 |
+| LightGBM | 0.112 ± 0.090 | 0.9878 | 0.6526 | 0.6739 | 0.9935 | 0.9941 | 0.6631 | 0.6695 | 5060 | 33 | 30 | 62 |
+| XGBoost | 0.225 ± 0.060 | 0.9875 | 0.6452 | 0.6522 | 0.9935 | 0.9937 | 0.6486 | 0.6508 | 5060 | 33 | 32 | 60 |
+| TabPFN (local) | 0.166 ± 0.020 | 0.9844 | 0.5478 | 0.6848 | 0.9898 | 0.9943 | 0.6087 | 0.6522 | 5041 | 52 | 29 | 63 |
+| CatBoost | 0.167 ± 0.040 | 0.9815 | 0.4836 | 0.6413 | 0.9876 | 0.9935 | 0.5514 | 0.6020 | 5030 | 63 | 33 | 59 |
+| Random Forest | 0.118 ± 0.013 | 0.9840 | 0.5517 | 0.5217 | 0.9923 | 0.9914 | 0.5363 | 0.5275 | 5054 | 39 | 44 | 48 |
+| Logistic Regression | 0.947 ± 0.035 | 0.9769 | 0.3654 | 0.4130 | 0.9870 | 0.9894 | 0.3878 | 0.4025 | 5027 | 66 | 54 | 38 |
 
 **Source files:** [paper_figures/paper_table2_nested_operating_point.png](paper_figures/paper_table2_nested_operating_point.png), [paper_figures/paper_table2_nested_operating_point.csv](paper_figures/paper_table2_nested_operating_point.csv). Notebook print `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt`.
 
@@ -205,7 +205,7 @@ These numbers are **not** the nested-CV headline. They come from the two single-
 
 ![Table S-TSSI](paper_figures/paper_table_s_tssi_leakage.png)
 
-**Table S-TSSI.** Same stratified 70/30 split and tuning protocol. Logistic regression PR-AUC falls from 0.958 to 0.508 when the column is dropped; CatBoost from 0.977 to 0.658. Gaussian NB is unaffected (it never used the column). Nested-CV models in the main tables use the *without-TSSI* protocol.
+**Table S-TSSI.** Same stratified 70/30 split and GridSearch family. The with-TSSI notebook applied SMOTE on the training set (`USE_SMOTE=True`); the without-TSSI notebook did not (`USE_SMOTE=False`). Quote the table as a leakage demonstration, not as a ceteris-paribus SMOTE-matched experiment. Nested-CV Part 4 does not use SMOTE and drops TSSI. Logistic regression PR-AUC falls from 0.9575 to 0.5077 when the column is dropped; CatBoost from 0.9773 to 0.6582. Gaussian NB is unchanged (it never used the column).
 
 **Source files:** [paper_figures/paper_table_s_tssi_leakage.png](paper_figures/paper_table_s_tssi_leakage.png), [paper_figures/paper_table_s_tssi_leakage.csv](paper_figures/paper_table_s_tssi_leakage.csv)
 

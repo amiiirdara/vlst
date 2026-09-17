@@ -98,9 +98,9 @@ write that restore mapped 0.0673 → 0.0102.
 **only** this evidence map. Deleted and **not** sources for the paper: `docs/paper_outline.md`,
 `docs/paper_methods.md`, `docs/paper_results_exploratory.md`, `docs/paper_results_prediction.md`,
 `docs/paper_discussion.md`, `docs/paper_audit.md`, `docs/figure_table_selection.md`. Canonical
-prose for writing is `paper_results/` (§0.4). Dual tree under `code/**` is a byte-identical copy
-except Part 3’s notebook hyperlink (relative path). Cross-section conflicts and “was this notebook
-run with its final source?” are §0.5–§0.6.
+prose for writing is `paper_results/` (§0.4). Duplicate Markdown copies under `code/**` were
+deleted (they matched `paper_results/` except Part 3’s notebook hyperlink). Cross-section conflicts
+and “was this notebook run with its final source?” are §0.5–§0.6.
 
 **Revision 12 (2026-09-16 — paper Markdown follows live notebooks).** D4 applied: Parts 4 and 5
 reports, front matter, dual-tree copies, and `paper_results.md` now quote the executed notebooks,
@@ -237,7 +237,7 @@ It recomputes the overlap from the verified
 
 ### 0.4 Canonical files the paper results are written from
 
-**Use `paper_results/` as the Markdown tree.** `code/**` copies of the same reports are duplicates
+**Use `paper_results/` as the Markdown tree.** The old `code/**` copies of the same reports were deleted
 (E1). `paper_results/paper_results.md` is the concatenation of Parts 0–5. `docs/paper_evidence_map.md`
 is the provenance audit, not manuscript prose.
 
@@ -257,9 +257,9 @@ is the provenance audit, not manuscript prose.
 **Do not write from:** `code/failed_hypothesis/**`, `tabpfn_playground.ipynb`, `preprocessing.ipynb`,
 deleted `docs/paper_*.md` drafts. Quote Version 4 OOF CIs, not the previous dump’s 0.0673 intervals.
 
-**Dual-tree check (Revision 13).** Parts 1, 2, 4, 5 Markdown files are byte-identical across
-`paper_results/` and `code/`. Part 3 differs by one hyperlink (`../../code/analyzes/...` vs
-`stats_vs_ml_comparison.ipynb`). Quote `paper_results/`.
+**Dual-tree check (Revision 13, copies removed).** Report Markdown lives only under `paper_results/`.
+The `code/**` `.md` copies were deleted as duplicates. Quote `paper_results/`. Figure folders under
+`code/**/paper_figures/` may still exist as notebook export sidecars; they are not a second report.
 
 ### 0.5 Cross-section conflicts (do not collapse)
 
@@ -1843,8 +1843,8 @@ The paired PR-AUC test of thinking-high vs LightGBM is now in Part 4 Table S-Δ 
 | Never use                        | "risk factor", "causal", "protective", "independent predictor", "clinically useful", "validated" — none is supported by anything in this repository. |
 
 
-Note in particular that `1.1:1Post dilation` has an adjusted OR of 0.144 and a negative empirical-prior PDP
-shift of **−0.0043**, and that `Clopidogrel` has an OR of 0.464. In an observational cohort with
+Note in particular that `1.1:1Post dilation` has an identified-screen (Table 4b) adjusted OR of 0.152 and a negative empirical-prior PDP
+shift of **−0.0043**, and that `Clopidogrel` has Table 4b adjusted OR 0.480. In an observational cohort with
 confounding by indication, neither is a treatment benefit. Reports no longer use “protective” for these flags.
 Do not quote the old balanced-prior Δ of −0.086 as this run.
 
@@ -1917,7 +1917,7 @@ closures that were not reopened.
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
 | **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
 | **C9**  | Part 5 Table 5 caption                                                                    | **[REV12/closed in reports]** Train MI; `Cre` **0.000000**; 3/3 `{WBC, LV, eGFR}`. |
-| **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (OR 0.144), `Clopidogrel` (OR 0.464) | **[REV4/closed in reports]** Word removed from paper-style reports (Parts 1, 3, 5 and the concatenated bundle). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). Audit text below still names the banned word.          |
+| **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (Table 4b OR **0.152**), `Clopidogrel` (Table 4b OR **0.480**) | **[REV4/closed in reports]** Word removed from paper-style reports. Quote Table 4b, not Table 4 (0.144 / 0.464). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). |
 | **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |
 | **C13** | The three different "univariate OR" values for `Previous PCI` (6.485 / 6.465 / 6.733)     | **[CLOSED]** Reports name the estimator. Evidence-map §12.4 no longer treats this as an unlabeled discrepancy. Table 2 = 2×2/Fisher (**6.49**); Table 4 = unweighted logit (**6.46**); Table S4 = joint-domain univariate (**6.73**).                             |

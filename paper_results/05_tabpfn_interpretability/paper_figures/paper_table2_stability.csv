@@ -1,41 +1,14 @@
-Feature,Selected,Frequency
-WBC,10/10,1.0
-Cre,8/10,0.8
-LV,8/10,0.8
-eGFR,7/10,0.7
-Previous PCI,5/10,0.5
-Staged PCI,5/10,0.5
-Fiberinogen,4/10,0.4
-LVEF,4/10,0.4
-UA,4/10,0.4
-1.1:1Post dilation,3/10,0.3
-Age,3/10,0.3
-HbA1c,3/10,0.3
-ZES,3/10,0.3
-Cardiogenic shock,2/10,0.2
-Dissection,2/10,0.2
-LDL,2/10,0.2
-Men,2/10,0.2
-Min-stent diameter,2/10,0.2
-Slow flow,2/10,0.2
-3-vessel disease,1/10,0.1
-Bifurcation,1/10,0.1
-CKD5,1/10,0.1
-HDL,1/10,0.1
-HGB,1/10,0.1
-History of HF,1/10,0.1
-History of peripheral vascualr disease,1/10,0.1
-Initial diagnosis-AMI,1/10,0.1
-Lesion location-Ostial,1/10,0.1
-Moderate/severe calcification,1/10,0.1
-No postdilation,1/10,0.1
-P-LM,1/10,0.1
-P-RCA,1/10,0.1
-PES,1/10,0.1
-Pre-TIMI flow-3,1/10,0.1
-Previous CABG,1/10,0.1
-TCL,1/10,0.1
-TIMI-2,1/10,0.1
-Thrombus aspiration,1/10,0.1
-Ulceration,1/10,0.1
-Visual thrombus,1/10,0.1
+rank,feature,times_selected,selection_freq
+1,WBC,10,1.0
+2,Cre,8,0.8
+3,LV,8,0.8
+4,eGFR,7,0.7
+5,Previous PCI,5,0.5
+6,Staged PCI,5,0.5
+7,Fiberinogen,4,0.4
+8,LVEF,4,0.4
+9,UA,4,0.4
+10,1.1:1Post dilation,3,0.3
+11,Age,3,0.3
+12,HbA1c,3,0.3
+13,ZES,3,0.3
