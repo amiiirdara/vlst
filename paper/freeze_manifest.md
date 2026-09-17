@@ -1,8 +1,8 @@
 # Freeze manifest — VLST manuscript numerical registry
 
-**Date:** 2026-09-17  
+**Date:** 2026-09-18  
 **Registry:** [`paper/frozen_results.yaml`](frozen_results.yaml)  
-**Status:** **READY FOR MANUSCRIPT DRAFTING** (not BLOCKED)
+**Status:** **READY FOR MANUSCRIPT DRAFTING** (not BLOCKED). Part 4 numbers follow the 2026-09-17 TabPFN 3.5 / `tabpfn==9.0.0` nested-CV dump. Bootstrap CIs pending this-run OOF.
 
 Notebooks were not rerun. Values were not recalculated. Numbers were copied from Markdown reports (and from CSVs those reports name as table sources). Notebooks and scripts appear only as provenance.
 
@@ -38,7 +38,7 @@ The requested filenames with suffixes `-(2)` and `-(3)` were **not on disk**. Ca
 - `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb` (Jaccard print 0.1786)
 - `code/modeling/interpretability/baseline_feature_selections.ipynb`
 - `code/modeling/interpretability/tabpfn_interpretability.ipynb` (`e356bb1`, Version 5)
-- `code/modeling/rating/baseline_plus_tabpfn.ipynb` (`139d143`, Version 4)
+- `code/modeling/rating/baseline_plus_tabpfn.ipynb` (papermill 2026-09-17; `tabpfn==9.0.0` / v3.5)
 - `code/modeling/rating/baseline_tssi_leakage.ipynb` / `baseline_without_tssi.ipynb`
 - `code/modeling/rating/wang_vlst_score.ipynb`
 - `code/modeling/rating/rebuild_tssi_leakage_table.py`
@@ -71,29 +71,27 @@ Draft from `status: frozen` in the YAML. Headline scalars:
 - Do **not** quote Table 4 (17 covariates, unidentified, EPV ≈ 5.4; adj OR 0.042 / 0.527; Wald CI undefined).
 - Supplementary Table S2: 16 LR interaction tests; q < 0.05 for LV × eGFR and Men × eGFR only. Hypothesis-generating.
 
-### Prediction (Part 4 nested 5×4 CV, Version 4, TSSI dropped)
+### Prediction (Part 4 nested 5×4 CV, `tabpfn==9.0.0` / v3.5, TSSI dropped)
 
-Keep arms and metrics separate. Ranking = pooled OOF. Thresholded metrics = **Table 2 nested F1** (not Table 3).
+Keep arms and metrics separate. Ranking = pooled OOF. Thresholded metrics = **Table 2 nested F1** (not Table 3). Bootstrap **CIs pending** this-run OOF CSV.
 
-| Model | PR-AUC (95% CI) | ROC-AUC (95% CI) | Brier (95% CI) |
-| --- | --- | --- | --- |
-| TabPFN thinking-high | **0.8553** [0.7957, 0.9131] | **0.9905** [0.9834, 0.9964] | **0.0064** [0.0052, 0.0077] |
-| LightGBM | 0.6942 [0.6065, 0.7782] | 0.9681 [0.9490, 0.9831] | 0.0093 [0.0076, 0.0110] |
-| XGBoost | 0.6815 [0.5881, 0.7703] | 0.9439 [0.9100, 0.9742] | 0.0088 [0.0071, 0.0106] |
-| TabPFN local | 0.6742 [0.5864, 0.7657] | 0.9845 [0.9760, 0.9917] | 0.0102 [0.0092, 0.0113] |
-| CatBoost | 0.6172 [0.5250, 0.7148] | 0.9594 [0.9398, 0.9765] | 0.0101 [0.0084, 0.0119] |
-| Random forest | 0.4865 [0.3860, 0.6034] | 0.9209 [0.8824, 0.9555] | 0.0143 [0.0137, 0.0148] |
-| Logistic regression | 0.3326 [0.2486, 0.4345] | 0.9224 [0.8966, 0.9449] | 0.0563 [0.0511, 0.0611] |
-
-CIs: stratified bootstrap of pooled OOF, n_boot = 2,000, seed 42; models not re-fit.
+| Model | PR-AUC | ROC-AUC | Brier | ECE (8 q-bins) |
+| --- | --- | --- | --- | --- |
+| TabPFN thinking-high | **0.9771** | **0.9991** | **0.0023** | 0.0008 |
+| TabPFN local | 0.9635 | 0.9983 | 0.0025 | **0.0002** |
+| LightGBM | 0.6935 | 0.9681 | 0.0093 | 0.0075 |
+| XGBoost | 0.6815 | 0.9439 | 0.0088 | 0.0035 |
+| CatBoost | 0.6172 | 0.9594 | 0.0101 | 0.0026 |
+| Random forest | 0.4865 | 0.9209 | 0.0143 | 0.0087 |
+| Logistic regression | 0.3326 | 0.9224 | 0.0563 | 0.0758 |
 
 Nested operating point (Table 2), selected:
 
-- Thinking-high: t = 0.271 ± 0.067; PPV 0.7927; recall 0.7065; F1 0.7471; 5076/17/27/65.
-- LightGBM: t = 0.112 ± 0.090; recall 0.6739; 5060/33/30/62.
-- Local: t = 0.166 ± 0.020; recall 0.6848; 5041/52/29/63.
+- Thinking-high: t = 0.367 ± 0.106; PPV 0.9444; recall 0.9239; NPV 0.9986; F1 0.9341; 5088/5/7/85.
+- Local: t = 0.393 ± 0.107; recall 0.9348; NPV 0.9988; 5085/8/6/86.
+- LightGBM: t = 0.122 ± 0.084; recall 0.6522; 5063/30/32/60.
 
-Δ PR-AUC vs LightGBM: thinking-high **+0.1611** (0.0984–0.2289), P(Δ ≤ 0) = 0/2000; local **−0.0201** (−0.0974–0.0566). Fold wins: thinking-high 5/5; local 2/5.
+Point Δ PR-AUC vs LightGBM: thinking-high **+0.2836**; local **+0.2700**. Fold wins: thinking-high 5/5; local 5/5. Do not quote Version 4 CIs.
 
 ### TSSI leakage demonstration (70/30; not nested CV)
 
@@ -162,8 +160,9 @@ These may appear in Methods. They are not Results claims.
 **Still unresolved (leave blank):**
 
 - `preprocessing.ipynb` details for TSSI `.npy` arrays.
-- TabPFN client/server **pip versions** (unpinned install; no `__version__` on the Kaggle dump). Checkpoint filename is recorded.
-- ECE / calibration slope / intercept (not computed; do not derive from OOF or Figure 2).
+- TabPFN client/server **pip versions** recorded this run: `tabpfn==9.0.0`, `tabpfn_client==0.6.0`; weights `tabpfn-v3.5-20260909.safetensors`.
+- ECE (8 quantile bins) printed this Part 4 run (`paper_table_s_ece.csv`). Calibration slope / intercept still not computed.
+- This-run `oof_predictions.csv` is **not** in the repo; Table S-CI / S-Δ CIs pending `run_b3()`.
 
 **Found / now implemented:**
 
@@ -173,10 +172,9 @@ These may appear in Methods. They are not Results claims.
 
 **Found in code / frozen counts (not invented grids or new ECE):**
 
-- **NPV** = TN/(TN+FN) from frozen Table 2 2×2 (`derived_from_frozen_2x2`). Not printed by the notebook. Quote only if labeled as that identity.
-- **Outlier screen:** `eda.ipynb` Tukey IQR 1.5×IQR print; rows not dropped; not used in Part 4 / Table 4b. Do not quote the printed outlier-count table unless adding a new exhibit.
+- **NPV** = TN/(TN+FN); this Part 4 notebook prints Nested NPV matching Table 2.
 - **Classic constructors:** explicit `RUN_MODELS` kwargs (LR `max_iter=1000` balanced; RF balanced `n_jobs=-1`; XGB `aucpr` + `tree_method=hist` + fold `scale_pos_weight`; LGB `average_precision` balanced; CatBoost Balanced PRAUC GPU). Unspecified = library default. TSSI GridSearch winners are not Part 4 HPs.
-- Kaggle dump still has local `balance_probabilities=True`; Version 4 reports omit it — freeze the reports.
+- This run prints local `balance_probabilities=False`. Thinking-high constructor unchanged.
 
 ---
 
