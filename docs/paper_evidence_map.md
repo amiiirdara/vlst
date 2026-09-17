@@ -138,6 +138,22 @@ use the 81-row MI and SHAP CSVs. B13 / B14 **closed for the copy**. Table C / 4b
 code is `run_b7` / `run_b4` (hygiene script; also last cells of `eda.ipynb`). S-CI / S-Δ / S-TSSI
 are the hygiene / TSSI scripts only — **not** cells in the Kaggle nested-CV or TSSI notebooks.
 
+**Revision 14 (2026-09-18 — Part 4 TabPFN 3.5 / `tabpfn==9.0.0`).** Executed
+`baseline_plus_tabpfn.ipynb` papermill 2026-09-17T21:58Z, Tesla T4. Pip
+`tabpfn==9.0.0`, `tabpfn_client==0.6.0`; local weights
+`tabpfn-v3.5-20260909.safetensors`. Thinking-high constructor unchanged. Local
+print `balance_probabilities=False`. Restore skip (no mapping print).
+
+Live Part 4 paper numbers: thinking-high PR-AUC **0.9771** / ROC **0.9991** /
+Brier **0.0023** / ECE **0.0008**; nested recall **0.9239**, F1 **0.9341**,
+NPV **0.9986** (5088/5/7/85). Local PR **0.9635** / ROC **0.9983** / Brier
+**0.0025** / ECE **0.0002**; nested recall **0.9348**, F1 **0.9247**, NPV
+**0.9988** (5085/8/6/86). LightGBM PR **0.6935**; nested recall **0.6522**.
+Both TabPFN arms beat LightGBM PR-AUC in **5/5** folds. Version 4 (0.8553 /
+0.6742 / Brier 0.0064 vs 0.0102) is excluded. **B13 reopened:** this-run OOF
+CSV is not in the repo; do not quote Version 4 bootstrap CIs. Part 5 still
+`e356bb1` (different TabPFN object — rerun interpretability).
+
 **Revision 6.** Superseded by Revision 7 as the *current* Part 4/5 snapshot. That revision documented the
 Kaggle **local-only** nested CV (`RUN_MODELS["TabPFN"]=False`): LightGBM PR-AUC 0.6937, TabPFN (local)
 0.6754 / 0.9845 / Brier 0.0673. Keep those numbers only when explicitly labelled as the six-model local-only

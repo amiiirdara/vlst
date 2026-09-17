@@ -1,0 +1,8 @@
+Model,Brier,ECE (8 quantile bins)
+TabPFN (thinking-high),0.0023,0.0008
+TabPFN (local),0.0025,0.0002
+LightGBM,0.0093,0.0075
+XGBoost,0.0088,0.0035
+CatBoost,0.0101,0.0026
+Random Forest,0.0143,0.0087
+Logistic Regression,0.0563,0.0758
