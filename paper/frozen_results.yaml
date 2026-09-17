@@ -487,10 +487,11 @@ statistical_analysis:
   wald_tests:
     table4b_primary_interval: "Wald 95% CI"
     table4_ckd90_wald:
-      value: [2.708, 639.506]
-      source_file: paper_results/01_eda/EDA_paper_figures_and_tables.md
-      source_location: "Table 4 caption"
-      status: frozen
+      value: null
+      note: "Wald CI undefined (NaN) under Table 4 singularity. Bootstrap 95% [1.278, 45.12] in numeric CSV. Do not quote."
+      source_file: paper_results/01_eda/paper_figures/paper_table4_multivariable_or_numeric.csv
+      source_location: "Table 4"
+      status: excluded
     table4b_bootstrap_robustness: "2,000-replicate percentile bootstrap stored in CSV; Wald is primary"
     status: methods_only
   likelihood_ratio_tests:
@@ -522,13 +523,13 @@ statistical_analysis:
         - {feature: Diabetes, univariate_or: 1.889, adjusted_or: 1.452, wald_ci: [0.795, 2.652], vif: 1.77}
         - {feature: PES, univariate_or: 2.158, adjusted_or: 1.734, wald_ci: [0.953, 3.154], vif: 1.03}
     table4_do_not_quote_examples:
-      post_dilation_adj_or: 0.144
-      clopidogrel_adj_or: 0.464
+      post_dilation_adj_or: 0.042
+      clopidogrel_adj_or: 0.527
       status: excluded
-      note: "Unidentified 17-covariate Table 4. Front matter quotes Table 4b 0.152 / 0.480."
+      note: "Unidentified 17-covariate Table 4 (Wald CI undefined). Front matter quotes Table 4b 0.152 / 0.480."
     previous_pci_or_estimators_do_not_mix:
       table2_2x2: 6.49
-      table4_univariate_logit: 6.46
+      table4_univariate_logit: 6.516
       table_s4_joint_domain: 6.73
       table4b_univariate: 6.485
       source_file: paper_results/01_eda/EDA_paper_figures_and_tables.md
@@ -1262,10 +1263,10 @@ conflicts:
   blocking_for_same_quantity: []
   documented_different_quantities:
     - id: C1
-      items: ["encoder n_raw=106", "EDA χ² helper Raw levels=99", "9 encoder levels"]
-      freeze_choice: "Methods quote 106 → 9. 99 excluded."
+      items: ["encoder n_raw=106", "historical EDA helper Raw levels=99", "9 encoder levels"]
+      freeze_choice: "Methods and EDA Table 3 quote 106 → 9 (χ²=56.46, V=0.104, p=2.29e-09). 99 excluded."
     - id: Table4_vs_4b
-      items: ["Table 4 adj OR 0.144/0.464", "Table 4b adj OR 0.152/0.480"]
+      items: ["Table 4 adj OR 0.042/0.527 (Wald undefined)", "Table 4b adj OR 0.152/0.480"]
       freeze_choice: "Quote Table 4b. Table 4 excluded as unidentified."
     - id: nested_vs_pooled_F1
       items: ["Table 2 nested", "Table 3 pooled"]

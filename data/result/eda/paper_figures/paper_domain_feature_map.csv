@@ -46,7 +46,7 @@ Procedural / stent,Thrombus aspiration,Yes,int64,5185,0.0,2
 Procedural / stent,Slow flow,Yes,int64,5185,0.0,2
 Procedural / stent,No reflow,Yes,int64,5185,0.0,2
 Procedural / stent,Dissection,Yes,int64,5185,0.0,2
-Procedural / stent,Stent type-SES,Yes,str,5185,0.0,106
+Procedural / stent,Stent type-SES,Yes,object,5185,0.0,9
 Procedural / stent,PES,Yes,int64,5185,0.0,2
 Procedural / stent,ZES,Yes,int64,5185,0.0,2
 Procedural / stent,EVS,Yes,int64,5185,0.0,2

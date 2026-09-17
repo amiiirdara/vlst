@@ -65,7 +65,7 @@ Every **adjusted odds ratio** quoted as the identified screen is from Part 1 **T
 
 2. **Binary classification vs published Cox analysis.** Wang used time-to-event on the follow-up axis. This pack uses a 0/1 label and drops `Time since stent implantation` because, as a covariate, it leaks (Part 4 S-TSSI). The frozen integer score on that binary label recovers Wang’s derivation c-statistic (ROC-AUC 0.8013 vs published 0.80; Part 4 S-Wang). That is not a re-fit of the Cox linear predictor, and it is not Shantou. Nested-CV TabPFN (thinking-high) PR-AUC **0.8553** (LightGBM **0.6942**; TabPFN local **0.6742**) vs the frozen score **0.1032** is a derivation-cohort ranking comparison only.
 
-3. **EPV ≈ 7.1** on the identified 13-covariate logit (Table 4b); **EPV ≈ 5.4** on the stored 17-covariate Table 4, which is unidentified (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`; `CKD90` Wald interval 2.71–639.5). Quote Table 4b. Still below EPV ≥ 10.
+3. **EPV ≈ 7.1** on the identified 13-covariate logit (Table 4b); **EPV ≈ 5.4** on the stored 17-covariate Table 4, which is unidentified (`1.1:1Post dilation` beside `No postdilation`; `eGFR` beside `CKD5` / `CKD90`; Wald SEs/CIs undefined). Quote Table 4b. Still below EPV ≥ 10.
 
 4. **Two TabPFN calibrations.** Nested-CV TabPFN (thinking-high) Brier is **0.0064**, the **best** of the seven. TabPFN (local) Brier is **0.0102** on Version 4 (unbalanced constructor; restore skipped) — in the booster band, **not** the worst. The previous dump’s local Brier **0.0673** used `balance_probabilities=True` and is not this notebook. Client thinking-high is non-deterministic across dumps (historical Brier 0.0060 / 0.0360 vs this dump 0.0064). Do not collapse the arms.
 
