@@ -150,9 +150,13 @@ NPV **0.9986** (5088/5/7/85). Local PR **0.9635** / ROC **0.9983** / Brier
 **0.0025** / ECE **0.0002**; nested recall **0.9348**, F1 **0.9247**, NPV
 **0.9988** (5085/8/6/86). LightGBM PR **0.6935**; nested recall **0.6522**.
 Both TabPFN arms beat LightGBM PR-AUC in **5/5** folds. Version 4 (0.8553 /
-0.6742 / Brier 0.0064 vs 0.0102) is excluded. **B13 reopened:** this-run OOF
-CSV is not in the repo; do not quote Version 4 bootstrap CIs. Part 5 still
-`e356bb1` (different TabPFN object — rerun interpretability).
+0.6742 / Brier 0.0064 vs 0.0102) is excluded. **B13 closed:** this-run OOF is
+`code/modeling/rating/baseline_plus_tabpfn_results/modeling_results/oof/`
+(copied to `data/result/modeling_results/oof/`). Thinking-high PR-AUC
+**0.9771 (0.9538–0.9942)** vs LightGBM **0.6935 (0.6060–0.7779)**; Δ
+**0.2836 (0.2052–0.3650)**, P(Δ ≤ 0) = 0/2000. Local **0.9635 (0.9339–0.9883)**;
+Δ **0.2700 (0.1939–0.3513)**, P(Δ ≤ 0) = 0/2000. Part 5 still `e356bb1`
+(different TabPFN object — rerun interpretability).
 
 **Revision 6.** Superseded by Revision 7 as the *current* Part 4/5 snapshot. That revision documented the
 Kaggle **local-only** nested CV (`RUN_MODELS["TabPFN"]=False`): LightGBM PR-AUC 0.6937, TabPFN (local)
