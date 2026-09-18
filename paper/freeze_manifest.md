@@ -73,17 +73,17 @@ Draft from `status: frozen` in the YAML. Headline scalars:
 
 ### Prediction (Part 4 nested 5×4 CV, `tabpfn==9.0.0` / v3.5, TSSI dropped)
 
-Keep arms and metrics separate. Ranking = pooled OOF. Thresholded metrics = **Table 2 nested F1** (not Table 3). Bootstrap **CIs pending** this-run OOF CSV.
+Keep arms and metrics separate. Ranking = pooled OOF. Thresholded metrics = **Table 2 nested F1** (not Table 3).
 
-| Model | PR-AUC | ROC-AUC | Brier | ECE (8 q-bins) |
+| Model | PR-AUC (95% CI) | ROC-AUC (95% CI) | Brier (95% CI) | ECE (8 q-bins) |
 | --- | --- | --- | --- | --- |
-| TabPFN thinking-high | **0.9771** | **0.9991** | **0.0023** | 0.0008 |
-| TabPFN local | 0.9635 | 0.9983 | 0.0025 | **0.0002** |
-| LightGBM | 0.6935 | 0.9681 | 0.0093 | 0.0075 |
-| XGBoost | 0.6815 | 0.9439 | 0.0088 | 0.0035 |
-| CatBoost | 0.6172 | 0.9594 | 0.0101 | 0.0026 |
-| Random forest | 0.4865 | 0.9209 | 0.0143 | 0.0087 |
-| Logistic regression | 0.3326 | 0.9224 | 0.0563 | 0.0758 |
+| TabPFN thinking-high | **0.9771** [0.9538, 0.9942] | **0.9991** [0.9979, 0.9999] | **0.0023** [0.0016, 0.0032] | 0.0008 |
+| TabPFN local | 0.9635 [0.9339, 0.9883] | 0.9983 [0.9964, 0.9997] | 0.0025 [0.0018, 0.0034] | **0.0002** |
+| LightGBM | 0.6935 [0.6060, 0.7779] | 0.9681 [0.9490, 0.9831] | 0.0093 [0.0076, 0.0110] | 0.0075 |
+| XGBoost | 0.6815 [0.5881, 0.7703] | 0.9439 [0.9100, 0.9742] | 0.0088 [0.0071, 0.0106] | 0.0035 |
+| CatBoost | 0.6172 [0.5250, 0.7148] | 0.9594 [0.9398, 0.9765] | 0.0101 [0.0084, 0.0119] | 0.0026 |
+| Random forest | 0.4865 [0.3860, 0.6034] | 0.9209 [0.8824, 0.9555] | 0.0143 [0.0137, 0.0148] | 0.0087 |
+| Logistic regression | 0.3326 [0.2486, 0.4345] | 0.9224 [0.8966, 0.9449] | 0.0563 [0.0511, 0.0611] | 0.0758 |
 
 Nested operating point (Table 2), selected:
 
@@ -91,7 +91,9 @@ Nested operating point (Table 2), selected:
 - Local: t = 0.393 ± 0.107; recall 0.9348; NPV 0.9988; 5085/8/6/86.
 - LightGBM: t = 0.122 ± 0.084; recall 0.6522; 5063/30/32/60.
 
-Point Δ PR-AUC vs LightGBM: thinking-high **+0.2836**; local **+0.2700**. Fold wins: thinking-high 5/5; local 5/5. Do not quote Version 4 CIs.
+CIs: stratified bootstrap of pooled OOF, n_boot = 2,000, seed 42; models not re-fit.
+
+Δ PR-AUC vs LightGBM: thinking-high **+0.2836** (0.2052–0.3650), P(Δ ≤ 0) = 0/2000; local **+0.2700** (0.1939–0.3513), P(Δ ≤ 0) = 0/2000. Fold wins: thinking-high 5/5; local 5/5.
 
 ### TSSI leakage demonstration (70/30; not nested CV)
 
@@ -162,7 +164,7 @@ These may appear in Methods. They are not Results claims.
 - `preprocessing.ipynb` details for TSSI `.npy` arrays.
 - TabPFN client/server **pip versions** recorded this run: `tabpfn==9.0.0`, `tabpfn_client==0.6.0`; weights `tabpfn-v3.5-20260909.safetensors`.
 - ECE (8 quantile bins) printed this Part 4 run (`paper_table_s_ece.csv`). Calibration slope / intercept still not computed.
-- This-run `oof_predictions.csv` is **not** in the repo; Table S-CI / S-Δ CIs pending `run_b3()`.
+- This-run `oof_predictions.csv` is in `code/modeling/rating/baseline_plus_tabpfn_results/` and `data/result/modeling_results/oof/`. Table S-CI / S-Δ recomputed.
 
 **Found / now implemented:**
 

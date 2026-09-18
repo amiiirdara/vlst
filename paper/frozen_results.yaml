@@ -15,7 +15,7 @@ freeze:
     Nested-CV prediction metrics now follow the 2026-09-17 Kaggle dump
     (tabpfn==9.0.0 / tabpfn_client==0.6.0, v3.5 weights). Table 4b, Wang frozen
     score, TSSI leakage, and Part 5 attribution are unchanged. Bootstrap CIs
-    are pending this-run OOF. Historical dumps (V4 thinking PR-AUC 0.8553;
+    are this-run OOF (n_boot=2000). Historical dumps (V4 thinking PR-AUC 0.8553;
     local Brier 0.0102 / 0.0673; SHAP 15+15) are excluded, not merged.
 
 study:
@@ -410,7 +410,7 @@ validation:
       source_location: "A score already exists; Limitations item 1"
       status: methods_only
   bootstrap_method:
-    design: "Planned: patient-level stratified bootstrap of this-run pooled OOF; CIs pending OOF CSV"
+    design: "Patient-level stratified bootstrap of this-run pooled OOF; classifiers not re-fit"
     n_boot:
       value: 2000
       source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
@@ -556,7 +556,7 @@ model_results:
     tabpfn_local_this_run: 'TabPFNClassifier(device=cuda, n_estimators="auto", ignore_pretraining_limits=False, random_state=42); balance_probabilities=False; weights tabpfn-v3.5-20260909.safetensors; pip tabpfn==9.0.0'
     status: methods_only
   baseline_models_without_tssi:
-    note: "Part 4 nested 5×4 CV, papermill 2026-09-17, tabpfn==9.0.0 / v3.5. TSSI dropped. SMOTE not used. Ranking = pooled OOF. Operating point = Table 2 nested inner F1 (quote). Table 3 pooled F1 is optimistic — excluded from headline. Bootstrap CIs pending this-run OOF."
+    note: "Part 4 nested 5×4 CV, papermill 2026-09-17, tabpfn==9.0.0 / v3.5. TSSI dropped. SMOTE not used. Ranking = pooled OOF. Operating point = Table 2 nested inner F1 (quote). Table 3 pooled F1 is optimistic — excluded from headline."
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Tables 1, 2, S-CI"
     logistic_regression:
@@ -564,9 +564,9 @@ model_results:
       class_weight: balanced
       max_iter: 1000
       nested_cv_oof:
-        pr_auc: {value: 0.3326, ci: null, fold_mean_sd: "0.3451 ± 0.1213", status: frozen, note: "CI pending this-run OOF"}
-        roc_auc: {value: 0.9224, ci: null, fold_mean_sd: "0.9235 ± 0.0251", status: frozen, note: "CI pending this-run OOF"}
-        brier: {value: 0.0563, ci: null, status: frozen, note: "CI pending this-run OOF"}
+        pr_auc: {value: 0.3326, ci: [0.2486, 0.4345], fold_mean_sd: "0.3451 ± 0.1213", status: frozen}
+        roc_auc: {value: 0.9224, ci: [0.8966, 0.9449], fold_mean_sd: "0.9235 ± 0.0251", status: frozen}
+        brier: {value: 0.0563, ci: [0.0511, 0.0611], status: frozen}
       nested_operating_point_table2:
         threshold_mean_sd: "0.947 ± 0.035"
         accuracy: 0.9769
@@ -585,9 +585,9 @@ model_results:
         note: "Optimistic; do not quote instead of Table 2."
     xgboost:
       nested_cv_oof:
-        pr_auc: {value: 0.6815, ci: null, fold_mean_sd: "0.6928 ± 0.1288", status: frozen, note: "CI pending this-run OOF"}
-        roc_auc: {value: 0.9439, ci: null, fold_mean_sd: "0.9431 ± 0.0418", status: frozen, note: "CI pending this-run OOF"}
-        brier: {value: 0.0088, ci: null, status: frozen, note: "CI pending this-run OOF"}
+        pr_auc: {value: 0.6815, ci: [0.5881, 0.7703], fold_mean_sd: "0.6928 ± 0.1288", status: frozen}
+        roc_auc: {value: 0.9439, ci: [0.9100, 0.9742], fold_mean_sd: "0.9431 ± 0.0418", status: frozen}
+        brier: {value: 0.0088, ci: [0.0071, 0.0106], status: frozen}
       nested_operating_point_table2:
         threshold_mean_sd: "0.225 ± 0.060"
         accuracy: 0.9875
@@ -603,9 +603,9 @@ model_results:
         status: frozen
     lightgbm:
       nested_cv_oof:
-        pr_auc: {value: 0.6935, ci: null, fold_mean_sd: "0.6942 ± 0.0920", status: frozen, note: "CI pending this-run OOF"}
-        roc_auc: {value: 0.9681, ci: null, fold_mean_sd: "0.9695 ± 0.0165", status: frozen, note: "CI pending this-run OOF"}
-        brier: {value: 0.0093, ci: null, status: frozen, note: "CI pending this-run OOF"}
+        pr_auc: {value: 0.6935, ci: [0.6060, 0.7779], fold_mean_sd: "0.6942 ± 0.0920", status: frozen}
+        roc_auc: {value: 0.9681, ci: [0.9490, 0.9831], fold_mean_sd: "0.9695 ± 0.0165", status: frozen}
+        brier: {value: 0.0093, ci: [0.0076, 0.0110], status: frozen}
       nested_operating_point_table2:
         threshold_mean_sd: "0.122 ± 0.084"
         accuracy: 0.9880
@@ -623,9 +623,9 @@ model_results:
       status: frozen
     catboost:
       nested_cv_oof:
-        pr_auc: {value: 0.6172, ci: null, fold_mean_sd: "0.6353 ± 0.0540", status: frozen, note: "CI pending this-run OOF"}
-        roc_auc: {value: 0.9594, ci: null, fold_mean_sd: "0.9612 ± 0.0137", status: frozen, note: "CI pending this-run OOF"}
-        brier: {value: 0.0101, ci: null, status: frozen, note: "CI pending this-run OOF"}
+        pr_auc: {value: 0.6172, ci: [0.5250, 0.7148], fold_mean_sd: "0.6353 ± 0.0540", status: frozen}
+        roc_auc: {value: 0.9594, ci: [0.9398, 0.9765], fold_mean_sd: "0.9612 ± 0.0137", status: frozen}
+        brier: {value: 0.0101, ci: [0.0084, 0.0119], status: frozen}
       nested_operating_point_table2:
         threshold_mean_sd: "0.167 ± 0.040"
         accuracy: 0.9815
@@ -641,9 +641,9 @@ model_results:
         status: frozen
     random_forest:
       nested_cv_oof:
-        pr_auc: {value: 0.4865, ci: null, fold_mean_sd: "0.5034 ± 0.0793", status: frozen, note: "CI pending this-run OOF"}
-        roc_auc: {value: 0.9209, ci: null, fold_mean_sd: "0.9206 ± 0.0423", status: frozen, note: "CI pending this-run OOF"}
-        brier: {value: 0.0143, ci: null, status: frozen, note: "CI pending this-run OOF"}
+        pr_auc: {value: 0.4865, ci: [0.3860, 0.6034], fold_mean_sd: "0.5034 ± 0.0793", status: frozen}
+        roc_auc: {value: 0.9209, ci: [0.8824, 0.9555], fold_mean_sd: "0.9206 ± 0.0423", status: frozen}
+        brier: {value: 0.0143, ci: [0.0137, 0.0148], status: frozen}
       nested_operating_point_table2:
         threshold_mean_sd: "0.118 ± 0.013"
         accuracy: 0.9840
@@ -775,22 +775,21 @@ model_results:
       evaluation: "pooled nested-CV OOF ranking (threshold-independent)"
       pr_auc:
         value: 0.9771
-        ci: null
+        ci: [0.9538, 0.9942]
         fold_mean_sd: "0.9776 ± 0.0266"
         outer_fold_values: [0.9879, 0.9397, 0.9604, 1.0000, 1.0000]
         wins_vs_lightgbm_folds: "5/5"
         source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
         source_location: "Table 1; after Table 1"
         status: frozen
-        note: "CI pending this-run OOF"
       roc_auc:
         value: 0.9991
-        ci: null
+        ci: [0.9979, 0.9999]
         fold_mean_sd: "0.9991 ± 0.0012"
         status: frozen
       brier:
         value: 0.0023
-        ci: null
+        ci: [0.0016, 0.0032]
         ece: 0.0008
         note: "Best Brier of seven on this run. Do not collapse with local."
         status: frozen
@@ -816,13 +815,12 @@ model_results:
         status: excluded
       delta_pr_auc_vs_lightgbm:
         value: 0.2836
-        ci: null
-        p_delta_le_0: pending
+        ci: [0.2052, 0.3650]
+        p_delta_le_0: "0/2000"
         status: frozen
-        note: "Point only; bootstrap pending OOF"
     confidence_intervals:
       method: "stratified bootstrap n_boot=2000 seed 42 on pooled OOF; models not re-fit"
-      status: unresolved
+      status: frozen
     feature_set: "81 non-ID non-TSSI columns after 9-level stent encoder; TabPFN-native (no Part 2/5 mask)"
     interpretation: "Nested-CV prediction performance on the derivation cohort. Not external validation. Not clinical utility."
     status: frozen
@@ -844,20 +842,19 @@ model_results:
       evaluation: "pooled nested-CV OOF ranking (same splits as thinking-high; do not merge arms)"
       pr_auc:
         value: 0.9635
-        ci: null
+        ci: [0.9339, 0.9883]
         fold_mean_sd: "0.9638 ± 0.0272"
         outer_fold_values: [0.9881, 0.9382, 0.9334, 0.9917, 0.9678]
         wins_vs_lightgbm_folds: "5/5"
         status: frozen
-        note: "CI pending this-run OOF"
       roc_auc:
         value: 0.9983
-        ci: null
+        ci: [0.9964, 0.9997]
         fold_mean_sd: "0.9985 ± 0.0014"
         status: frozen
       brier:
         value: 0.0025
-        ci: null
+        ci: [0.0018, 0.0034]
         ece: 0.0002
         note: "Second on Brier this run. Do not quote 0.0102 or 0.0673."
         status: frozen
@@ -882,8 +879,8 @@ model_results:
         status: excluded
       delta_pr_auc_vs_lightgbm:
         value: 0.2700
-        ci: null
-        note: "Point only; bootstrap pending OOF"
+        ci: [0.1939, 0.3513]
+        p_delta_le_0: "0/2000"
         status: frozen
       historical_excluded:
         pr_auc: 0.6754
@@ -892,7 +889,7 @@ model_results:
         status: excluded
     confidence_intervals:
       method: "same stratified bootstrap as thinking-high"
-      status: unresolved
+      status: frozen
     feature_set: "Same 9-level native frame as thinking-high; no Part 2/5 mask"
     interpretation: "Separate arm. Second on PR-AUC and ROC-AUC this run. Nested-CV prediction performance only."
     status: frozen
@@ -1160,9 +1157,9 @@ figures_and_tables:
     type: table
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Table S-CI"
-    included_values: "pending this-run OOF"
+    included_values: "PR/ROC/Brier CIs n_boot=2000 this-run OOF"
     manuscript_role: "uncertainty on pooled OOF"
-    status: unresolved
+    status: frozen
   - id: "Part4-Table2"
     title: "Honest nested-CV operating point"
     type: table
@@ -1253,7 +1250,6 @@ provenance:
   values_recalculated: false
   unresolved_items:
     - "preprocessing.ipynb details for TSSI npy arrays"
-    - "this-run oof_predictions.csv not in repo; Table S-CI / S-Δ CIs pending run_b3()"
     - "calibration slope / intercept (not computed)"
   resolved_from_code:
     - "NPV = TN/(TN+FN) from frozen Table 2 2×2; Part 4 metrics_at_threshold now prints npv"

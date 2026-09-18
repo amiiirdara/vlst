@@ -77,7 +77,7 @@ Every **adjusted odds ratio** quoted as the identified screen is from Part 1 **T
 
 8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high; the client arm is thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
 
-9. **PR-AUC CIs and paired test (B3).** Point estimates from this notebook: thinking-high PR-AUC **0.9771** vs LightGBM **0.6935** (Δ **0.2836**); local **0.9635** (Δ **0.2700**). Both TabPFN arms are higher than LightGBM in **5 of 5** outer folds. Stratified bootstrap CIs are **pending** this-run OOF (`n_boot = 2000`); do not attach Version 4 intervals. Download Kaggle `oof_predictions.csv` then `run_b3()`.
+9. **PR-AUC CIs and paired test (B3).** Stratified bootstrap of this-run pooled OOF (`n_boot = 2000`): thinking-high PR-AUC **0.9771 (0.9538–0.9942)** vs LightGBM **0.6935 (0.6060–0.7779)**; Δ **0.2836 (0.2052–0.3650)**, P(Δ ≤ 0) = 0/2000. Local **0.9635 (0.9339–0.9883)**; Δ **0.2700 (0.1939–0.3513)**, P(Δ ≤ 0) = 0/2000. Both TabPFN arms are higher than LightGBM in **5 of 5** outer folds. OOF: `code/modeling/rating/baseline_plus_tabpfn_results/modeling_results/oof/` (copied to `data/result/modeling_results/oof/`).
 
 10. **`LV` (and `CaI`) are not named in the CSV.** Until the columns are named, timed, and unit-defined, do not treat `LV` as a novel echo marker. `CaI` means match Wang Table 1 peak troponin I but the file still does not expand the name. Clinical Table C is rebuilt from `VLST.csv` (B7), including both, and does not photocopy Wang’s post-dilation label.
 

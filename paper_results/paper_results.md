@@ -94,7 +94,7 @@ Every **adjusted odds ratio** quoted as the identified screen is from Part 1 **T
 
 8. **Unequal tuning (Part 4).** A shared 9-level stent encoder is applied before the split. Classics then scale + one-hot that column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Classics are untuned defaults; local TabPFN is not thinking-high; the client arm is thinking-high. Part 2/5 catalogues are discovery / attribution, not a mask for Part 4.
 
-9. **PR-AUC CIs and paired test (B3).** Point estimates from this notebook: thinking-high PR-AUC **0.9771** vs LightGBM **0.6935** (Δ **0.2836**); local **0.9635** (Δ **0.2700**). Both TabPFN arms are higher than LightGBM in **5 of 5** outer folds. Stratified bootstrap CIs are **pending** this-run OOF (`n_boot = 2000`); do not attach Version 4 intervals. Download Kaggle `oof_predictions.csv` then `run_b3()`.
+9. **PR-AUC CIs and paired test (B3).** Stratified bootstrap of this-run pooled OOF (`n_boot = 2000`): thinking-high PR-AUC **0.9771 (0.9538–0.9942)** vs LightGBM **0.6935 (0.6060–0.7779)**; Δ **0.2836 (0.2052–0.3650)**, P(Δ ≤ 0) = 0/2000. Local **0.9635 (0.9339–0.9883)**; Δ **0.2700 (0.1939–0.3513)**, P(Δ ≤ 0) = 0/2000. Both TabPFN arms are higher than LightGBM in **5 of 5** outer folds. OOF: `code/modeling/rating/baseline_plus_tabpfn_results/modeling_results/oof/` (copied to `data/result/modeling_results/oof/`).
 
 10. **`LV` (and `CaI`) are not named in the CSV.** Until the columns are named, timed, and unit-defined, do not treat `LV` as a novel echo marker. `CaI` means match Wang Table 1 peak troponin I but the file still does not expand the name. Clinical Table C is rebuilt from `VLST.csv` (B7), including both, and does not photocopy Wang’s post-dilation label.
 
@@ -1113,7 +1113,7 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 **Cohort / protocol.** Full VLST cohort, n = 5,185 (92 events; prevalence = 0.0177). Target = `Stent thrombosis`. Identifiers (`NO.`, `Name`) and `Time since stent implantation` are dropped; the latter is treated as a time-at-risk / follow-up column, not a baseline covariate. **No Part 2 / Part 5 feature mask is applied.** Evaluation is nested stratified CV: **5 outer folds / 4 inner folds** (outer `random_state=42`). Ranking metrics (PR-AUC, ROC-AUC, Brier) use pooled outer out-of-fold probabilities and are threshold-independent. For precision / recall / F1 / F2, **quote the nested inner-fold thresholds** (Table 2): each outer fold’s cut is chosen on inner OOF scores and applied once to that fold’s unseen cases. Figure 3 / Table 3 additionally show a single pooled F1 cut; that cut is **optimistically biased** (methods note below). These nested-CV metrics are this pack’s only **prediction** results.
 
-**This run (D4).** Kaggle nested CV, Tesla T4, papermill **2026-09-17T21:58Z**. Pip prints **`tabpfn==9.0.0`**, **`tabpfn_client==0.6.0`** (user label: TabPFN **3.5**; local weights download `tabpfn-v3.5-20260909.safetensors`). Other prints: sklearn=1.6.1, numpy=2.0.2, pandas=2.3.3, xgboost=3.2.0, lightgbm=4.6.0, catboost=1.2.10, torch=2.10.0+cu128. **Both TabPFN arms finished.** `RUN_MODELS` keys are `"TabPFN thinking mode"` (client) and `"TabPFN"` (local). The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Local is `n_estimators="auto"` on CUDA with **no** `balance_probabilities` (print: `balance_probabilities=False`). `restore_tabpfn_empirical_prior` is called and **did not print** a mapping (skip path). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Kaggle wrote OOF to `/kaggle/working/modeling_results/oof/oof_predictions.csv`; that file is **not** yet in this repo (`data/result/modeling_results/oof/` is still the 2026-09-16 dump). Table S-CI / Table S-Δ CIs are therefore **pending**; do not attach the old Version 4 intervals to these point estimates.
+**This run (D4).** Kaggle nested CV, Tesla T4, papermill **2026-09-17T21:58Z**. Pip prints **`tabpfn==9.0.0`**, **`tabpfn_client==0.6.0`** (user label: TabPFN **3.5**; local weights download `tabpfn-v3.5-20260909.safetensors`). Other prints: sklearn=1.6.1, numpy=2.0.2, pandas=2.3.3, xgboost=3.2.0, lightgbm=4.6.0, catboost=1.2.10, torch=2.10.0+cu128. **Both TabPFN arms finished.** `RUN_MODELS` keys are `"TabPFN thinking mode"` (client) and `"TabPFN"` (local). The thinking-high constructor is unchanged (`tabpfn_client.TabPFNClassifier`, `thinking_mode=True`, `thinking_effort="high"`, `thinking_metric="average_precision"`). Local is `n_estimators="auto"` on CUDA with **no** `balance_probabilities` (print: `balance_probabilities=False`). `restore_tabpfn_empirical_prior` is called and **did not print** a mapping (skip path). Shared **9-level** stent encoder (106 raw strings → 9 levels, min_count=30) is applied before the split. Classics then scale + one-hot that 9-level column inside each CV split (~89 columns). Both TabPFN arms see the same 9-level frame natively. Kaggle OOF is in `code/modeling/rating/baseline_plus_tabpfn_results/modeling_results/` (copied to `data/result/modeling_results/{oof,tables}/`). Table S-CI / Table S-Δ are stratified bootstrap on those arrays (`n_boot=2000`, seed 42).
 
 **Methods note — feature views.** Classics sit in an sklearn `Pipeline` with a `ColumnTransformer` **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; the encoded `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. Neither TabPFN arm is in that pipeline.
 
@@ -1198,29 +1198,29 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 **Source files:** [paper_figures/paper_table1_ranking.png](04_tabpfn_rating/paper_figures/paper_table1_ranking.png), [paper_figures/paper_table1_ranking.csv](04_tabpfn_rating/paper_figures/paper_table1_ranking.csv)
 
-Thinking-high PR-AUC by outer fold: 0.9879, 0.9397, 0.9604, 1.0000, 1.0000. LightGBM: 0.7527, 0.7136, 0.5399, 0.7732, 0.6916. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.9881, 0.9382, 0.9334, 0.9917, 0.9678 — higher than LightGBM in **5 of 5**. Point Δ PR-AUC vs LightGBM is thinking-high **0.2836** and local **0.2700**. Stratified bootstrap intervals (Table S-CI / Table S-Δ) need this run’s OOF CSV.
+Thinking-high PR-AUC by outer fold: 0.9879, 0.9397, 0.9604, 1.0000, 1.0000. LightGBM: 0.7527, 0.7136, 0.5399, 0.7732, 0.6916. Thinking-high is higher in **5 of 5** folds. TabPFN (local): 0.9881, 0.9382, 0.9334, 0.9917, 0.9678 — higher than LightGBM in **5 of 5**. Interval estimates and the paired test are Table S-CI / Table S-Δ.
 
 ---
 
 ## 3. Uncertainty
 
-Patient-level **stratified** bootstrap of pooled OOF (`n_boot = 2000`, seed 42) is the planned interval. Classifiers are **not** re-fit. **Do not quote Version 4 CIs with these point estimates.** The repo OOF file is still the 2026-09-16 dump. Download `/kaggle/working/modeling_results/oof/oof_predictions.csv` from this papermill run, then `run_b3()`. Fold mean ± SD in Table 1 remains the split-to-split summary. Outer-fold PR-AUC is Table S-folds (available now).
+Patient-level **stratified** bootstrap of the pooled this-run OOF rows (keep 92 events and 5,093 non-events; `n_boot = 2000`, seed 42). Classifiers are **not** re-fit; the interval is the sampling variability of the pooled OOF metric given the stored scores. Fold mean ± SD in Table 1 remains the split-to-split summary. Outer-fold PR-AUC is Table S-folds. OOF source: `code/modeling/rating/baseline_plus_tabpfn_results/modeling_results/oof/oof_predictions.csv` (also copied to `data/result/modeling_results/oof/`).
 
 ### Table S-CI. Stratified bootstrap 95% CIs on pooled OOF metrics
 
 ![Table S-CI](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.png)
 
-**Table S-CI.** **Pending.** Point estimates from this notebook are shown without intervals. Generating code: `run_b3()` in `code/modeling/tools/paper_hygiene_b3_b4_b7.py` on this run’s `oof_predictions.csv`.
+**Table S-CI.** Percentile 95% CIs on this-run OOF (`tabpfn==9.0.0` / v3.5). Thinking-high PR-AUC **0.9771 (0.9538–0.9942)**; local **0.9635 (0.9339–0.9883)**; LightGBM **0.6935 (0.6060–0.7779)**. Thinking-high Brier **0.0023 (0.0016–0.0032)** vs local **0.0025 (0.0018–0.0034)**. Same protocol as `run_b3()` (`n_boot=2000`, seed 42).
 
 | Model | PR-AUC | ROC-AUC | Brier |
 | --- | --- | --- | --- |
-| TabPFN (thinking-high) | 0.9771 (CI pending) | 0.9991 (CI pending) | 0.0023 (CI pending) |
-| TabPFN (local) | 0.9635 (CI pending) | 0.9983 (CI pending) | 0.0025 (CI pending) |
-| LightGBM | 0.6935 (CI pending) | 0.9681 (CI pending) | 0.0093 (CI pending) |
-| XGBoost | 0.6815 (CI pending) | 0.9439 (CI pending) | 0.0088 (CI pending) |
-| CatBoost | 0.6172 (CI pending) | 0.9594 (CI pending) | 0.0101 (CI pending) |
-| Random Forest | 0.4865 (CI pending) | 0.9209 (CI pending) | 0.0143 (CI pending) |
-| Logistic Regression | 0.3326 (CI pending) | 0.9224 (CI pending) | 0.0563 (CI pending) |
+| TabPFN (thinking-high) | 0.9771 [0.9538, 0.9942] | 0.9991 [0.9979, 0.9999] | 0.0023 [0.0016, 0.0032] |
+| TabPFN (local) | 0.9635 [0.9339, 0.9883] | 0.9983 [0.9964, 0.9997] | 0.0025 [0.0018, 0.0034] |
+| LightGBM | 0.6935 [0.6060, 0.7779] | 0.9681 [0.9490, 0.9831] | 0.0093 [0.0076, 0.0110] |
+| XGBoost | 0.6815 [0.5881, 0.7703] | 0.9439 [0.9100, 0.9742] | 0.0088 [0.0071, 0.0106] |
+| CatBoost | 0.6172 [0.5250, 0.7148] | 0.9594 [0.9398, 0.9765] | 0.0101 [0.0084, 0.0119] |
+| Random Forest | 0.4865 [0.3860, 0.6034] | 0.9209 [0.8824, 0.9555] | 0.0143 [0.0137, 0.0148] |
+| Logistic Regression | 0.3326 [0.2486, 0.4345] | 0.9224 [0.8966, 0.9449] | 0.0563 [0.0511, 0.0611] |
 
 **Source files:** [paper_figures/paper_table_s_bootstrap_ci.png](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.png), [paper_figures/paper_table_s_bootstrap_ci.csv](04_tabpfn_rating/paper_figures/paper_table_s_bootstrap_ci.csv)
 
@@ -1228,7 +1228,7 @@ Patient-level **stratified** bootstrap of pooled OOF (`n_boot = 2000`, seed 42) 
 
 ![Table S-Δ](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.png)
 
-**Table S-Δ.** Point Δ only until this-run OOF is in the repo. Thinking-high − LightGBM **0.2836**; local − LightGBM **0.2700**. Percentile CIs and P(Δ ≤ 0) are pending `run_b3()`.
+**Table S-Δ.** Same resampled OOF rows. Thinking-high − LightGBM Δ PR-AUC **0.2836 (0.2052–0.3650)**, P(Δ ≤ 0) = 0/2000. Local − LightGBM **0.2700 (0.1939–0.3513)**, P(Δ ≤ 0) = 0/2000.
 
 **Source files:** [paper_figures/paper_table_s_paired_delta.png](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.png), [paper_figures/paper_table_s_paired_delta.csv](04_tabpfn_rating/paper_figures/paper_table_s_paired_delta.csv)
 
@@ -1428,7 +1428,7 @@ Notebook: `code/modeling/rating/wang_vlst_score.ipynb`.
 
 ---
 
-*Figures 1–3, the sweep panel, and Tables 0–3 are exported from the executed Kaggle run of `baseline_plus_tabpfn.ipynb` (papermill 2026-09-17; `tabpfn==9.0.0` / `tabpfn_client==0.6.0`; v3.5 weights). Bootstrap CIs pending this-run OOF. Name the two TabPFN Briers separately (thinking-high 0.0023 vs local 0.0025). Notebook display names: `"TabPFN thinking mode"` / `"TabPFN"`.*
+*Figures 1–3, the sweep panel, and Tables 0–3 are exported from the executed Kaggle run of `baseline_plus_tabpfn.ipynb` (papermill 2026-09-17; `tabpfn==9.0.0` / `tabpfn_client==0.6.0`; v3.5 weights). OOF + bootstrap CIs are this dump (`baseline_plus_tabpfn_results`). Name the two TabPFN Briers separately (thinking-high 0.0023 vs local 0.0025). Notebook display names: `"TabPFN thinking mode"` / `"TabPFN"`.*
 
 ---
 # Part 5. TabPFN interpretability
