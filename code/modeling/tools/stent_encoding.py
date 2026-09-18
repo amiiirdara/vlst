@@ -5,9 +5,11 @@ not Wang's SES class flag. ``PES`` / ``ZES`` / ``EVS`` already partition the
 cohort (mutually exclusive, cover every row). Wang 2020's published SES rates
 match the ``PES`` column exactly — do not invent a second SES bit.
 
-Every in-scope notebook should call :func:`encode_stent_brand_column` on the
-raw frame so EDA, selectors, nested CV, and TabPFN all see the same 9-level
-nominal brand column.
+EDA / association notebooks may call :func:`encode_stent_brand_column` on the
+full frame so they share one codebook. Nested-CV prediction must fit the
+collapse on the **training fold only** (:func:`fit_stent_brand_encoder` +
+:func:`transform_stent_brand_column`); held-out brand frequencies must not
+decide which strings map to ``other``.
 """
 
 from __future__ import annotations
@@ -55,6 +57,58 @@ def collapse_rare_brands(series: pd.Series, min_count: int = STENT_BRAND_MIN_COU
     return series.where(~series.isin(rare), "other")
 
 
+def fit_stent_brand_encoder(
+    series: pd.Series,
+    *,
+    min_count: int = STENT_BRAND_MIN_COUNT,
+) -> dict[str, Any]:
+    """Learn kept brand levels from one training series (no held-out rows)."""
+    meta: dict[str, Any] = {
+        "min_count": min_count,
+        "numeric": False,
+        "kept": set(),
+        "n_raw": 0,
+        "n_levels": 0,
+        "applied": False,
+        "value_counts": {},
+    }
+    if pd.api.types.is_numeric_dtype(series):
+        n = int(series.nunique(dropna=True))
+        meta.update({"numeric": True, "n_raw": n, "n_levels": n})
+        return meta
+    canon = series.map(canonicalize_stent_brand)
+    counts = canon.value_counts()
+    kept = set(counts[counts >= min_count].index)
+    n_levels = int(len(kept) + int((counts < min_count).any()))
+    meta.update(
+        {
+            "kept": kept,
+            "n_raw": int(series.nunique(dropna=True)),
+            "n_levels": n_levels,
+            "applied": True,
+            "value_counts": counts.to_dict(),
+        }
+    )
+    return meta
+
+
+def transform_stent_brand_column(
+    df: pd.DataFrame,
+    codebook: dict[str, Any],
+    *,
+    raw_col: str = STENT_BRAND_RAW_COL,
+    inplace: bool = False,
+) -> pd.DataFrame:
+    """Apply a training-fold codebook. Unseen / rare brands become ``other``."""
+    out = df if inplace else df.copy()
+    if raw_col not in out.columns or codebook.get("numeric") or not codebook.get("applied"):
+        return out
+    canon = out[raw_col].map(canonicalize_stent_brand)
+    kept = codebook["kept"]
+    out[raw_col] = canon.where(canon.isin(kept), "other").astype("object")
+    return out
+
+
 def encode_stent_brand_column(
     df: pd.DataFrame,
     *,
@@ -62,14 +116,15 @@ def encode_stent_brand_column(
     min_count: int = STENT_BRAND_MIN_COUNT,
     inplace: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Replace the raw brand string with 9 canonical levels (n < 30 → other).
+    """Replace the raw brand string with canonical levels (n < 30 → other).
 
     The column name is unchanged so reports still say ``Stent type-SES``.
-    Frequency collapse uses the supplied frame only (no label, no test fold).
-    Full-cohort application is intentional so every notebook shares one codebook.
+    Frequency collapse uses the supplied frame only. For nested CV, fit on
+    the training fold with :func:`fit_stent_brand_encoder` instead of calling
+    this on the full cohort.
     """
     out = df if inplace else df.copy()
-    meta: dict[str, Any] = {
+    empty: dict[str, Any] = {
         "column": raw_col,
         "n_raw": 0,
         "n_levels": 0,
@@ -78,27 +133,11 @@ def encode_stent_brand_column(
         "value_counts": {},
     }
     if raw_col not in out.columns:
-        return out, meta
-
-    raw = out[raw_col]
-    if pd.api.types.is_numeric_dtype(raw):
-        # Already integer codes from a previous loader — leave as-is.
-        meta["n_raw"] = int(raw.nunique(dropna=True))
-        meta["n_levels"] = meta["n_raw"]
-        return out, meta
-
-    n_raw = int(raw.nunique(dropna=True))
-    encoded = collapse_rare_brands(raw.map(canonicalize_stent_brand), min_count)
-    out[raw_col] = encoded.astype("object")
-    meta.update(
-        {
-            "n_raw": n_raw,
-            "n_levels": int(encoded.nunique(dropna=True)),
-            "applied": True,
-            "value_counts": encoded.value_counts().to_dict(),
-        }
-    )
-    return out, meta
+        return out, empty
+    codebook = fit_stent_brand_encoder(out[raw_col], min_count=min_count)
+    out = transform_stent_brand_column(out, codebook, raw_col=raw_col, inplace=True)
+    codebook = {**codebook, "column": raw_col}
+    return out, codebook
 
 
 def coerce_stent_class_flags(df: pd.DataFrame) -> pd.DataFrame:
