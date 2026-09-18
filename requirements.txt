@@ -12,7 +12,8 @@ xgboost>=2.0
 lightgbm>=4.0
 imbalanced-learn>=0.12
 ctgan>=0.10.0
-tabpfn>=7.0
+tabpfn==9.0.0
+tabpfn-client==0.6.0
 torch>=2.0
 ipykernel>=6.0
 openai>=1.40
