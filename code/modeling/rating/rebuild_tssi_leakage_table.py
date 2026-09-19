@@ -46,6 +46,42 @@ COLS = [
     "without_pr_auc",
 ]
 
+# GridSearchCV(scoring="f1", cv=StratifiedKFold(5, shuffle=True, random_state=42)).
+# Prints from executed notebooks. Not Part 4 nested-CV hyperparameters.
+BEST_PARAMS = [
+    (
+        "Logistic Regression",
+        "C=1.0, max_iter=2000, penalty=l1, solver=liblinear",
+        "C=10.0, max_iter=2000, penalty=l1, solver=liblinear",
+    ),
+    (
+        "Decision Tree",
+        "criterion=gini, max_depth=None, min_samples_leaf=1, min_samples_split=10",
+        "criterion=entropy, max_depth=None, min_samples_leaf=2, min_samples_split=2",
+    ),
+    (
+        "Random Forest",
+        "max_depth=15, min_samples_leaf=1, n_estimators=200",
+        "max_depth=5, min_samples_leaf=1, n_estimators=200",
+    ),
+    ("Gaussian NB", "var_smoothing=1e-12", "var_smoothing=1e-12"),
+    (
+        "CatBoost",
+        "depth=6, iterations=100, l2_leaf_reg=1, learning_rate=0.1",
+        "depth=4, iterations=200, l2_leaf_reg=1, learning_rate=0.1",
+    ),
+    (
+        "XGBoost",
+        "learning_rate=0.05, max_depth=5, min_child_weight=1, n_estimators=200",
+        "learning_rate=0.1, max_depth=3, min_child_weight=1, n_estimators=200",
+    ),
+    (
+        "LightGBM",
+        "learning_rate=0.1, max_depth=5, min_child_samples=20, n_estimators=200",
+        "learning_rate=0.1, max_depth=3, min_child_samples=20, n_estimators=200",
+    ),
+]
+
 
 def main() -> None:
     apply_style()
@@ -109,7 +145,46 @@ def main() -> None:
     for out in OUT_DIRS:
         fig.savefig(out / "paper_fig_s_tssi_pr_auc.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print("Wrote TSSI leakage table and figure.")
+
+    hp = pd.DataFrame(
+        BEST_PARAMS,
+        columns=["model", "best_params_with_tssi", "best_params_without_tssi"],
+    )
+    for out in OUT_DIRS:
+        hp.to_csv(out / "paper_table_s_tssi_best_params.csv", index=False)
+
+    hp_disp = pd.DataFrame(
+        {
+            "Model": hp["model"],
+            "With TSSI (leaky) best_params_": hp["best_params_with_tssi"],
+            "Without TSSI best_params_": hp["best_params_without_tssi"],
+        }
+    )
+    fig, ax = plt.subplots(figsize=(16.2, 3.8))
+    ax.axis("off")
+    tbl = ax.table(
+        cellText=hp_disp.values,
+        colLabels=list(hp_disp.columns),
+        loc="center",
+        cellLoc="left",
+    )
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(7)
+    tbl.scale(1, 1.55)
+    for (r, _), cell in tbl.get_celld().items():
+        if r == 0:
+            cell.set_facecolor(HARMONY[7])
+            cell.set_text_props(color="white", fontweight="bold")
+        elif r % 2 == 0:
+            cell.set_facecolor("#F4F7FA")
+    ax.set_title(
+        "GridSearchCV F1 winners (70/30 notebooks; not Part 4 nested CV)",
+        pad=12,
+    )
+    for out in OUT_DIRS:
+        fig.savefig(out / "paper_table_s_tssi_best_params.png", dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print("Wrote TSSI leakage table, figure, and GridSearch best_params_.")
 
 
 if __name__ == "__main__":

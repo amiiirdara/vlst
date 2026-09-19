@@ -102,6 +102,7 @@ SMOTE: with-TSSI notebook `True`, without `False`. Quote as leakage, not a match
 - Logistic regression PR-AUC **0.9575 → 0.5077**.
 - CatBoost **0.9773 → 0.6582**.
 - Remaining models: CSV `paper_table_s_tssi_leakage.csv`.
+- `best_params_`: Table S-TSSI-HP / `paper_table_s_tssi_best_params.csv` (both notebooks).
 
 ### Wang 2020 integer score (historical comparator, same 5,185 rows)
 
@@ -169,7 +170,7 @@ These may appear in Methods. They are not Results claims.
 **Found / now implemented:**
 
 - **NPV** = TN/(TN+FN) from frozen Table 2 2×2. `classification_report` does **not** label it; class-0 precision is NPV at 2 decimals. Part 4 `metrics_at_threshold` and TSSI `evaluate_model` now print `npv`.
-- **TSSI without-TSSI GridSearch winners** (not Part 4 nested-CV HPs): LR `C=10` L1 liblinear; RF `max_depth=5`, `n_estimators=200`; CatBoost depth 4 / 200 iter / lr 0.1; XGB/LGB `max_depth=3`, `n_estimators=200`, lr 0.1.
+- **TSSI GridSearch `best_params_`** (not Part 4 nested-CV HPs). With TSSI: LR `C=1` L1; RF `max_depth=15`; CatBoost depth 6 / 100 iter; XGB lr 0.05 `max_depth=5`. Without TSSI: LR `C=10` L1; RF `max_depth=5`; CatBoost depth 4 / 200 iter; XGB/LGB `max_depth=3`, lr 0.1. Full table: Part 4 Table S-TSSI-HP.
 - **Firth:** Table 4b 13-covariate association sensitivity (EDA / `run_b4`). Not nested CV.
 
 **Found in code / frozen counts (not invented grids or new ECE):**

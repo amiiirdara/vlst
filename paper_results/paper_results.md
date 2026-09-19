@@ -1336,6 +1336,24 @@ These numbers are **not** the nested-CV headline. They come from the two single-
 
 **Source files:** [paper_figures/paper_table_s_tssi_leakage.png](04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.png), [paper_figures/paper_table_s_tssi_leakage.csv](04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.csv)
 
+### Supplementary Table S-TSSI-HP. GridSearch `best_params_` (not Part 4)
+
+![Table S-TSSI-HP](04_tabpfn_rating/paper_figures/paper_table_s_tssi_best_params.png)
+
+**Table S-TSSI-HP.** `GridSearchCV` winners from the executed notebooks (`scoring="f1"`, 5-fold stratified, `random_state=42`). **With TSSI** = `baseline_tssi_leakage.ipynb` (`USE_SMOTE=True`). **Without TSSI** = `baseline_without_tssi.ipynb` (`USE_SMOTE=False`). These are **not** nested-CV Part 4 hyperparameters and are **not** imported into `baseline_plus_tabpfn.ipynb`. Gaussian NB is the same on both notebooks (`var_smoothing=1e-12`); that arm never used the TSSI column.
+
+| Model | With TSSI (leaky) | Without TSSI |
+| --- | --- | --- |
+| Logistic Regression | C=1.0, max_iter=2000, penalty=l1, solver=liblinear | C=10.0, max_iter=2000, penalty=l1, solver=liblinear |
+| Decision Tree | criterion=gini, max_depth=None, min_samples_leaf=1, min_samples_split=10 | criterion=entropy, max_depth=None, min_samples_leaf=2, min_samples_split=2 |
+| Random Forest | max_depth=15, min_samples_leaf=1, n_estimators=200 | max_depth=5, min_samples_leaf=1, n_estimators=200 |
+| Gaussian NB | var_smoothing=1e-12 | var_smoothing=1e-12 |
+| CatBoost | depth=6, iterations=100, l2_leaf_reg=1, learning_rate=0.1 | depth=4, iterations=200, l2_leaf_reg=1, learning_rate=0.1 |
+| XGBoost | learning_rate=0.05, max_depth=5, min_child_weight=1, n_estimators=200 | learning_rate=0.1, max_depth=3, min_child_weight=1, n_estimators=200 |
+| LightGBM | learning_rate=0.1, max_depth=5, min_child_samples=20, n_estimators=200 | learning_rate=0.1, max_depth=3, min_child_samples=20, n_estimators=200 |
+
+**Source files:** [paper_figures/paper_table_s_tssi_best_params.png](04_tabpfn_rating/paper_figures/paper_table_s_tssi_best_params.png), [paper_figures/paper_table_s_tssi_best_params.csv](04_tabpfn_rating/paper_figures/paper_table_s_tssi_best_params.csv)
+
 ### Supplementary Figure S-TSSI. PR-AUC collapse
 
 ![Figure S-TSSI](04_tabpfn_rating/paper_figures/paper_fig_s_tssi_pr_auc.png)
@@ -1344,7 +1362,7 @@ These numbers are **not** the nested-CV headline. They come from the two single-
 
 **Source file:** [paper_figures/paper_fig_s_tssi_pr_auc.png](04_tabpfn_rating/paper_figures/paper_fig_s_tssi_pr_auc.png)
 
-Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/rating/baseline_without_tssi.ipynb` (the 70/30 GridSearch fits). Table S-TSSI is **not** inside those notebooks; it is rebuilt from their stored metrics by `code/modeling/rating/rebuild_tssi_leakage_table.py`.
+Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/rating/baseline_without_tssi.ipynb` (the 70/30 GridSearch fits). Tables S-TSSI and S-TSSI-HP are rebuilt from their stored metrics / `best_params_` prints by `code/modeling/rating/rebuild_tssi_leakage_table.py`.
 
 ---
 
@@ -1421,6 +1439,7 @@ Notebook: `code/modeling/rating/wang_vlst_score.ipynb`.
 | Table 3 | Table | [paper_table3_pooled_f1.png](04_tabpfn_rating/paper_figures/paper_table3_pooled_f1.png) |
 | Sweep | Figure | [best_model_threshold_fpfn_panel.png](04_tabpfn_rating/paper_figures/best_model_threshold_fpfn_panel.png) |
 | Table S-TSSI | Table | [paper_table_s_tssi_leakage.png](04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.png) |
+| Table S-TSSI-HP | Table | [paper_table_s_tssi_best_params.png](04_tabpfn_rating/paper_figures/paper_table_s_tssi_best_params.png) |
 | Fig S-TSSI | Figure | [paper_fig_s_tssi_pr_auc.png](04_tabpfn_rating/paper_figures/paper_fig_s_tssi_pr_auc.png) |
 | Table S-Wang-bins | Table | [paper_table_s_wang_score_bins.png](04_tabpfn_rating/paper_figures/paper_table_s_wang_score_bins.png) |
 | Table S-Wang | Table | [paper_table_s_wang_vs_ml.png](04_tabpfn_rating/paper_figures/paper_table_s_wang_vs_ml.png) |
