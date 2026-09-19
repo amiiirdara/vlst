@@ -680,6 +680,19 @@ model_results:
       lightgbm: {learning_rate: 0.1, max_depth: 3, min_child_samples: 20, n_estimators: 200}
       status: methods_only
       note: "Do not import these into baseline_plus_tabpfn nested CV."
+    with_tssi_gridsearch_best_params:
+      source_file: .nbdump/code__modeling__rating__baseline_tssi_leakage.txt
+      source_location: "Best params prints; GridSearchCV scoring=f1, 5-fold stratified, seed 42; USE_SMOTE=True"
+      not_part4_nested_cv: true
+      logistic_regression: {C: 1.0, max_iter: 2000, penalty: l1, solver: liblinear}
+      decision_tree: {criterion: gini, max_depth: null, min_samples_leaf: 1, min_samples_split: 10}
+      random_forest: {max_depth: 15, min_samples_leaf: 1, n_estimators: 200}
+      gaussian_nb: {var_smoothing: 1.0e-12}
+      catboost: {depth: 6, iterations: 100, l2_leaf_reg: 1, learning_rate: 0.1}
+      xgboost: {learning_rate: 0.05, max_depth: 5, min_child_weight: 1, n_estimators: 200}
+      lightgbm: {learning_rate: 0.1, max_depth: 5, min_child_samples: 20, n_estimators: 200}
+      status: methods_only
+      note: "Leakage-notebook winners. Do not import into nested CV."
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Table S-TSSI; rebuild_tssi_leakage_table.py ROWS"
     models_with_tssi:
