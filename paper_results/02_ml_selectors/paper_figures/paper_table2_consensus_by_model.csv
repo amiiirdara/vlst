@@ -1,8 +1,8 @@
 model,metric,n_common,features
-cat,pr_auc,3,1.1:1Post dilation; HGB; WBC
-lgb,pr_auc,2,HbA1c; LV
-lr,pr_auc,6,Cre; LV; Men; UA; WBC; eGFR
-rf,pr_auc,6,HGB; LDL; LVEF; Men; WBC; eGFR
-rf_b,pr_auc,4,CaI; HGB; LVEF; WBC
-xgb,pr_auc,7,1.1:1Post dilation; Aneurysm; Cre; HGB; LV; WBC; eGFR
-xgb_b,pr_auc,5,1.1:1Post dilation; LV; LVEF; WBC; eGFR
+cat,pr_auc,5,Clopidogrel; HbA1c; LDL; LV; No postdilation
+lgb,pr_auc,1,HbA1c
+lr,pr_auc,4,Clopidogrel; Cre; Men; eGFR
+rf,pr_auc,3,HGB; LDL; LV
+rf_b,pr_auc,2,Cre; eGFR
+xgb,pr_auc,2,HGB; eGFR
+xgb_b,pr_auc,4,Cre; HGB; Stent type-SES_xiencev; eGFR

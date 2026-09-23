@@ -158,6 +158,81 @@ Both TabPFN arms beat LightGBM PR-AUC in **5/5** folds. Version 4 (0.8553 /
 Δ **0.2700 (0.1939–0.3513)**, P(Δ ≤ 0) = 0/2000. Part 5 still `e356bb1`
 (different TabPFN object — rerun interpretability).
 
+**Revision 15 (2026-09-21 — Kaggle dump ingest / audit; no manuscript rewrite).**
+Folders are under `code/modeling/{rating,interpretability}/`, not repo root. Manifest:
+`docs/kaggle_outputs_manifest.md`. Freeze keys: `kaggle_baseline_plus_tabpfn`,
+`kaggle_tssi_leakage`, `kaggle_without_tssi`, `kaggle_feature_selectors`,
+`kaggle_interpretability`. Pin `tabpfn==9.0.0` / `tabpfn-client==0.6.0`, v3.5.
+
+- **Part 4 nested CV** (`Kaggle_baseline_plus_tabpfn_results/`, papermill
+  2026-09-18T21:23Z–23:13Z): **MATCH** vs current paper Table 1/2 (thinking
+  PR-AUC 0.977084 / ROC 0.999108 / Brier 0.002342 / ECE 0.000795; nested
+  5088/5/7/85; local 0.963546 / 0.998314 / 0.002545 / ECE 0.000151; nested
+  5085/8/6/86; OOF n=5185 ysum=92). Thinking-high constructor unchanged.
+- **TSSI pair** (papermill 2026-09-19): same 7 models × same metric columns in
+  both `test_metrics.csv`. **No one-arm-only table.** Both arms lack
+  `best_params_` CSV. [RE-SOURCE: paper Table S-TSSI 0.9575→0.5077 / Cat
+  0.9773→0.6582 / GNB 0.0209 unchanged] vs dump LR **0.913388→0.343057**, Cat
+  **0.959865→0.494218**, GNB **0.272768→0.056433** (GNB is not unchanged).
+- **Part 2 selectors** (`Kaggle_baseline_intrepretability_results/`): **EMPTY**
+  (n_files=0). [RE-SOURCE: Kaggle_baseline_intrepretability_results empty]
+- **Part 5** (`Kaggle_tabpfn_intrepretebility_results/`): SFS **8/8 seeds
+  complete** (`STABILITY_N_SEEDS=8`). CaI / LV / eGFR **8/8**. Any
+  “PROVISIONAL — 3/10 seeds” tag is obsolete. [RE-SOURCE: paper Table 2 WBC
+  10/10] [RE-SOURCE: paper Table 1 CaI MI 0.022005 vs dump 0.020536]
+  [RE-SOURCE: paper Table 4 eGFR 1.0439 / WBC 1.0202 / LV 0.8695 vs dump eGFR
+  1.228766 / CaI 1.086730 / Cre 0.809273 / LV 0.482762; WBC absent]
+  [RE-SOURCE: paper PDP Previous PCI +0.0137 / post-dilation −0.0093 vs dump
+  +0.001294 / −0.000094] [RE-SOURCE: paper consensus 3/3 {WBC, LV, eGFR} vs
+  dump CaI/LV/eGFR n_methods=2, shap_mean_abs=0 in consensus CSV]. k-SII row
+  **5176** position 20 still matches. Train 3629/64, test 1556/28 match.
+
+**Revision 16 (2026-09-21 — paper pack follows the five Kaggle dump folders).**
+Reports, table CSVs/PNGs, and freeze scalars now quote those dumps:
+
+- `Kaggle_baseline_plus_tabpfn_results` (papermill 2026-09-18) — Part 4 nested CV numbers **match**; provenance date updated.
+- `Kaggle_baseline_tssi_leakage_results` + `Kaggle_baseline_without_tssi_results` (2026-09-19) — Table S-TSSI **LR PR-AUC 0.9134→0.3431**, Cat **0.9599→0.4942**, LGB **0.9687→0.6675**, GNB **0.2728→0.0564**. Older 0.9575→0.5077 excluded.
+- `Kaggle_tabpfn_intrepretebility_results` (2026-09-20) — SFS **8/8** CaI/LV/eGFR; MI CaI **0.020536**; SHAP eGFR **1.2288** / CaI **1.0867**; PDP Previous PCI **+0.001294**; consensus 3/3 **{CaI, eGFR, LV}**. WBC dropped. `e356bb1` 10-seed WBC table excluded.
+- `Kaggle_baseline_intrepretability_results` still **empty** — Part 2 not refreshed. **Superseded by Revision 17.**
+
+**Revision 17 (2026-09-22 — `Kaggle_baseline_intrepretability_results/` ingested).**
+`selector_report.md` generated **2026-09-19 14:39:53**. Dump n_files=37 under
+`baseline_interpretability_results/model_feature_selectors_antileak/`. Protocol:
+TSSI **and WBC** dropped; raw 80 / scaled **87**; fit/val 4148/74 vs 1037/18.
+
+- FFS path lengths: lr 12, rf 8, rf_b 6, cat 8, xgb 10, xgb_b 12, lgb 4.
+- LOCO all-7 top-20: `{Cre, eGFR}`; SHAP all-7: `{Cre, HGB, LDL, eGFR}`; FFS all-7: empty.
+- Within-model three-way union **n=10**: Clopidogrel, Cre, HGB, HbA1c, LDL, LV, Men, No postdilation, Stent type-SES_xiencev, eGFR. Strict 7×3 intersection n=0; scored union n=86.
+- Selector Jaccard of top-20 unions: LOCO–SHAP **0.60**, LOCO–FFS **0.37**, SHAP–FFS **0.49**.
+- Part 3 vs FDR-20: intersection `{Clopidogrel, HbA1c, LV, No postdilation, eGFR}` n=5; union 25; Jaccard **5/25=0.20**. Dual label: WBC is FDR-only because it is not in the ML matrix (5/24 if stripped from FDR too).
+- `stats_vs_ml_comparison.ipynb` still asserts ML-13 / 5/28 and was **not** edited; Part 3 Markdown/figures rebuilt by `rebuild_part3_paper_figures.py`.
+- Older 88-column / WBC-in-consensus / Jaccard 5/28 reconstruction is **excluded**.
+
+**Revision 19 (2026-09-22 — 9-arm nested dump is live anti-leakage nested CV).**
+Inner folder `Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/` (not
+`baseline_plus_tabpfn/`). Nine arms. Thinking v3.5 PR-AUC **0.9212** / ROC **0.9963** /
+Brier **0.0047** / nested 5083/10/15/77. TabPFN v3.5 **0.8957** / **0.9916** / **0.0048** /
+5082/11/20/72. Pins `tabpfn==9.0.0` / `tabpfn-client==0.6.0`. Author: these are the
+anti-leakage-ON nested numbers matching notebook code. Unlabeled 0.9771 / 0.9635 remain
+**excluded**. Freeze `nested_cv_v35_antileakage_on` **frozen**. Paper Part 4 Markdown rebuilt.
+
+**Revision 18 (2026-09-22 — nested 0.97 / 0.96 excluded; leakage contrast; TabPFN split).**
+Author: unlabeled nested PR-AUC **0.9771** / **0.9635** are **not** the live 9-arm dump
+(Revision 19). They remain `status: excluded`. Leakage-contrast twins and Part 5 split
+notebooks stay as in this revision.
+
+- **§0.2** in-scope notebooks: Part 5 is the pair `tabpfn_interpretability_fs_pdp.ipynb` +
+  `tabpfn_interpretability_shap.ipynb`. Parent `tabpfn_interpretability.ipynb` is archived.
+  Leakage-contrast twins: `baseline_tssi_leakage.ipynb` (requested `baseline_tssi_leakage-(3).ipynb`,
+  ALL LEAKS ON) and `baseline_without_tssi.ipynb` (requested `baseline_without_tssi-(3).ipynb`,
+  ALL LEAKS OFF).
+- **Leakage contrast** (§4.6): every table/figure that exists in **both** arms under
+  `modeling_tssi_leakage/` and `modeling_without_tssi/`.
+- **TabPFN provenance** (§0.7): every TabPFN-derived number is tagged with package pin
+  (`tabpfn==9.0.0` local v3.5, `tabpfn-client==0.6.0` hosted v3.5), thinking mode, and
+  anti-leakage status. SoT: `paper/frozen_results.yaml`.
+- Paper Markdown under `paper_results/04_tabpfn_rating/` was rebuilt from the 9-arm dump (thinking v3.5 **0.9212**). Unlabeled 0.9771 / 0.9635 remain excluded.
+
 **Revision 6.** Superseded by Revision 7 as the *current* Part 4/5 snapshot. That revision documented the
 Kaggle **local-only** nested CV (`RUN_MODELS["TabPFN"]=False`): LightGBM PR-AUC 0.6937, TabPFN (local)
 0.6754 / 0.9845 / Brier 0.0673. Keep those numbers only when explicitly labelled as the six-model local-only
@@ -197,11 +272,11 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 
 ## Contents
 
-1. [Scope in force](#0-scope-in-force) — includes [canonical writing files](#04-canonical-files-the-paper-results-are-written-from), [cross-section conflicts](#05-cross-section-conflicts-do-not-collapse), [notebook execution](#06-was-each-in-scope-notebook-run-with-its-final-source)
+1. [Scope in force](#0-scope-in-force) — includes [canonical writing files](#04-canonical-files-the-paper-results-are-written-from), [cross-section conflicts](#05-cross-section-conflicts-do-not-collapse), [notebook execution](#06-was-each-in-scope-notebook-run-with-its-final-source), [TabPFN version provenance](#07-tabpfn-version-provenance)
 2. [Clinical and scientific motivation](#1-clinical-and-scientific-motivation)
 3. [Dataset, target, event count, prevalence](#2-dataset-target-event-count-prevalence)
 4. [Variable dictionary](#3-variable-dictionary)
-5. [Leakage and quasi-leakage variables](#4-leakage-and-quasi-leakage-variables)
+5. [Leakage and quasi-leakage variables](#4-leakage-and-quasi-leakage-variables) — includes [Leakage contrast](#46-leakage-contrast--all-leaks-on-vs-all-leaks-off)
 6. [The analysis pipeline as actually implemented](#5-the-analysis-pipeline-as-actually-implemented)
 7. [Data splits and validation procedures](#6-data-splits-and-validation-procedures)
 8. [Every reported metric](#7-every-reported-metric)
@@ -222,7 +297,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | #      | Decision                                                                                                                                                                                                                                                                                         | Effect on this audit                                                                                                                                                               |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **D1** | **`code/failed_hypothesis/` is out of scope** — every notebook under that tree, currently twelve: `anomaly_detection`, `baseline_blending`, `baseline_plus_tabpfn_blending`, `causal_analysis`, `ffs`, `fp_precision_mining`, `llm_tabular_small_n`, `tabpfn_5fold_fp_mining`, `tabpfn_fp_followup`, `tabpfn_oversampling`, `tabpfn_synthesis`, `tabpfn_extension/interpretability`. | The selective-reporting finding built on this directory is **withdrawn** (§12.11). Do not cite those notebooks for a paper number. |
-| **D2** | **TabPFN comes from exactly two notebooks:** `rating/baseline_plus_tabpfn.ipynb` (performance) and `interpretability/tabpfn_interpretability.ipynb` (interpretability). `rating/tabpfn_playground.ipynb` is out of scope.                                                                        | No other file may be cited for a TabPFN number.                                                                                                                                    |
+| **D2** | **TabPFN comes from three notebooks:** `rating/baseline_plus_tabpfn.ipynb` (nested performance; 9-arm anti-leakage dump, thinking v3.5 PR-AUC **0.9212**) and the interpretability pair `interpretability/tabpfn_interpretability_fs_pdp.ipynb` + `interpretability/tabpfn_interpretability_shap.ipynb`. Parent `tabpfn_interpretability.ipynb` is archived. `rating/tabpfn_playground.ipynb` is out of scope. | No other file may be cited for a TabPFN number. Unlabeled nested 0.9771 / 0.9635 are excluded (§0.7). |
 | **D4** | **The Markdown reports remain part of the analysis and are read on their merits — but where a report and the code disagree, the code is authoritative.**                                                                                                                                         | Every `[DISCREPANCY]` below now carries an explicit resolution. Reports still count as the source for *reasoning, framing and caveats*; the notebooks are the source for *values*. |
 
 
@@ -232,17 +307,19 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | #   | Notebook                                                      | Written up as | Paper Markdown describes | Notebook on disk executed? |
 | --- | ------------------------------------------------------------- | ------------- | ------------------------ | -------------------------- |
 | 1   | `analyzes/eda.ipynb`                                          | Part 1        | Univariates / Table 4 / stent χ² from this notebook. Table C / Table 4b: `run_b7` / `run_b4` in `paper_hygiene_b3_b4_b7.py`, **also the last EDA cells**. | Yes — 48/49 original code cells have outputs (cell 11 is a no-missing skip) plus the Table C / 4b cells. |
-| 2   | `modeling/interpretability/baseline_feature_selections.ipynb` | Part 2        | 2026-08-31 Kaggle Version 5 paper protocol (4,148/1,037, PR-AUC, 88 columns). | Yes — papermill 2026-08-31 (`1a7a369`). Cells 5–8 are function defs (no outputs by design); cell 9 ran the selectors. Later `802d885` changed an unused TabPFN factory (`balance_probabilities=True` → `random_state=seed`); **selectors were not re-run**. |
-| 3   | `analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`           | Part 3        | Jaccard 5/28, hardcoded FDR 20 + ML 13 lists. | Yes — cell 4 printed `Jaccard=0.1786` and wrote both `paper_figures/` trees. Cells 2–3 are defs. |
-| 4   | `modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4        | **`139d143` Version 4** (local Brier **0.0102**, nested *t* **0.166**, no `balance_probabilities`; restore skipped). S-CI/S-Δ from `run_b3()` on Version 4 OOF, not a notebook cell. | Yes — papermill 2026-09-04; the 9 Kaggle code cells. OOF in `data/result/modeling_results/oof/` (B13 closed). |
-| 5   | `modeling/interpretability/tabpfn_interpretability.ipynb`     | Part 5        | **`e356bb1` Version 5** (train MI/SFS/PDP; SHAP 1,556 held-out; k-SII **5176**; HTTP 429 → local). | Yes — papermill 2026-09-08–09; all 9 code cells. 81-row MI/SHAP CSVs and 1,556-row indices copied (B14 closed). |
-| 6   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 S-TSSI | Logistic PR-AUC 0.958 with TSSI. | Yes — outputs present. Two helper cells have no display (defs). |
-| 7   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 S-TSSI | Logistic PR-AUC 0.508 without TSSI. | Yes — outputs present. Cell 9 (`exec=None`) is an unused SMOTE sketch, not the paper path. |
-| 8   | `modeling/rating/wang_vlst_score.ipynb`                       | Part 4 S-Wang | Frozen integer ROC **0.8013** / PR **0.1032**. | Yes — those prints are in the outputs. Comparator table now reads Version 4 OOF (thinking-high 0.8553 / LightGBM 0.6942 / local 0.6742). |
-| 9   | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | — | Executed (12/12 code cells) but artefacts unused by any paper analysis (§12.5). |
+| 2   | `modeling/interpretability/baseline_feature_selections.ipynb` | Part 2        | **[REV17]** 2026-09-19 dump (4,148/1,037, PR-AUC, **87** columns, TSSI+WBC dropped). | Dump CSVs in `Kaggle_baseline_intrepretability_results/` (`selector_report.md` 2026-09-19 14:39:53). Notebook on disk not re-executed in-repo. |
+| 3   | `analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`           | Part 3        | **[REV17]** paper figures from dump (ML-10, Jaccard 5/25). Notebook still hardcodes ML-13 / 5/28. | Notebook **not** re-run (assert `len(ML_CONSENSUS)==13` would fail). Figures: `rebuild_part3_paper_figures.py`. |
+| 4   | `modeling/rating/baseline_plus_tabpfn.ipynb`                  | Part 4        | **[REV19]** Pins `tabpfn==9.0.0` / `tabpfn-client==0.6.0`. Nine nested arms after anti-leakage. Dump `baseline_plus_tabpfn_results/`: thinking v3.5 PR-AUC **0.9212**, TabPFN v3.5 **0.8957**. Unlabeled 0.9771/0.9635 excluded. | Dump OOF n=5185 ysum=92; freeze `nested_cv_v35_antileakage_on` frozen. |
+| 5   | `modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb` | Part 5 MI/SFS/PDP | **[REV16/18]** dump 2026-09-20; local TabPFN **v3.5**; `FS_THINKING_MODE=False`; 0 client fits; STABILITY_N_SEEDS=8; TSSI+WBC dropped (80 cols). | Dump CSVs/PNGs in `Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/`. |
+| 6   | `modeling/interpretability/tabpfn_interpretability_shap.ipynb` | Part 5 SHAP/k-SII | **[REV16/18]** dump 2026-09-20; hosted **v3.5**; `INTERP_THINKING_MODE=True`, effort high; held-out SHAP; k-SII row 5176; TSSI+WBC dropped. | Dump CSVs/PNGs in `Kaggle_tabpfn_intrepretebility_results/shap/`. |
+| —   | `modeling/interpretability/tabpfn_interpretability.ipynb`     | **ARCHIVED** parent | Split into rows 5–6. Do not cite as a number source. | — |
+| 7   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 leakage contrast, ALL LEAKS ON | Requested name `baseline_tssi_leakage-(3).ipynb`. Flags: `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True`. Artifacts under `modeling_tssi_leakage/`. | Yes — papermill 2026-09-19T14:00Z–14:57Z. Dump: `Kaggle_baseline_tssi_leakage_results/`. |
+| 8   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 leakage contrast, ALL LEAKS OFF | Requested name `baseline_without_tssi-(3).ipynb`. Flags: `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False`. Artifacts under `modeling_without_tssi/`. | Yes — papermill 2026-09-19T14:02Z–14:22Z. Dump: `Kaggle_baseline_without_tssi_results/`. |
+| 9   | `modeling/rating/wang_vlst_score.ipynb`                       | Part 4 S-Wang | Frozen integer ROC **0.8013** / PR **0.1032**. | Yes — those prints are in the outputs. |
+| 10  | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | — | Executed (12/12 code cells) but artefacts unused by any paper analysis (§12.5). |
 
 
-Thirteen notebooks on disk are excluded by D1–D2 and are not audited (twelve under `failed_hypothesis/`, plus `tabpfn_playground.ipynb`). D4 is a reading rule, not an exclusion.
+Requested `paper_evidence_map-(2).md` / `baseline_tssi_leakage-(3).ipynb` / `baseline_without_tssi-(3).ipynb` are not on disk; this table uses the unsuffixed canonical paths. Thirteen notebooks on disk are excluded by D1–D2 and are not audited (twelve under `failed_hypothesis/`, plus `tabpfn_playground.ipynb`). D4 is a reading rule, not an exclusion.
 
 ### 0.3 Part 3 now has generating code
 
@@ -265,17 +342,17 @@ is the provenance audit, not manuscript prose.
 | --- | --- | --- |
 | 0 Front matter (W2–W5) | `paper_results/00_front_matter.md` | No notebook. Numbers it quotes must match Parts 1 / 4 / 5 **live** notebooks (`139d143` / `e356bb1`). |
 | 1 EDA | `paper_results/01_eda/EDA_paper_figures_and_tables.md` + `paper_figures/` | `code/analyzes/eda.ipynb` (univariates, Table 4, stent χ²). Table C + Table 4b: `run_b7` / `run_b4` (hygiene script **and** last EDA cells). |
-| 2 Selectors | `paper_results/02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md` + `paper_figures/` | `code/modeling/interpretability/baseline_feature_selections.ipynb` (`1a7a369` / 2026-08-31). Restyle: `rebuild_part2_paper_figures.py`. Kaggle `selector_summary_long.csv` was never downloaded. |
-| 3 Stats vs ML | `paper_results/03_stats_vs_ml/feature_extraction_comparison.md` + `paper_figures/` | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb` (asserts Jaccard 5/28 from hardcoded catalogues). |
-| 4 Nested CV | `paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md` + `paper_figures/` | **Numbers / figures / OOF:** executed notebook `139d143` Version 4 plus Kaggle working copy in `data/result/modeling_results/{oof,tables}/` and `code/modeling/rating/baseline_plust_tabpfn_results/`. Bootstrap: `run_b3()` in `paper_hygiene_b3_b4_b7.py` (script only). |
-| 4 S-TSSI | same Part 4 Markdown, Table S-TSSI / Fig S-TSSI | `baseline_tssi_leakage.ipynb` and `baseline_without_tssi.ipynb` (the 70/30 fits). Table S-TSSI: `rebuild_tssi_leakage_table.py`. |
+| 2 Selectors | `paper_results/02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md` + `paper_figures/` | **[REV17]** `Kaggle_baseline_intrepretability_results/` (2026-09-19; 87 columns; WBC dropped). Restyle: `rebuild_part2_paper_figures.py`. |
+| 3 Stats vs ML | `paper_results/03_stats_vs_ml/feature_extraction_comparison.md` + `paper_figures/` | **[REV17]** `rebuild_part3_paper_figures.py` from Part 2 dump (Jaccard 5/25). `stats_vs_ml_comparison.ipynb` still asserts 5/28 and was not edited. |
+| 4 Nested CV | `paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md` + `paper_figures/` | **[REV19]** Report quotes 9-arm anti-leakage dump (thinking v3.5 0.9212). Rebuild: `rebuild_part4_from_kaggle_dump.py`. |
+| 4 leakage contrast | same Part 4 Markdown, Table S-TSSI / Fig S-TSSI | **[REV18]** twins `baseline_tssi_leakage.ipynb` (ALL LEAKS ON) and `baseline_without_tssi.ipynb` (ALL LEAKS OFF). Dump `test_metrics.csv` 2026-09-19. Paths §4.6. |
 | 4 S-Wang | same Part 4 Markdown, Table S-Wang | `code/modeling/rating/wang_vlst_score.ipynb`. |
-| 5 Interpretability | `paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md` + `paper_figures/` | **`e356bb1` Version 5** Kaggle working copy (81-row MI/SHAP CSVs, 1,556-row indices, native PNGs). |
+| 5 Interpretability | `paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md` + `paper_figures/` | **[REV16]** `Kaggle_tabpfn_intrepretebility_results/` fs_pdp_MI + shap (2026-09-20; 8/8 SFS; 80 columns; WBC dropped). |
 | Concat pack | `paper_results/paper_results.md`, `paper_results/README.md` | Concatenation of the files above. |
 | Audit only | `docs/paper_evidence_map.md` | This file. |
 
 **Do not write from:** `code/failed_hypothesis/**`, `tabpfn_playground.ipynb`, `preprocessing.ipynb`,
-deleted `docs/paper_*.md` drafts. Quote Version 4 OOF CIs, not the previous dump’s 0.0673 intervals.
+deleted `docs/paper_*.md` drafts. Nested 0.9771 / 0.9635 are excluded (Rev 18). Do not quote Version 4 0.0673 either.
 
 **Dual-tree check (Revision 13, copies removed).** Report Markdown lives only under `paper_results/`.
 The `code/**` `.md` copies were deleted as duplicates. Quote `paper_results/`. Figure folders under
@@ -303,7 +380,8 @@ These are the disagreements that would put two parts of the pack in contradictio
 6. **Historical Revision 9–11 bullets above** still say paper numbers were `de46f92` / `645fb0e`.
    That quote rule is **superseded by Revision 12**. Do not copy it into the paper.
 7. **No conflict among Parts 1–3 catalogues** used for Jaccard: Part 3 hardcodes the Part 1 FDR-20
-   and Part 2 ML-13 lists and asserts 5/28. Re-run Part 3 if either catalogue changes.
+   and Part 2 ML-13 lists and asserts 5/28. Re-run Part 3 if either catalogue changes. **[REV17]** paper figures use dump ML-10 / Jaccard 5/25; the notebook assert is stale.
+8. **[REV19] Nested TabPFN 0.9212 / 0.8957 vs unlabeled 0.9771 / 0.9635.** Live is the 9-arm dump. Unlabeled two-arm dump is excluded. Do not mix.
 
 ### 0.6 Was each in-scope notebook run with its final source?
 
@@ -312,15 +390,42 @@ These are the disagreements that would put two parts of the pack in contradictio
 | `eda.ipynb` | **Yes** (outputs match the committed source). | Uncommitted kernel-name bump only. Table C / 4b are the last cells (`run_b7` / `run_b4`). |
 | `baseline_feature_selections.ipynb` | **Yes for the scored selectors** (`1a7a369`). | `802d885` edited an unused TabPFN constructor after the Kaggle run; paper models did not use it. |
 | `stats_vs_ml_comparison.ipynb` | **Yes.** | Catalogues are still Part 1 FDR-20 and Part 2 ML-13 (Part 5 TabPFN is a different extractor). Last cell prints Jaccard 0.1786 (=5/28) and the four membership tables. |
-| `baseline_plus_tabpfn.ipynb` | **Yes for Version 4** (papermill 2026-09-04; all Kaggle code cells have outputs). | Paper Markdown / `paper_figures/` / OOF match this execution (`139d143`). S-CI is `run_b3()` on that OOF, not a notebook cell. |
-| `tabpfn_interpretability.ipynb` | **Yes for Version 5** (papermill 2026-09-08–09; all code cells have outputs). | Paper Markdown / 81-row MI/SHAP CSVs / 1,556-row indices match this execution (`e356bb1`). B14 closed. |
-| `baseline_tssi_leakage.ipynb` / `baseline_without_tssi.ipynb` | **Yes** for the GridSearch 70/30 path quoted in S-TSSI. | Helper / unused SMOTE cells without outputs are not the quoted path. |
+| `baseline_plus_tabpfn.ipynb` | **Source matches 9-arm dump** `baseline_plus_tabpfn_results/` (anti-leakage ON; thinking v3.5 AP 0.921). Unlabeled two-arm 0.9771/0.9635 dump is a different inner folder. | Freeze `nested_cv_v35_antileakage_on` frozen. |
+| `tabpfn_interpretability_fs_pdp.ipynb` | Dump papermill 2026-09-20 (fs_pdp_MI). | Local v3.5; `FS_THINKING_MODE=False`; anti-leakage ON (TSSI+WBC dropped). |
+| `tabpfn_interpretability_shap.ipynb` | Dump papermill 2026-09-20 (shap). | Hosted v3.5; `INTERP_THINKING_MODE=True` effort high; anti-leakage ON. |
+| `tabpfn_interpretability.ipynb` | **ARCHIVED** parent. | Do not cite. Version 5 `e356bb1` is historical. |
+| `baseline_tssi_leakage.ipynb` | **Yes** for ALL LEAKS ON dump 2026-09-19. | Artifacts `modeling_tssi_leakage/`. |
+| `baseline_without_tssi.ipynb` | **Yes** for ALL LEAKS OFF dump 2026-09-19. | Artifacts `modeling_without_tssi/`. |
 | `wang_vlst_score.ipynb` | **Yes** for ROC 0.8013 / PR 0.1032. | Post-run display-name edit in `802d885` only. |
 | `preprocessing.ipynb` | Executed, unused. | Do not cite. |
 
-**Verdict.** Every paper-facing notebook that still has outputs was executed with its final source.
-Parts 4 and 5 Markdown describe those executions (Revision 12). Version 4 OOF and Version 5 81-row
-CSVs were copied in Revision 13 (B13 / B14 closed). Remaining open item is **B11** (Shantou file).
+**Verdict.** Leakage-contrast twins and Part 5 split dumps match their notebooks. Nested TabPFN
+live scores are the 9-arm anti-leakage dump (thinking v3.5 **0.9212**). Unlabeled 0.9771 / 0.9635
+remain excluded. Remaining open item: **B11** (Shantou file).
+
+### 0.7 TabPFN version provenance
+
+Rule: every TabPFN-derived number carries package pin, thinking mode, and anti-leakage status.
+Pins in current notebook source: **`tabpfn==9.0.0`** (local v3.5, checkpoint
+`tabpfn-v3.5-20260909.safetensors`) and **`tabpfn-client==0.6.0`** (hosted v3.5).
+SoT: `paper/frozen_results.yaml`. Do not invent missing nested scores.
+
+| Number | What it is | Pin | Thinking | Anti-leakage | Freeze status |
+| --- | --- | --- | --- | --- | --- |
+| Nested PR-AUC **0.9212** | Dump label `TabPFN thinking v3.5`; `baseline_plus_tabpfn_results/` | `tabpfn-client==0.6.0` hosted v3.5_default | `thinking_mode=True`, effort high, metric average_precision | **ON** | **frozen** — live nested |
+| Nested PR-AUC **0.8957** | Dump label `TabPFN v3.5`; same dump | `tabpfn==9.0.0` local v3.5 safetensors | false | **ON** | **frozen** — live nested |
+| Nested PR-AUC **0.8319** / **0.7150** | thinking v3 / TabPFN v3; same dump | client v3_default / local v3 ckpt | thinking true / local false | **ON** | **frozen** |
+| Nested PR-AUC **0.9771** | Unlabeled dump label `TabPFN thinking mode`; older inner folder `baseline_plus_tabpfn/` | unlabeled v3 vs v3.5 | thinking high | **OFF** (pre-anti-leakage two-arm dump) | **excluded** |
+| Nested PR-AUC **0.9635** | Dump label `TabPFN`; same unlabeled dump | unlabeled | false | **OFF** | **excluded** |
+| Nested PR-AUC **0.8553** / local **0.6742** | Version 4 `139d143` | older client / local | thinking-high vs local | historical | **excluded** |
+| MI CaI **0.020536** (80 cols) | `fs_pdp_MI/modeling_tabpfn/interpretability_mutual_info_ranking.csv` | `tabpfn==9.0.0` local v3.5 | `FS_THINKING_MODE=False` | **ON** (TSSI+WBC dropped) | frozen (`kaggle_interpretability`) |
+| SFS 8/8 {CaI, LV, eGFR} | `fs_pdp_MI/modeling_tabpfn/interpretability_feature_stability.csv` | `tabpfn==9.0.0` local v3.5 | `FS_THINKING_MODE=False`; `STABILITY_N_SEEDS=8` | **ON** | frozen |
+| PDP Previous PCI Δ **+0.001294** | `fs_pdp_MI/modeling_tabpfn/interpretability_pdp_binary.csv` | `tabpfn==9.0.0` local v3.5 | `PDP_USE_CLIENT=False` | **ON** | frozen |
+| SHAP eGFR **1.228766** / CaI **1.086730** / Cre **0.809273** / LV **0.482762** | `shap/modeling_tabpfn/interpretability_shap_mean_abs.csv` | `tabpfn-client==0.6.0` hosted v3.5 | `INTERP_THINKING_MODE=True`, effort high, metric average_precision | **ON** | frozen |
+| Consensus 3/3 {CaI, eGFR, LV} | Part 5 dump Borda | mixed local MI/SFS + thinking SHAP, both v3.5 | see rows above | **ON** | frozen |
+| k-SII row **5176** | shap dump | `tabpfn-client==0.6.0` hosted v3.5 | thinking-high | **ON** | frozen |
+
+Paper Markdown Part 4 quotes the 9-arm dump. Quote freeze YAML `nested_cv_v35_antileakage_on`. Unlabeled 0.9771 / 0.9635 remain excluded.
 
 ---
 
@@ -565,11 +670,11 @@ VLST'; it mixes different time definitions for cases vs controls. That is struct
 
 | Model               | With TSSI (ROC-AUC / PR-AUC) | Without TSSI, same single split (ROC-AUC / PR-AUC) |
 | ------------------- | ---------------------------- | -------------------------------------------------- |
-| Logistic regression | 0.9990 / 0.9575              | 0.9171 / 0.5077                                    |
-| Random forest       | 0.9993 / 0.9680              | 0.9338 / 0.4700                                    |
-| CatBoost            | 0.9995 / 0.9773              | 0.9669 / 0.6582                                    |
-| XGBoost             | 0.9987 / 0.9609              | 0.9380 / 0.6118                                    |
-| LightGBM            | 0.9989 / 0.9708              | 0.9483 / 0.6018                                    |
+| Logistic regression | 0.9954 / 0.9134              | 0.8318 / 0.3431                                    |
+| Random forest       | 0.9977 / 0.9400              | 0.9287 / 0.4874                                    |
+| CatBoost            | 0.9964 / 0.9599              | 0.9103 / 0.4942                                    |
+| XGBoost             | 0.9963 / 0.9547              | 0.9183 / 0.5685                                    |
+| LightGBM            | 0.9986 / 0.9687              | 0.9404 / 0.6675                                    |
 
 
 Sources: `.nbdump/code__modeling__rating__baseline_tssi_leakage.txt` L797–817;
@@ -678,6 +783,47 @@ Part 4 nested CV now uses the shared 9-level encoder (Kaggle run). Classics one-
 / Part 5 selection leakage does **not** contaminate the headline Part 4 metrics. Stated explicitly in the Part 4
 protocol paragraph.
 
+### 4.6 Leakage contrast — ALL LEAKS ON vs ALL LEAKS OFF
+
+Twin 70/30 GridSearch notebooks. **Not nested CV. No TabPFN.** SoT: `paper/frozen_results.yaml` key
+`leakage_contrast`. Requested names `baseline_tssi_leakage-(3).ipynb` /
+`baseline_without_tssi-(3).ipynb` map to the unsuffixed paths below.
+
+| Arm | Notebook | Dump root | Artifact dir | Flags |
+| --- | --- | --- | --- | --- |
+| **ALL LEAKS ON** | `code/modeling/rating/baseline_tssi_leakage.ipynb` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/` | `…/baseline_leakge_results/modeling_tssi_leakage/` | `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True` |
+| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_tssi.ipynb` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` | `…/baseline_without_leakage/modeling_without_tssi/` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` |
+
+Papermill: ON 2026-09-19T14:00Z–14:57Z; OFF 2026-09-19T14:02Z–14:22Z. Inner ON folder spelling is `baseline_leakge_results`.
+
+Every table/figure that exists in **both** `modeling_tssi_leakage/` and `modeling_without_tssi/`:
+
+| Kind | Basename | ALL LEAKS ON | ALL LEAKS OFF |
+| --- | --- | --- | --- |
+| Table | `test_metrics.csv` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/test_metrics.csv` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/test_metrics.csv` |
+| Table | `threshold_analysis.csv` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/threshold_analysis.csv` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/threshold_analysis.csv` |
+| Figure | `confusion_matrices.png` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/confusion_matrices.png` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/confusion_matrices.png` |
+| Figure | `roc_pr_curves.png` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/roc_pr_curves.png` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/roc_pr_curves.png` |
+| Figure | `decision_tree_plot.png` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/decision_tree_plot.png` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/decision_tree_plot.png` |
+
+Fitted models present in both artifact dirs (same seven names): `best_logistic.joblib`, `best_decision_tree.joblib`, `best_random_forest.joblib`, `best_gaussian_nb.joblib`, `best_catboost.joblib`, `best_xgboost.joblib`, `best_lightgbm.joblib`.
+
+**Missing in both arms originally:** Kaggle dump omitted `best_params.csv`. GridSearch winners **are** in the executed notebook prints. They are now in `modeling_tssi_leakage/best_params.csv`, `modeling_without_tssi/best_params.csv`, and Part 4 Table S-TSSI-HP (ALL LEAKS ON LR `C=0.1, penalty=l2, solver=lbfgs`; ALL LEAKS OFF LR `C=100.0, penalty=l1, solver=liblinear`). `threshold_analysis.csv` has no model column in either arm.
+
+PR-AUC from `test_metrics.csv` (registered, not invented):
+
+| Model | ALL LEAKS ON | ALL LEAKS OFF |
+| --- | ---: | ---: |
+| LogisticRegression | 0.913388 | 0.343057 |
+| DecisionTree | 0.752385 | 0.137767 |
+| RandomForest | 0.939998 | 0.487373 |
+| GaussianNB | 0.272768 | 0.056433 |
+| CatBoost | 0.959865 | 0.494218 |
+| XGBoost | 0.954687 | 0.568484 |
+| LightGBM | 0.968654 | 0.667542 |
+
+TSSI is a leakage-only demonstration, not a baseline. Nested-CV Part 4 does not use SMOTE.
+
 ---
 
 ## 5. The analysis pipeline as actually implemented
@@ -690,11 +836,13 @@ protocol paragraph.
 | Statistical EDA                      | `code/analyzes/eda.ipynb`                                                            | Part 1                                 |
 | Classic-ML feature selection         | `code/modeling/interpretability/baseline_feature_selections.ipynb`                   | Part 2                                 |
 | Stats-vs-ML comparison               | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`                              | Part 3                                 |
-| Nested-CV baselines + TabPFN         | `code/modeling/rating/baseline_plus_tabpfn.ipynb`                                    | Part 4                                 |
+| Nested-CV baselines + TabPFN         | `code/modeling/rating/baseline_plus_tabpfn.ipynb`                                    | Part 4 (9-arm anti-leakage dump; thinking v3.5 0.9212; unlabeled 0.9771/0.9635 excluded) |
 | Wang 2020 integer score (frozen)     | `code/modeling/rating/wang_vlst_score.ipynb`                                         | Part 4 Table S-Wang                    |
-| TabPFN interpretability              | `code/modeling/interpretability/tabpfn_interpretability.ipynb`                       | Part 5                                 |
-| Leaky baselines (with TSSI)          | `code/modeling/rating/baseline_tssi_leakage.ipynb`                                   | Part 4 Table S-TSSI                    |
-| Baselines without TSSI, single split | `code/modeling/rating/baseline_without_tssi.ipynb`                                   | Part 4 Table S-TSSI                    |
+| TabPFN interpretability — MI/SFS/PDP | `code/modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb`                | Part 5                                 |
+| TabPFN interpretability — SHAP/k-SII | `code/modeling/interpretability/tabpfn_interpretability_shap.ipynb`                  | Part 5                                 |
+| TabPFN interpretability (archived parent) | `code/modeling/interpretability/tabpfn_interpretability.ipynb`                  | **ARCHIVED** — do not cite             |
+| Leakage contrast ALL LEAKS ON        | `code/modeling/rating/baseline_tssi_leakage.ipynb`                                   | Part 4 §4.6 / Table S-TSSI             |
+| Leakage contrast ALL LEAKS OFF       | `code/modeling/rating/baseline_without_tssi.ipynb`                                   | Part 4 §4.6 / Table S-TSSI             |
 | Preprocessing artefacts              | `code/modeling/preprocessing/preprocessing.ipynb`                                    | not reported; artefacts unused (§12.5) |
 
 
@@ -773,18 +921,19 @@ Two distinct baseline exercises exist and must not be conflated:
 
 ### 5.7 Classic ML feature selection (Part 2)
 
-- Feature view: shared 9-level stent encoder, then OHE drop-first + scale → **88 columns**
-(Kaggle log: `scaled features: 88`; `Stent brand: 106 raw strings -> 9 levels`).
-- **Stored export (2026-08-31 paper protocol):** top-20, SHAP universe 40, LOCO cap 60, FFS pool 24 × 12
+- Feature view: shared 9-level stent encoder, then OHE drop-first + scale → **87 columns**
+after TSSI **and WBC** drop (raw 80 − 1 brand + 8 dummies). Older 88-column reconstruction excluded.
+- **Live dump (2026-09-19):** top-20, SHAP universe 40, LOCO cap 60, FFS pool 24 × 12
 with early stop, PR-AUC only, independent selectors, fit/val 4148/1037.
+  `Kaggle_baseline_intrepretability_results/` (`selector_report.md` 14:39:53).
 - Seven classic models: `lr`, `rf`, `rf_b`, `cat`, `xgb`, `xgb_b`, `lgb`. TabPFN was optional and not in this run.
 - One objective: `pr_auc`.
 
 **[CLOSED]** The prior reduced dump set `order = list(range(n))` then truncated to the first 40 ColumnTransformer
 columns and nested SHAP/FFS in that pool, scored on the 28-event test fold. That export is **replaced**.
 Current selectors rank each pool by cheap fit-slice importance, score PR-AUC on the val slice of the full
-cohort, and do not nest. Kaggle `selector_summary_long.csv` was not committed; tables were reconstructed from
-notebook displays (XGBoost’s 7-name list completed as `WBC; eGFR` from the truncated `WB…`).
+cohort, and do not nest. **[REV17]** Kaggle CSVs are in-repo. The 2026-08-31 88-column / WBC consensus
+reconstruction is excluded.
 
 **[CLOSED]** Stored SHAP is a stratified val sample at cohort prevalence, not the old 87.5% positive 32-row
 slice.
@@ -862,7 +1011,7 @@ is **false**. That sentence remains true for the **paper CSV** (`0.0673`). Name 
 | Block               | Configuration                                                                        | Backend                           | Source                                          |
 | ------------------- | ------------------------------------------------------------------------------------ | --------------------------------- | ----------------------------------------------- |
 | Mutual information  | `mutual_info_classif` on the 81-column matrix, **full cohort**; CSV = all 81 scores  | sklearn, 0 TabPFN calls           | dump [1a]; `Fast-Glu` / `ZES` in printed top 15 |
-| Stability selection | Forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, **full cohort** (~8.6 h) | local TabPFN, 0 client calls | dump [1b]: WBC 10/10; Staged PCI 7/10; Fiberinogen / LV / ZES 6/10 |
+| Stability selection | Forward SFS keeping 10 of 81, 5-fold CV, AP scoring, **10 seeds**, **full cohort** (~8.6 h) | local TabPFN, 0 client calls | dump [1b]: WBC 10/10; Staged PCI 7/10; Fiberinogen / LV / ZES 6/10 **[REV15]** [RE-SOURCE: 8/8 seeds CaI/LV/eGFR; WBC absent] |
 | PDP                 | 4 continuous (grid 30) + 6 binary; **full cohort** n=5185; `balance_probabilities=False` (empirical prior; not Part 4 risk). Nominal `Stent type-SES` excluded from continuous curves | local TabPFN | dump [2/5]: binary P(y=1) ≈ 0.017–0.023 |
 | SHAP (shapiq SV)    | **15 VLST=1 + 15 VLST=0** (n=30); fit/background = full cohort; budget 256            | **tabpfn-client + thinking** (succeeded) | dump [3/5] L1558–1567 `Explaining all 30 rows` |
 | k-SII / SHAP-IQ     | **one** VLST=1 row (cohort index 5099) from that 15+15 slice, budget 256             | **tabpfn-client + thinking** (succeeded) | dump [3/5] and [4/5] |
@@ -1103,6 +1252,9 @@ Source: dump L1333–1351. Repo `paper_table2_nested_operating_point.csv` now in
 **This table, not §7.2, is the defensible operating-point result.** Thinking-high has the highest nested F1
 (0.7471) and nested recall (0.7065) among the seven. TabPFN (local) still has more false positives than
 LightGBM (52 vs 31) at similar event capture.
+**[REV15]** [RE-SOURCE: `Kaggle_baseline_plus_tabpfn_results` nested_cv_operating_point.csv thinking
+5088/5/7/85 recall 0.923913 F1 0.934066; local 5085/8/6/86; LGB 5063/30/32/60]. Paper Part 4 Markdown
+already matches that dump; this §7.3 ledger table does not.
 
 **F2.** Live Part 4 notebook cell 15 uses `sklearn.metrics.fbeta_score(..., beta=2.0)`. Nested F2 values
 in this table are that definition. **Live nested *t* for local** is 0.166 ± 0.020 with the **same**
@@ -1134,27 +1286,28 @@ Source: dump L1354–1395. Each fold n = 1,037, with n_pos = 18, 18, 18, 19, 19.
 
 Thinking-high PR-AUC is higher than LightGBM in **5 of 5** folds. TabPFN (local) is higher than LightGBM in
 **2 of 5** folds (3 and 5), same pattern as Rev 6. Both TabPFN fold-PR columns match `139d143` to 4 d.p.
+**[REV15]** [RE-SOURCE: 2026-09-18 fold_metrics.csv thinking PR 0.987923 / 0.939740 / 0.960428 / 1.000000 /
+1.000000; local 0.988090 / 0.938185 / 0.933424 / 0.991674 / 0.967777 — not the 0.8640 / 0.6384 rows above].
+Paper Part 4 already matches the 2026-09 dump; this §7.4 ledger table is Version 4.
 LightGBM folds in Version 4 are 0.7528 / 0.7138 / 0.5473 / 0.7731 / 0.6916. Paired stratified bootstrap
 of Version 4 pooled OOF (B3, `n_boot=2000`): thinking-high − LightGBM Δ PR-AUC **0.1611 (0.0984–0.2289)**,
 P(Δ ≤ 0) = 0/2000. Local − LightGBM **−0.0201 (−0.0974–0.0566)** is compatible with no difference.
 Do not say the *local* arm wins 5/5. The previous-dump Δ 0.1627 was `de46f92` and is not Version 4.
 
-### 7.5 Unreported metrics: single-split baselines with and without the leakage variable
+### 7.5 Single-split baselines with and without the leakage variable
 
-Protocol: single stratified 70/30 split, GridSearchCV, optional SMOTE. Not in any Markdown report.
-Sources: `.nbdump/code__modeling__rating__baseline_tssi_leakage.txt` L797–817;
-`.nbdump/code__modeling__rating__baseline_without_tssi.txt` L906–924.
+Protocol: single stratified 70/30 split, GridSearchCV, optional SMOTE. **[REV16]** Numbers from 2026-09-19 `test_metrics.csv` (same 7 models). Not nested CV.
 
 
 | Model               | With TSSI: Acc / F1 / Recall / Prec / ROC-AUC / PR-AUC | Without TSSI: Acc / F1 / Recall / Prec / ROC-AUC / PR-AUC |
 | ------------------- | ------------------------------------------------------ | --------------------------------------------------------- |
-| Logistic Regression | 0.9846 / 0.6923 / 1.0000 / 0.5294 / 0.9990 / 0.9575    | 0.9354 / 0.2637 / 0.6667 / 0.1644 / 0.9171 / 0.5077       |
-| Decision Tree       | 0.9942 / 0.8500 / 0.9444 / 0.7727 / 0.9696 / 0.7308    | 0.9749 / 0.1875 / 0.1667 / 0.2143 / 0.5774 / 0.0405       |
-| Random Forest       | 0.9942 / 0.8000 / 0.6667 / 1.0000 / 0.9993 / 0.9680    | 0.9749 / 0.4348 / 0.5556 / 0.3571 / 0.9338 / 0.4700       |
-| Gaussian NB         | 0.1851 / 0.0409 / 1.0000 / 0.0209 / 0.5854 / 0.0209    | 0.1851 / 0.0409 / 1.0000 / 0.0209 / 0.5854 / 0.0209       |
-| CatBoost            | 0.9981 / 0.9412 / 0.8889 / 1.0000 / 0.9995 / 0.9773    | 0.9875 / 0.5806 / 0.5000 / 0.6923 / 0.9669 / 0.6582       |
-| XGBoost             | 0.9981 / 0.9412 / 0.8889 / 1.0000 / 0.9987 / 0.9609    | 0.9884 / 0.5714 / 0.4444 / 0.8000 / 0.9380 / 0.6118       |
-| LightGBM            | 0.9981 / 0.9412 / 0.8889 / 1.0000 / 0.9989 / 0.9708    | 0.9865 / 0.5625 / 0.5000 / 0.6429 / 0.9483 / 0.6018       |
+| Logistic Regression | 0.9839 / 0.6753 / 0.9286 / 0.5306 / 0.9954 / 0.9134    | 0.9126 / 0.2093 / 0.6429 / 0.1250 / 0.8318 / 0.3431       |
+| Decision Tree       | 0.9871 / 0.7059 / 0.8571 / 0.6000 / 0.9266 / 0.7524    | 0.9602 / 0.2791 / 0.4286 / 0.2069 / 0.7009 / 0.1378       |
+| Random Forest       | 0.9949 / 0.8333 / 0.7143 / 1.0000 / 0.9977 / 0.9400    | 0.9820 / 0.0000 / 0.0000 / 0.0000 / 0.9287 / 0.4874       |
+| Gaussian NB         | 0.4370 / 0.0437 / 0.7143 / 0.0225 / 0.7425 / 0.2728    | 0.1973 / 0.0370 / 0.8571 / 0.0189 / 0.7493 / 0.0564       |
+| CatBoost            | 0.9974 / 0.9231 / 0.8571 / 1.0000 / 0.9964 / 0.9599    | 0.9685 / 0.4096 / 0.6071 / 0.3091 / 0.9103 / 0.4942       |
+| XGBoost             | 0.9974 / 0.9231 / 0.8571 / 1.0000 / 0.9963 / 0.9547    | 0.9884 / 0.5500 / 0.3929 / 0.9167 / 0.9183 / 0.5685       |
+| LightGBM            | 0.9974 / 0.9231 / 0.8571 / 1.0000 / 0.9986 / 0.9687    | 0.9871 / 0.4444 / 0.2857 / 1.0000 / 0.9404 / 0.6675       |
 
 
 ### 7.6 Part 1 — statistical effect estimates
@@ -1263,19 +1416,7 @@ Presentation 5 / 0; Demographics 4 / 0.
 
 ### 7.7 Part 5 — interpretability quantities
 
-These are **not** performance metrics. They are model-attribution and screening quantities. **Scored
-dump `645fb0e` is still the published catalogue** (15+15 SHAP, empirical PDP, 81-row MI). Repo CSVs under
-`paper_results/05_tabpfn_interpretability/paper_figures/` match that run (B12 closed). Consensus on this dump
-(top 5): WBC, LV, eGFR, `1.1:1Post dilation`, CaI.
-
-**Live notebook `e356bb1` Version 5 (not copied to paper_figures).** Train-only MI top 15 starts CaI,
-WBC, LV, LDL, eGFR (no Fast-Glu / ZES in the printed top 15). Stability on train (10 seeds, 28,776 s
-≈ 8.0 h): WBC 10/10; Cre and LV 8/10; eGFR 7/10; Previous PCI and Staged PCI 5/10. PDP on train
-n = 3,629, empirical prior; continuous grid `{WBC, Cre, LV, eGFR}`; largest binary Δ `1.1:1Post
-dilation` 0.0258 → 0.0165 (Δ = **−0.0093**), `Previous PCI` Δ = **+0.0137**. SHAP mean|SHAP| on
-1,556 held-out rows (local after 429): consensus table prints eGFR 1.044, WBC 1.020, LV 0.870.
-k-SII one row = cohort **5176**. Cre MI on train prints **0.000000** in the consensus table (a
-train-split measured zero, not the old top-15 fill-zero). Do not mix these with `645fb0e` Table 5.
+These are **not** performance metrics. **[REV16]** Current catalogue is `Kaggle_tabpfn_intrepretebility_results/` (2026-09-20), copied into `paper_results/05_tabpfn_interpretability/paper_figures/`. Train 3,629 / 64; held-out 1,556 / 28; **80 columns** (TSSI and WBC dropped). SFS **8/8 seeds**: CaI, LV, eGFR freq 1.0. Train MI top: CaI **0.020536**, LV **0.012818**, eGFR **0.009424**. Held-out mean|SHAP|: eGFR **1.2288**, CaI **1.0867**, Cre **0.8093**, LV **0.4828**. Binary PDP largest |Δ| `Previous PCI` **+0.001294**. Consensus 3/3 (after merging shap dump): `{CaI, eGFR, LV}` (also HbA1c and `1.1:1Post dilation`). k-SII row **5176** position 20. Historical `645fb0e` / `e356bb1` 10-seed WBC tables are excluded.
 
 ### 7.8 Metric comparability audit
 
@@ -1344,26 +1485,26 @@ From the joint domain model: `WBC`, `eGFR`, `LV`, `LVEF` (**sign-flipped**), `No
 **Strictest global intersection** (all 7 models × all 3 selectors, PR-AUC top-20): **empty**.
 **Global union of scored names:** 86.
 
-**Within-model LOCO ∩ SHAP ∩ FFS, PR-AUC** (Part 2 Table 2):
+**Within-model LOCO ∩ SHAP ∩ FFS, PR-AUC** (Part 2 Table 2; **[REV17]** 2026-09-19 dump):
 
 
 | Model | PR-AUC |
 | ----- | ------ |
-| lr    | Cre, LV, Men, UA, WBC, eGFR |
-| rf    | HGB, LDL, LVEF, Men, WBC, eGFR |
-| rf_b  | CaI, HGB, LVEF, WBC |
-| cat   | 1.1:1Post dilation, HGB, WBC |
-| xgb   | 1.1:1Post dilation, Aneurysm, Cre, HGB, LV, WBC, eGFR |
-| xgb_b | 1.1:1Post dilation, LV, LVEF, WBC, eGFR |
-| lgb   | HbA1c, LV |
+| lr    | Clopidogrel, Cre, Men, eGFR |
+| rf    | HGB, LDL, LV |
+| rf_b  | Cre, eGFR |
+| cat   | Clopidogrel, HbA1c, LDL, LV, No postdilation |
+| xgb   | HGB, eGFR |
+| xgb_b | Cre, HGB, Stent type-SES_xiencev, eGFR |
+| lgb   | HbA1c |
 
 
-**Union of the above (the "ML consensus catalogue", n = 13):** `1.1:1Post dilation`, `Aneurysm`, `CaI`, `Cre`,
-`HGB`, `HbA1c`, `LDL`, `LV`, `LVEF`, `Men`, `UA`, `WBC`, `eGFR`.
+**Union of the above (the "ML consensus catalogue", n = 10):** `Clopidogrel`, `Cre`, `HGB`, `HbA1c`,
+`LDL`, `LV`, `Men`, `No postdilation`, `Stent type-SES_xiencev`, `eGFR`. **`WBC` is not in this dump.**
 
-**Union sizes per model** (Part 2 Table 3, top-20 unions): lr 32, rf 35, rf_b 34, cat 32, xgb 31, xgb_b 30, lgb 30.
-**Jaccard between selector unions** (top-20, models pooled): LOCO–SHAP 0.62, SHAP–FFS 0.48, LOCO–FFS 0.43 —
-moderate because the selectors are independent (the old 0.95–0.97 figure was nested-pool artefact).
+**Union sizes per model** (Part 2 Table 3, top-20 unions): lr 33, rf 31, rf_b 34, cat 33, xgb 33, xgb_b 32, lgb 32.
+**Jaccard between selector unions** (top-20, models pooled): LOCO–SHAP 0.60, SHAP–FFS 0.49, LOCO–FFS 0.37 —
+moderate because the selectors do not consume each other’s selected names (the old 0.95–0.97 figure was nested-pool artefact).
 
 ### 8.7 TabPFN interpretability (Part 5)
 
@@ -1417,18 +1558,19 @@ held-out slice after local fallback, not the 30-row client dump.
 
 ### 8.8 What every method agrees on
 
-Present in the statistical FDR set, the classic-ML consensus, **and** the TabPFN consensus:
-`WBC`**,** `eGFR`**,** `LV`. Nothing else clears all three. These three are also, by §3.2, the three variables whose
-measurement timing is undocumented.
+Present in the statistical FDR set, the classic-ML consensus, **and** the TabPFN 3/3 consensus:
+`eGFR`**,** `LV`. `WBC` is FDR-only on this selector dump (dropped from the ML matrix) and is absent from
+Part 5. `CaI` is TabPFN 3/3 but not FDR and not classic-ML three-way.
 
 ---
 
 ## 9. Overlap and disagreement: statistics vs machine learning
 
 Source: `paper_results/03_stats_vs_ml/feature_extraction_comparison.md`. Generating code:
-`code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb`.
-Headline arithmetic is asserted in that notebook: Jaccard = 5/28 ≈ 0.1786, intersection
-`{WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}`. **[TODO-P3 — closed]**
+`code/modeling/tools/rebuild_part3_paper_figures.py` (2026-09-19 anti-leak dump). `stats_vs_ml_comparison.ipynb`
+loads that dump (ML-10; Jaccard 5/25) and calls the same rebuild. Pre-antileak ML-13 / 5/28 is superseded.
+Headline arithmetic: Jaccard = 5/25 = 0.20, intersection
+`{Clopidogrel, HbA1c, LV, No postdilation, eGFR}`. **[REV17]**
 
 ### 9.1 Headline overlap
 
@@ -1436,11 +1578,11 @@ Headline arithmetic is asserted in that notebook: Jaccard = 5/28 ≈ 0.1786, int
 | Quantity                  | Value                                                            | Source     |
 | ------------------------- | ---------------------------------------------------------------- | ---------- |
 | Statistical FDR catalogue | 20 names                                                         | Part 3 §1  |
-| ML consensus catalogue    | 13 names                                                         | Part 3 §1  |
-| Intersection              | **5** — `WBC`, `eGFR`, `LV`, `HbA1c`, `1.1:1Post dilation`       | Part 3 §2  |
-| Jaccard                   | 5 / 28 ≈ **0.18**                                                | Part 3 §2  |
+| ML consensus catalogue    | **10** names ([REV17] dump)                                      | Part 3 §1  |
+| Intersection              | **5** — `Clopidogrel`, `HbA1c`, `LV`, `No postdilation`, `eGFR`  | Part 3 §2  |
+| Jaccard                   | 5 / 25 = **0.20**                                                | Part 3 §2  |
 | Statistics-only           | 15                                                               | Part 3 §4  |
-| ML-only                   | 8                                                                | Part 3 §5  |
+| ML-only                   | 5                                                                | Part 3 §5  |
 
 
 **[VERIFIED]** 20 + 13 − 5 = 28. The input lists match §8.1 and §8.6. `stats_vs_ml_comparison.ipynb` asserts the
@@ -1918,6 +2060,7 @@ Groups B–E are execution work.
 | **B11** [TODO-EXT — **blocked**] | **Ask for the Shantou n = 2,058 file.** If it exists, it is the external test set Wang already used. Cox LP and Dangas DCA wait on the same access. | **Blocked this cycle — no new data.** | State clearly that ML validation is derivation-cohort nested CV only. |
 | **B13** [TODO-P4-SRC — **closed**] | **Copy Part 4 Version 4 OOF** from `139d143` into `data/result/modeling_results/`. Nested CV already finished and is quoted: thinking-high AP **0.8553** / Brier **0.0064**; local PR **0.6742** / Brier **0.0102** / nested *t* **0.166**. Bootstrap CIs recomputed on those arrays (S-CI / S-Δ). | Done — `baseline_plust_tabpfn_results/` → `data/result/modeling_results/{oof,tables}/` | Do not re-run restore on the old 0.0673 arrays. |
 | **B14** [TODO-P5-SRC — **closed**] | **Copy Part 5 Version 5** 81-row MI/SHAP CSVs, 1,556-row explain indices, and Kaggle PNGs from `e356bb1`. | Done — `Kaggle_tabpfn_intrepretebility_results/modeling_tabpfn/` | Captions rebuilt. Do not copy `152c5d1`. |
+| **B15** [TODO-NESTED-V35 — **closed**] | **Nested 5×4 CV after anti-leakage** for TabPFN v3, v3.5, thinking v3, thinking v3.5 (`tabpfn==9.0.0` / `tabpfn-client==0.6.0`). | Done — dump `baseline_plus_tabpfn_results/`; thinking v3.5 PR-AUC **0.9212**; TabPFN v3.5 **0.8957**. | Freeze key `nested_cv_v35_antileakage_on`. Unlabeled 0.9771 / 0.9635 excluded. |
 
 
 ### C. Rewrite or delete — claims that are now known to be wrong
@@ -1930,14 +2073,14 @@ closures that were not reopened.
 | #       | Where                                                                                     | Action                                                                                                                                                                                                                                                         |
 | ------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **C1**  | Part 4 Table 1 / Figure 2 Brier                                                           | **[REV12/closed in reports]** Thinking-high **0.0064** best; local **0.0102** booster band. Dual-tree PNGs match `139d143`. Previous dump 0.0673 is labelled previous. |
-| **C2**  | Part 4 event counts                                                                       | **[REV7/closed in reports]** Nested thinking-high 5076/17/27/65 (recall 0.7065). Local nested 5041/52/29/63. Pooled local TP=78 is Table 3 only (Version 4).                                                                                                           |
+| **C2**  | Part 4 event counts                                                                       | **[REV7/closed in reports]** Nested thinking-high 5076/17/27/65 (recall 0.7065). Local nested 5041/52/29/63. Pooled local TP=78 is Table 3 only (Version 4). **[REV15]** [RE-SOURCE: dump nested 5088/5/7/85 and 5085/8/6/86; paper Part 4 already matches dump] |
 | **C3**  | Part 4 provenance / fold SD                                                               | **[REV13/closed]** Fold SD in Table 1 from the live notebook. S-CI / S-Δ are Version 4 OOF. S-folds kept. |
 | **C4**  | Part 4 Tables 2–3                                                                         | **[REV12/closed in reports]** Nested local *t* 0.166; LightGBM nested 5060/33/30/62; pooled local 5015/78/14/78.                                                                                                                                                      |
-| **C6**  | Part 5 SHAP captions                                                                      | **[REV12/closed in reports]** 1,556 held-out rows, local after 429, k-SII row **5176**. |
-| **C7**  | Part 5 PDP captions                                                                       | **[REV12/closed in reports]** Train n=3629 empirical prior; largest binary Δ −0.0093 (`1.1:1Post dilation`) and +0.0137 (`Previous PCI`).                                                                                                                                                                           |
+| **C6**  | Part 5 SHAP captions                                                                      | **[REV16/closed in reports]** 1,556 held-out rows; eGFR 1.2288 / CaI 1.0867 / Cre 0.8093 / LV 0.4828; WBC absent; k-SII row **5176**. |
+| **C7**  | Part 5 PDP captions                                                                       | **[REV16/closed in reports]** Train n=3629 empirical prior; largest binary Δ `Previous PCI` **+0.001294**; post-dilation **−0.000094**. |
 | **C5**  | Part 3: "domain multivariable OR persists" for `LVEF`                                     | **[REV4/closed in reports]** Fixed: Part 3 states the sign reversal.                                                                                                                                                                                           |
 | **C8**  | Part 5 k-SII captions (Figures 8–12)                                                      | **[REV4/closed in reports]** Already one-row; Fig 8 no longer calls the blue node a cohort benefit.                                                                                                                                                            |
-| **C9**  | Part 5 Table 5 caption                                                                    | **[REV12/closed in reports]** Train MI; `Cre` **0.000000**; 3/3 `{WBC, LV, eGFR}`. |
+| **C9**  | Part 5 Table 5 caption                                                                    | **[REV16/closed in reports]** SFS 8/8; 3/3 `{CaI, eGFR, LV}`; Cre MI **0.000338**. |
 | **C10** | Anywhere "protective" appears — `1.1:1Post dilation` (Table 4b OR **0.152**), `Clopidogrel` (Table 4b OR **0.480**) | **[REV4/closed in reports]** Word removed from paper-style reports. Quote Table 4b, not Table 4 (0.042 / 0.527; Wald undefined). OR < 1 / negative PDP is association or model output, not a treatment benefit (§12.12). |
 | **C11** | Part 2 Table 0: CatBoost "Ordered boosting"                                               | **[REV5/closed]** Markdown + CSV + PNG: GPU **Plain**, `eval_metric=PRAUC`.                                                                                                    |
 | **C12** | Part 1 Figure 3 / Table 1 effect-size column                                              | **[REV4/closed in reports]** Caption: Cohen's d and Mann–Whitney r are different metrics; do not compare bar lengths (`WBC` r = 0.13 vs `LV` d = 1.13). Splitting the PNG into two panels still needs an EDA re-export.                                        |

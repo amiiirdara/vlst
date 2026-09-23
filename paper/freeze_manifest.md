@@ -1,10 +1,10 @@
 # Freeze manifest — VLST manuscript numerical registry
 
-**Date:** 2026-09-18  
+**Date:** 2026-09-22  
 **Registry:** [`paper/frozen_results.yaml`](frozen_results.yaml)  
-**Status:** **READY FOR MANUSCRIPT DRAFTING** (not BLOCKED). Part 4 numbers follow the 2026-09-17 TabPFN 3.5 / `tabpfn==9.0.0` nested-CV dump. Bootstrap CIs pending this-run OOF.
+**Status:** nested TabPFN anti-leakage-ON is **frozen** (`nested_cv_v35_antileakage_on`): thinking v3.5 PR-AUC **0.9212**, TabPFN v3.5 **0.8957**. Unlabeled 0.9771 / 0.9635 excluded. Leakage-contrast + Part 2/5 dumps are current.
 
-Notebooks were not rerun. Values were not recalculated. Numbers were copied from Markdown reports (and from CSVs those reports name as table sources). Notebooks and scripts appear only as provenance.
+Notebooks were not rerun for nested CV. Leakage `best_params_` were copied from executed notebook prints into dump `best_params.csv` and Table S-TSSI-HP.
 
 The requested filenames with suffixes `-(2)` and `-(3)` were **not on disk**. Canonical copies below were used instead.
 
@@ -71,36 +71,41 @@ Draft from `status: frozen` in the YAML. Headline scalars:
 - Do **not** quote Table 4 (17 covariates, unidentified, EPV ≈ 5.4; adj OR 0.042 / 0.527; Wald CI undefined).
 - Supplementary Table S2: 16 LR interaction tests; q < 0.05 for LV × eGFR and Men × eGFR only. Hypothesis-generating.
 
-### Prediction (Part 4 nested 5×4 CV, `tabpfn==9.0.0` / v3.5, TSSI dropped)
+### Prediction (Part 4 nested 5×4 CV)
 
-Keep arms and metrics separate. Ranking = pooled OOF. Thresholded metrics = **Table 2 nested F1** (not Table 3).
+**Live anti-leakage-ON nested TabPFN** is the 9-arm dump `Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/`. Grep freeze YAML for the **top-level** key `nested_cv_v35_antileakage_on`. Do not quote unlabeled 0.9771 / 0.9635.
 
-| Model | PR-AUC (95% CI) | ROC-AUC (95% CI) | Brier (95% CI) | ECE (8 q-bins) |
-| --- | --- | --- | --- | --- |
-| TabPFN thinking-high | **0.9771** [0.9538, 0.9942] | **0.9991** [0.9979, 0.9999] | **0.0023** [0.0016, 0.0032] | 0.0008 |
-| TabPFN local | 0.9635 [0.9339, 0.9883] | 0.9983 [0.9964, 0.9997] | 0.0025 [0.0018, 0.0034] | **0.0002** |
-| LightGBM | 0.6935 [0.6060, 0.7779] | 0.9681 [0.9490, 0.9831] | 0.0093 [0.0076, 0.0110] | 0.0075 |
-| XGBoost | 0.6815 [0.5881, 0.7703] | 0.9439 [0.9100, 0.9742] | 0.0088 [0.0071, 0.0106] | 0.0035 |
-| CatBoost | 0.6172 [0.5250, 0.7148] | 0.9594 [0.9398, 0.9765] | 0.0101 [0.0084, 0.0119] | 0.0026 |
-| Random forest | 0.4865 [0.3860, 0.6034] | 0.9209 [0.8824, 0.9555] | 0.0143 [0.0137, 0.0148] | 0.0087 |
-| Logistic regression | 0.3326 [0.2486, 0.4345] | 0.9224 [0.8966, 0.9449] | 0.0563 [0.0511, 0.0611] | 0.0758 |
+| Model | PR-AUC (95% CI) | ROC-AUC (95% CI) | Brier (95% CI) | ECE (8 q-bins) | Cite |
+| --- | --- | --- | --- | --- | --- |
+| TabPFN thinking v3.5 | 0.9212 [0.8785, 0.9613] | 0.9963 [0.9932, 0.9986] | 0.0047 [0.0037, 0.0058] | 0.0028 | frozen |
+| TabPFN v3.5 | 0.8957 [0.8446, 0.9426] | 0.9916 [0.9828, 0.9978] | 0.0048 [0.0038, 0.0060] | 0.0003 | frozen |
+| TabPFN thinking v3 | 0.8319 [0.7626, 0.8945] | 0.9834 [0.9709, 0.9939] | 0.0066 [0.0053, 0.0080] | 0.0036 | frozen |
+| TabPFN v3 | 0.7150 [0.6260, 0.8074] | 0.9731 [0.9551, 0.9883] | 0.0099 [0.0089, 0.0111] | 0.0059 | frozen |
+| XGBoost | 0.6322 [0.5331, 0.7247] | 0.9374 [0.8967, 0.9699] | 0.0100 [0.0084, 0.0116] | 0.0066 | frozen |
+| LightGBM | 0.6271 [0.5313, 0.7202] | 0.9444 [0.9135, 0.9698] | 0.0106 [0.0090, 0.0123] | 0.0090 | frozen |
+| CatBoost | 0.5707 [0.4750, 0.6729] | 0.9404 [0.9142, 0.9632] | 0.0108 [0.0091, 0.0125] | 0.0031 | frozen |
+| Random forest | 0.3506 [0.2660, 0.4633] | 0.8883 [0.8413, 0.9296] | 0.0150 [0.0144, 0.0155] | 0.0090 | frozen |
+| Logistic regression | 0.2596 [0.1834, 0.3588] | 0.8651 [0.8220, 0.9044] | 0.0788 [0.0730, 0.0844] | 0.1156 | frozen |
 
 Nested operating point (Table 2), selected:
 
-- Thinking-high: t = 0.367 ± 0.106; PPV 0.9444; recall 0.9239; NPV 0.9986; F1 0.9341; 5088/5/7/85.
-- Local: t = 0.393 ± 0.107; recall 0.9348; NPV 0.9988; 5085/8/6/86.
-- LightGBM: t = 0.122 ± 0.084; recall 0.6522; 5063/30/32/60.
+- Thinking v3.5: t = 0.318 ± 0.059; PPV 0.8851; recall 0.8370; NPV 0.9971; F1 0.8603; 5083/10/15/77.
+- TabPFN v3.5: t = 0.386 ± 0.061; recall 0.7826; NPV 0.9961; 5082/11/20/72.
+- LightGBM: t = 0.076 ± 0.037; recall 0.5870; 5056/37/38/54.
+- XGBoost: t = 0.238 ± 0.104; recall 0.5217; 5068/25/44/48.
 
 CIs: stratified bootstrap of pooled OOF, n_boot = 2,000, seed 42; models not re-fit.
 
-Δ PR-AUC vs LightGBM: thinking-high **+0.2836** (0.2052–0.3650), P(Δ ≤ 0) = 0/2000; local **+0.2700** (0.1939–0.3513), P(Δ ≤ 0) = 0/2000. Fold wins: thinking-high 5/5; local 5/5.
+Δ PR-AUC vs LightGBM: thinking v3.5 **+0.2941** (0.2071–0.3805), P(Δ ≤ 0) = 0/2000; TabPFN v3.5 **+0.2686** (0.1822–0.3559), P(Δ ≤ 0) = 0/2000. Thinking v3.5 vs XGBoost **+0.2891** (0.2038–0.3791), P(Δ ≤ 0) = 0/2000. Fold wins vs LightGBM: all four TabPFN arms 5/5.
+
+The unlabeled two-arm dump (thinking 0.9771 / local 0.9635) is excluded history.
 
 ### TSSI leakage demonstration (70/30; not nested CV)
 
 SMOTE: with-TSSI notebook `True`, without `False`. Quote as leakage, not a matched experiment.
 
-- Logistic regression PR-AUC **0.9575 → 0.5077**.
-- CatBoost **0.9773 → 0.6582**.
+- Logistic regression PR-AUC **0.9134 → 0.3431**.
+- CatBoost **0.9599 → 0.4942**.
 - Remaining models: CSV `paper_table_s_tssi_leakage.csv`.
 - `best_params_`: Table S-TSSI-HP / `paper_table_s_tssi_best_params.csv` (both notebooks).
 
@@ -114,16 +119,16 @@ SMOTE: with-TSSI notebook `True`, without `False`. Quote as leakage, not a match
 ### Attribution (Part 5, 70/30 seed 42; not nested-CV prediction)
 
 - Train 3,629 / 64 events; held-out 1,556 / 28 events.
-- SHAP: all 1,556 held-out rows; top mean |SHAP| eGFR **1.0439**, WBC **1.0202**, LV **0.8695**; Cre rank 7 **0.2449** (not 0.158).
-- Consensus 3/3: WBC, LV, eGFR.
+- SHAP: all 1,556 held-out rows; top mean |SHAP| eGFR **1.2288**, CaI **1.0867**, Cre **0.8093**, LV **0.4828**; WBC absent.
+- Consensus 3/3: CaI, eGFR, LV.
 - k-SII / waterfall: one held-out VLST=1 row, cohort index **5176**.
 - Train MI top: CaI **0.022005**; Cre train MI **0.000000**.
 - Binary PDP ΔP (train empirical prior): Previous PCI **+0.0137**; `1.1:1Post dilation` **−0.0093**. Not Part 4 risk.
 
 ### Part 2 / Part 3 catalogues (attribution / methods; not Part 4 masks)
 
-- Part 2: fit 4,148 (74 events) / val 1,037 (18 events); 88 scaled columns; FFS path lengths as in YAML; 7×3 intersection **0**; scored union **86**.
-- Part 3: FDR n=20 vs ML consensus n=13; intersection 5 names; Jaccard **5/28 = 0.1786** (≈ 0.18).
+- Part 2: fit 4,148 (74 events) / val 1,037 (18 events); **87** scaled columns (TSSI+WBC dropped); FFS path lengths as in YAML; 7×3 intersection **0**; scored union **86**.
+- Part 3: FDR n=20 vs ML consensus n=10; intersection 5 names (`Clopidogrel`, `HbA1c`, `LV`, `No postdilation`, `eGFR`); Jaccard **5/25 = 0.20**. Dual-label: WBC is FDR-only because it is not in the ML matrix.
 
 ---
 

@@ -1,0 +1,9 @@
+times_selected,n_features,features
+8,3,CaI; LV; eGFR
+7,2,Cre; HbA1c
+6,1,Age
+5,1,LVEF
+4,1,1.1:1Post dilation
+3,0,
+2,3,LDL; No postdilation; TCL
+1,5,Fiberinogen; Initial diagnosis-AMI; Previous PCI; Slow flow; Stent type-SES

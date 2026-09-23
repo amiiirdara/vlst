@@ -29,7 +29,7 @@ Assets are existing files named in the Markdown reports. **Do not invent new num
 | Figure 1 | Main | Nested-CV PR and ROC curves | Part 4 Figure 1 | Part 4 | Figure 1 | prevalence line 0.0177; legends thinking mode vs TabPFN | 5.5–5.8 | ready |
 | Figure 2 | Main | Nested-CV calibration (quantile bins) | Part 4 Figure 2 | Part 4 | Figure 2 | Brier as in **MS Table 3** (ranking); do not infer ECE from the plot | 5.5–5.8 | ready |
 | Figure 3 | Main | Univariate vs Table 4b adjusted associations | Part 1 Figure 6 | Part 1 | Figure 6 | association; not causal | 5.4 | ready |
-| Figure 4 | Main | Overlap of FDR-20 and ML-13 catalogues | Part 3 Figure 1 | paper_results/03_stats_vs_ml/feature_extraction_comparison.md | Figure 1 | intersection 5 names; Jaccard 5/28 | 5.6 | ready |
+| Figure 4 | Main | Overlap of FDR-20 and ML-10 catalogues | Part 3 Figure 1 | paper_results/03_stats_vs_ml/feature_extraction_comparison.md | Figure 1 | intersection 5 names; Jaccard 5/25 = 0.20 | 5.6 | ready |
 | Figure 5 | Main | Held-out mean \|SHAP\| (1556 rows) | Part 5 Figure 5 (bar) ± beeswarm/summary | Part 5 | Figures 3–6 | eGFR 1.0439, WBC 1.0202, LV 0.8695; not 0.158 Cre ranking | 5.9 | ready |
 
 ---
@@ -40,20 +40,20 @@ Assets are existing files named in the Markdown reports. **Do not invent new num
 | --- | --- | --- | --- | --- | --- | --- |
 | Table S0 | Supplement | 81 baseline predictor names (CSV order) | paper/table_s0_baseline_predictors.md | listing, not a metric | 4.3 | ready |
 | Table M1 | Methods box | Nested-CV model specifications | Part 4 Table 0 | constructors; no unpublished HPs | 4.7 | ready |
-| Table M2 | Methods box | TSSI 70/30 with vs without (not nested CV) | Part 4 Table S-TSSI + CSV | LR 0.9575→0.5077; CatBoost 0.9773→0.6582; SMOTE mismatch in caption | 4.4 | ready |
+| Table M2 | Methods box | TSSI 70/30 with vs without (not nested CV) | Part 4 Table S-TSSI + CSV | LR 0.9134→0.3431; CatBoost 0.9599→0.4942; SMOTE mismatch in caption | 4.4 | ready |
 | Table S1 | Supplement | Continuous test-selection rationale | Part 1 Table R + Figure 1 | Welch vs MW | 4.6, 5.4 | ready |
 | Table S2 | Supplement | Univariate FDR continuous / binary / categorical | Part 1 Tables 1–3 | associated with; exclude TSSI as baseline | 5.4 | ready |
 | Table S3 | Supplement | Exploratory interaction LR tests (16 pairs) | Part 1 Table S2 | hypothesis-generating; LV×eGFR, Men×eGFR q<0.05 | 4.6, 5.4 | ready |
 | Table S4 | Exclude (moved to Methods M2) | TSSI 70/30 | Part 4 Table S-TSSI | Use **Table M2**, not a Results supplement | 4.4 | exclude from Results |
-| Table S5 | Supplement | Paired Δ PR-AUC vs LightGBM | Part 4 Table S-Δ | +0.1611 vs −0.0201 | 5.7, 5.8 | ready |
-| Table S6 | Supplement | Outer-fold PR-AUC wins | Part 4 Table S-folds | thinking-high 5/5; local 2/5 | 5.7, 5.8 | ready |
+| Table S5 | Supplement | Paired Δ PR-AUC vs LightGBM | Part 4 Table S-Δ | thinking v3.5 +0.2941; TabPFN v3.5 +0.2686 | 5.7, 5.8 | ready |
+| Table S6 | Supplement | Outer-fold PR-AUC wins | Part 4 Table S-folds | thinking v3.5 vs LGB 5/5; TabPFN v3.5 vs LGB 5/5 | 5.7, 5.8 | ready |
 | Table S7 | Exclude (text only) | Wang risk bins | Part 4 Table S-Wang-bins | Cite 1577 vs 1837 in 5.10 prose if needed; no exhibit | 5.10 | exclude |
 | Table S8 | Supplement | Selector unique counts / FFS path lengths | Part 2 Figure 1 table | LOCO 60 / SHAP 40 / FFS 4–12 | 5.6 | ready |
 | Table S9 | Supplement | LOCO ∩ SHAP ∩ FFS per model; global 0 / union 86 | Part 2 Tables 2, 4 | attribution; not Part 4 mask | 5.6 | ready |
-| Table S10 | Supplement | Part 5 MI top 15 (train) | Part 5 Table 1 | CaI 0.022005; Cre 0.000000 | 5.9 | ready |
-| Table S11 | Supplement | Part 5 stability frequencies (train) | Part 5 Table 2 | WBC 10/10 | 5.9 | ready |
-| Table S12 | Supplement | Binary PDP (train empirical prior) | Part 5 Table 3 | ΔP +0.0137 / −0.0093; not Part 4 risk | 5.9 | ready |
-| Table S13 | Supplement | Held-out mean \|SHAP\| ranking | Part 5 Table 4 | top 15 including Cre **0.2449** (rank 7); YAML `shap.top15_mean_abs_heldout` | 5.9 | ready |
+| Table S10 | Supplement | Part 5 MI top 15 (train) | Part 5 Table 1 | CaI 0.020536; Cre 0.000338 | 5.9 | ready |
+| Table S11 | Supplement | Part 5 stability frequencies (train) | Part 5 Table 2 | CaI/LV/eGFR 8/8; WBC dropped | 5.9 | ready |
+| Table S12 | Supplement | Binary PDP (train empirical prior) | Part 5 Table 3 | Previous PCI Δ +0.001294; post-dilation −0.000094 | 5.9 | ready |
+| Table S13 | Supplement | Held-out mean \|SHAP\| ranking | Part 5 Table 4 | eGFR 1.2288 / CaI 1.0867 / Cre 0.8093 / LV 0.4828; WBC absent | 5.9 | ready |
 | Figure S1 | Exclude (moved to Methods) | TSSI PR-AUC collapse | Part 4 Figure S-TSSI | Optional Methods figure only | 4.4 | exclude from Results |
 | Figure S2 | Supplement | VLST rate by 9-level stent encoder | Part 1 Figure 5 | 106→9; not 99 bars | 5.2 | ready |
 | Figure S3 | Exclude by default | Part 4 pooled-F1 confusion matrices | Part 4 Figure 3 | Optimistic pooled threshold. Easy to misread as **MS Table 4**. Omit unless a methods contrast is required, then caption “pooled F1, not nested.” | — | exclude |

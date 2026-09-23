@@ -1,0 +1,53 @@
+{
+  "python": "3.12.13",
+  "platform": "Linux-6.12.90+-x86_64-with-glibc2.35",
+  "runtime": "Kaggle",
+  "cuda": true,
+  "device": "Tesla T4",
+  "packages": {
+    "tabpfn": "9.0.0",
+    "tabpfn-client": "0.6.0",
+    "scikit-learn": "1.6.1",
+    "numpy": "2.0.2",
+    "pandas": "2.3.3",
+    "xgboost": "3.2.0",
+    "lightgbm": "4.6.0",
+    "catboost": "1.2.10",
+    "torch": "2.10.0+cu128"
+  },
+  "raw_csv": "/kaggle/input/datasets/amirinho661/vlst-figshare-7409606/VLST.csv",
+  "raw_csv_sha256": "0b8cf3da4064496a6702b0d0b5736e80306a2b8c141f9d8a9d896cbfab00d93e",
+  "arms": [
+    "Logistic Regression",
+    "Random Forest",
+    "XGBoost",
+    "LightGBM",
+    "CatBoost",
+    "TabPFN thinking v3",
+    "TabPFN thinking v3.5",
+    "TabPFN v3",
+    "TabPFN v3.5"
+  ],
+  "tabpfn_local_versions_requested": [
+    "v3",
+    "v3.5"
+  ],
+  "tabpfn_local_checkpoints": {
+    "TabPFN v3": "/root/.cache/tabpfn/tabpfn-v3-classifier-v3_default.ckpt",
+    "TabPFN v3.5": "/root/.cache/tabpfn/tabpfn-v3.5-20260909.safetensors"
+  },
+  "tabpfn_thinking_versions_requested": [
+    "v3",
+    "v3.5"
+  ],
+  "tabpfn_thinking_models": {
+    "TabPFN thinking v3": "v3_default",
+    "TabPFN thinking v3.5": "v3.5_default"
+  },
+  "tabpfn_thinking_settings": {
+    "thinking_mode": true,
+    "thinking_effort": "high",
+    "thinking_metric": "average_precision",
+    "random_state": 42
+  }
+}

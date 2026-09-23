@@ -1,7 +1,7 @@
 Method,Question,Backend,Notebook setting
-mutual_info_classif,Univariate association,sklearn,0 TabPFN calls; train n=3629; all 81 scores stored
-Stability (repeated SFS),Selection frequency,local TabPFN,"10 resamples × top-10 forward SFS, AP scoring, train"
-PDP,Average predicted probability (empirical prior; not Part 4 risk),local TabPFN,Train n=3629; PDP_USE_CLIENT=False
-SHAP (shapiq SV),Local attributions,client 429 → local KV cache,"All 1,556 held-out rows; fit/background=train; budget=256"
-k-SII / SHAP-IQ,Pairwise interactions,client 429 → local KV cache,One held-out VLST=1 (cohort 5176); budget=256
-Consensus (Borda),Mean of normalized ranks,aggregate,Train MI + train stability + held-out mean(|SHAP|)
+mutual_info_classif,Univariate association,sklearn,0 TabPFN calls; train n=3629; 80 scores; fs_pdp notebook
+Stability (repeated SFS),Selection frequency,"local TabPFN (v3.5, FS_THINKING_MODE=False)","8/8 resamples × top-10 forward SFS, AP scoring, train"
+PDP,Average predicted probability (empirical prior),local TabPFN (PDP_USE_CLIENT=False),Train n=3629; y-axis empirical prior / not Part 4 nested-CV risk
+SHAP (shapiq SV),Local attributions,client thinking-high (INTERP_THINKING_MODE=True),"All 1,556 held-out rows; fit/background = train; budget=256; shap notebook"
+k-SII / SHAP-IQ,Pairwise interactions,client thinking-high,"One held-out VLST=1 (pos 20, cohort 5176); budget=256; shap notebook"
+Consensus (Borda),Mean of normalized ranks,aggregate,Train MI + train stability + held-out mean(|SHAP|); SHAP merged from shap dump

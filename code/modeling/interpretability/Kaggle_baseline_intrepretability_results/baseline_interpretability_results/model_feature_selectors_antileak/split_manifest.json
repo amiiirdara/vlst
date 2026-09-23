@@ -1,0 +1,26 @@
+{
+  "random_state": 42,
+  "inner_val_size": 0.2,
+  "n_total": 5185,
+  "n_fit": 4148,
+  "n_val": 1037,
+  "fit_pos": 74,
+  "val_pos": 18,
+  "raw_n_features": 80,
+  "scaled_n_features": 87,
+  "unused_outer_test": false,
+  "anti_leakage": {
+    "drop_features": [
+      "Time since stent implantation",
+      "WBC"
+    ],
+    "quantize": {
+      "Cre": 0,
+      "CaI": 2,
+      "Fiberinogen": 1,
+      "Fast-Glu": 1
+    },
+    "stent_train_only": true,
+    "scaler_ohe_train_only": true
+  }
+}

@@ -1,0 +1,17 @@
+rank,feature,times_selected,selection_freq
+1,CaI,8,1.0
+2,LV,8,1.0
+3,eGFR,8,1.0
+4,Cre,7,0.875
+5,HbA1c,7,0.875
+6,Age,6,0.75
+7,LVEF,5,0.625
+8,1.1:1Post dilation,4,0.5
+9,LDL,2,0.25
+10,No postdilation,2,0.25
+11,TCL,2,0.25
+12,Fiberinogen,1,0.125
+13,Initial diagnosis-AMI,1,0.125
+14,Previous PCI,1,0.125
+15,Slow flow,1,0.125
+16,Stent type-SES,1,0.125

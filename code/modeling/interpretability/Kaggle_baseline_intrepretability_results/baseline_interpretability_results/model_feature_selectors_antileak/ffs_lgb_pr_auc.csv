@@ -1,0 +1,5 @@
+rank,model,algorithm,metric,step,feature,index,holdout_score,marginal_gain
+1,lgb,FFS,pr_auc,1,HbA1c,20,0.11086451602694902,
+2,lgb,FFS,pr_auc,2,LV,7,0.25544679164016915,0.14458227561322012
+3,lgb,FFS,pr_auc,3,1.1:1Post dilation,71,0.3549744050333163,0.09952761339314714
+4,lgb,FFS,pr_auc,4,NSTEMI,37,0.3164163416311174,-0.03855806340219886

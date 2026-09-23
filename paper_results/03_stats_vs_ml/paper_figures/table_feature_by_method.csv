@@ -1,37 +1,33 @@
 Feature,Stats FDR,Stats multivariable,ML consensus,ML frequent,Set
-1.1:1Post dilation,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
+Clopidogrel,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
 HbA1c,Yes,No,Yes,Yes,Both (FDR ∩ ML consensus)
 LV,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
-WBC,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
+No postdilation,Yes,No,Yes,Yes,Both (FDR ∩ ML consensus)
 eGFR,Yes,Yes,Yes,Yes,Both (FDR ∩ ML consensus)
-Aneurysm,No,No,Yes,Yes,ML consensus only
-CaI,No,No,Yes,Yes,ML consensus only
 Cre,No,No,Yes,Yes,ML consensus only
 HGB,No,No,Yes,Yes,ML consensus only
 LDL,No,No,Yes,Yes,ML consensus only
-LVEF,No,No,Yes,Yes,ML consensus only
 Men,No,No,Yes,Yes,ML consensus only
-UA,No,No,Yes,Yes,ML consensus only
-Age,No,No,No,Yes,ML frequent only
-Max-stent diameter,No,No,No,Yes,ML frequent only
-Platelet,No,No,No,Yes,ML frequent only
-STEMI,No,No,No,Yes,ML frequent only
+Stent type-SES_xiencev,No,No,Yes,Yes,ML consensus only
+CaI,No,No,No,Yes,ML frequent only
+Fast-Glu,No,No,No,Yes,ML frequent only
+Initial diagnosis-AMI,No,No,No,Yes,ML frequent only
+LVEF,No,No,No,Yes,ML frequent only
+Stent type-SES_tivoli,No,No,No,Yes,ML frequent only
 TCL,No,No,No,Yes,ML frequent only
-TG,No,No,No,Yes,ML frequent only
-stent overlap,No,No,No,Yes,ML frequent only
+1.1:1Post dilation,Yes,Yes,No,Yes,Stats FDR only
 3-vessel disease,Yes,No,No,No,Stats FDR only
-CKD5,Yes,Yes,No,Yes,Stats FDR only
+CKD5,Yes,Yes,No,No,Stats FDR only
 CKD90,Yes,Yes,No,No,Stats FDR only
-Clopidogrel,Yes,Yes,No,Yes,Stats FDR only
 Diabetes,Yes,No,No,No,Stats FDR only
 Fiberinogen,Yes,No,No,No,Stats FDR only
 Multi-vessel CAD,Yes,No,No,No,Stats FDR only
 NO.of vessels,Yes,No,No,No,Stats FDR only
-No postdilation,Yes,No,No,Yes,Stats FDR only
 No.of stents per lesion,Yes,No,No,No,Stats FDR only
-PES,Yes,No,No,No,Stats FDR only
+PES,Yes,No,No,Yes,Stats FDR only
 Previous PCI,Yes,Yes,No,Yes,Stats FDR only
 Single-vessel disease,Yes,No,No,No,Stats FDR only
 Stent type-SES,Yes,No,No,No,Stats FDR only
 Total stent length,Yes,No,No,Yes,Stats FDR only
+WBC,Yes,Yes,No,No,Stats FDR only
 Time since stent implantation,Yes,structural,No,No,Structural (dropped from ML)

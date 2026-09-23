@@ -1,0 +1,8 @@
+model,metric,n_common,features
+cat,pr_auc,5,Clopidogrel; HbA1c; LDL; LV; No postdilation
+lgb,pr_auc,1,HbA1c
+lr,pr_auc,4,Clopidogrel; Cre; Men; eGFR
+rf,pr_auc,3,HGB; LDL; LV
+rf_b,pr_auc,2,Cre; eGFR
+xgb,pr_auc,2,HGB; eGFR
+xgb_b,pr_auc,4,Cre; HGB; Stent type-SES_xiencev; eGFR

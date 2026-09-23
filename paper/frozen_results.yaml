@@ -1,22 +1,96 @@
 # VLST paper numerical freeze registry
 # freeze_status: READY_FOR_MANUSCRIPT_DRAFTING
 # freeze_date: 2026-09-18
-# Primary numerical source: paper_results Markdown reports (see provenance.source_files).
-# Requested names EDA_paper_figures_and_tables-(3).md, paper_results-(2).md, paper_evidence_map-(2).md
-# were not found on disk; canonical paths below were used instead.
+# kaggle_ingest: 2026-09-22 (Part 4 9-arm anti-leakage dump; Part 2 dump; SFS 8/8)
+# Rev 19: live nested is Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/
+#   thinking v3.5 PR-AUC 0.9212 / TabPFN v3.5 0.8957 (anti-leakage ON, 9 arms).
+# Unlabeled 0.9771 / 0.9635 remain excluded (pre-anti-leakage two-arm dump).
+# Primary numerical source: paper_results Markdown reports (see provenance.source_files)
+# Requested names EDA_paper_figures_and_tables-(3).md, paper_results-(2).md, paper_evidence_map-(2).md,
+# baseline_tssi_leakage-(3).ipynb, baseline_without_tssi-(3).ipynb were not found on disk;
+# canonical unsuffixed paths below were used instead.
 # Scalar convention: value, unit, numerator, denominator, confidence_interval, source_file, source_location, status.
 # status ∈ {frozen, descriptive_only, methods_only, unresolved, excluded, derived_from_frozen_2x2}
 
 freeze:
   status: READY_FOR_MANUSCRIPT_DRAFTING
-  date: "2026-09-18"
+  date: "2026-09-22"
   blocked: false
   note: >
-    Nested-CV prediction metrics now follow the 2026-09-17 Kaggle dump
-    (tabpfn==9.0.0 / tabpfn_client==0.6.0, v3.5 weights). Table 4b, Wang frozen
-    score, TSSI leakage, and Part 5 attribution are unchanged. Bootstrap CIs
-    are this-run OOF (n_boot=2000). Historical dumps (V4 thinking PR-AUC 0.8553;
-    local Brier 0.0102 / 0.0673; SHAP 15+15) are excluded, not merged.
+    Live nested CV is the 9-arm dump under
+    Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/
+    (anti-leakage ON: drop TSSI+WBC, quantize labs, stent train-fold).
+    Headline: TabPFN thinking v3.5 PR-AUC 0.9212 / ROC 0.9963 / Brier 0.0047;
+    TabPFN v3.5 0.8957 / 0.9916 / 0.0048. Pins tabpfn==9.0.0 /
+    tabpfn-client==0.6.0. Unlabeled 0.9771 / 0.9635 two-arm dump excluded.
+    Leakage-contrast 70/30 follows 2026-09-19 test_metrics.csv
+    (ALL LEAKS ON vs ALL LEAKS OFF; LR PR-AUC 0.9134→0.3431).
+    Part 2/3 follow Kaggle_baseline_intrepretability_results (generated
+    2026-09-19 14:39:53; TSSI+WBC dropped; 87 columns; ML consensus n=10;
+    FDR∩ML Jaccard 5/25=0.20). Part 5 follows Kaggle_tabpfn_intrepretebility_results
+    (SFS 8/8; CaI/LV/eGFR; WBC dropped; v3.5 anti-leakage-ON attribution).
+    Table 4b and Wang frozen score are unchanged. Historical dumps
+    (V4 thinking PR-AUC 0.8553; local Brier 0.0102 / 0.0673; SHAP 15+15;
+    S-TSSI 0.9575→0.5077; 10-seed WBC 10/10; Part 2 88-col WBC consensus n=13 /
+    Jaccard 5/28; nested 0.9771/0.9635) are excluded, not merged.
+
+# TOP-LEVEL (grep this key). Live nested TabPFN after anti-leakage (9 arms).
+# Also mirrored at model_results.nested_cv_v35_antileakage_on.
+nested_cv_v35_antileakage_on:
+  status: frozen
+  dump_dir: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/
+  source_notebook: code/modeling/rating/baseline_plus_tabpfn.ipynb
+  n_arms: 9
+  pins:
+    tabpfn: "9.0.0"
+    tabpfn_client: "0.6.0"
+    device: "Tesla T4"
+  thinking_mode:
+    local_arms: false
+    thinking_arms: {thinking_mode: true, thinking_effort: high, thinking_metric: average_precision}
+  checkpoints:
+    tabpfn_v3: tabpfn-v3-classifier-v3_default.ckpt
+    tabpfn_v3_5: tabpfn-v3.5-20260909.safetensors
+    thinking_v3: v3_default
+    thinking_v3_5: v3.5_default
+  anti_leakage: on
+  anti_leakage_flow: "DROP NO./Name/TSSI/WBC; quantize Cre/CaI/Fiberinogen/Fast-Glu; stent encoder train-fold only; no SMOTE"
+  oof: {n: 5185, ysum: 92, n_folds: 5}
+  headline:
+    tabpfn_thinking_v3_5:
+      pr_auc: {value: 0.9212, ci: [0.8785, 0.9613], fold_mean_sd: "0.9227 ± 0.0423", outer_fold_values: [0.8802, 0.9078, 0.9434, 0.9858, 0.8961]}
+      roc_auc: {value: 0.9963, ci: [0.9932, 0.9986], fold_mean_sd: "0.9965 ± 0.0027"}
+      brier: {value: 0.0047, ci: [0.0037, 0.0058], ece: 0.0028}
+      nested_table2: {threshold_mean_sd: "0.318 ± 0.059", recall: 0.8370, precision: 0.8851, f1: 0.8603, npv: 0.9971, tn: 5083, fp: 10, fn: 15, tp: 77}
+    tabpfn_v3_5:
+      pr_auc: {value: 0.8957, ci: [0.8446, 0.9426], fold_mean_sd: "0.8995 ± 0.0528", outer_fold_values: [0.9365, 0.8996, 0.8237, 0.9595, 0.8783]}
+      roc_auc: {value: 0.9916, ci: [0.9828, 0.9978], fold_mean_sd: "0.9922 ± 0.0066"}
+      brier: {value: 0.0048, ci: [0.0038, 0.0060], ece: 0.0003}
+      nested_table2: {threshold_mean_sd: "0.386 ± 0.061", recall: 0.7826, precision: 0.8675, f1: 0.8229, npv: 0.9961, tn: 5082, fp: 11, fn: 20, tp: 72}
+    tabpfn_thinking_v3:
+      pr_auc: {value: 0.8319, ci: [0.7626, 0.8945], fold_mean_sd: "0.8335 ± 0.0658"}
+      roc_auc: {value: 0.9834, ci: [0.9709, 0.9939]}
+      brier: {value: 0.0066, ece: 0.0036}
+      nested_table2: {tn: 5084, fp: 9, fn: 28, tp: 64, recall: 0.6957, f1: 0.7758}
+    tabpfn_v3:
+      pr_auc: {value: 0.7150, ci: [0.6260, 0.8074], fold_mean_sd: "0.7286 ± 0.0319"}
+      roc_auc: {value: 0.9731, ci: [0.9551, 0.9883]}
+      brier: {value: 0.0099, ece: 0.0059}
+      nested_table2: {tn: 5070, fp: 23, fn: 36, tp: 56, recall: 0.6087, f1: 0.6550}
+    xgboost:
+      pr_auc: {value: 0.6322, ci: [0.5331, 0.7247], fold_mean_sd: "0.6448 ± 0.0880"}
+      roc_auc: {value: 0.9374, ci: [0.8967, 0.9699]}
+      brier: {value: 0.0100, ece: 0.0066}
+    lightgbm:
+      pr_auc: {value: 0.6271, ci: [0.5313, 0.7202], fold_mean_sd: "0.6248 ± 0.0990"}
+      roc_auc: {value: 0.9444, ci: [0.9135, 0.9698]}
+      brier: {value: 0.0106, ece: 0.0090}
+      nested_table2: {tn: 5056, fp: 37, fn: 38, tp: 54, recall: 0.5870, f1: 0.5902}
+    paired_delta_pr_auc:
+      thinking_v3_5_minus_lightgbm: {value: 0.2941, ci: [0.2071, 0.3805], p_delta_le_0: "0/2000"}
+      v3_5_minus_lightgbm: {value: 0.2686, ci: [0.1822, 0.3559], p_delta_le_0: "0/2000"}
+      thinking_v3_5_minus_xgboost: {value: 0.2891, ci: [0.2038, 0.3791], p_delta_le_0: "0/2000"}
+  note: "Do not quote unlabeled 0.9771 / 0.9635 as this benchmark."
 
 study:
   title_or_working_title:
@@ -336,15 +410,15 @@ preprocessing:
     status: methods_only
   foldwise_preprocessing:
     part4_imputer_scaler_ohe: "Cloned and fitted inside every CV split."
-    stent_encoder: "Applied on the full frame before the Part 4 split (full-cohort min_count)."
+    stent_encoder: "encode_stent_on_fold: codebook fit on each outer-training fold (min_count=30); held-out strings map to Other. Not a full-frame codebook before the Part 4 split."
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Methods note — feature views"
     status: methods_only
   unknown_or_unreported_items:
     items:
       - "TSSI 70/30 notebooks load data/processed/*.npy from preprocessing.ipynb (not a freeze-source file)."
-      - "TabPFN client/server pip versions were not printed on the Kaggle dump."
-      - "ECE / calibration slope / intercept are not computed in Part 4 code."
+      - "Run_manifest prints tabpfn 9.0.0 / tabpfn-client 0.6.0 on the 9-arm dump."
+      - "ECE is computed (8 quantile bins). Calibration slope / intercept are not computed in Part 4 code."
     status: unresolved
 
 validation:
@@ -555,8 +629,16 @@ model_results:
     tabpfn_thinking_high: 'tabpfn_client.TabPFNClassifier(thinking_mode=True, thinking_effort="high", thinking_metric="average_precision", random_state=42)'
     tabpfn_local_this_run: 'TabPFNClassifier(device=cuda, n_estimators="auto", ignore_pretraining_limits=False, random_state=42); balance_probabilities=False; weights tabpfn-v3.5-20260909.safetensors; pip tabpfn==9.0.0'
     status: methods_only
+  nested_cv_v35_antileakage_on:
+    status: frozen
+    see: nested_cv_v35_antileakage_on  # TOP-LEVEL key in this file
+    dump_dir: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/
+    pins:
+      tabpfn: "9.0.0"
+      tabpfn_client: "0.6.0"
+    anti_leakage: on
   baseline_models_without_tssi:
-    note: "Part 4 nested 5×4 CV, papermill 2026-09-17, tabpfn==9.0.0 / v3.5. TSSI dropped. SMOTE not used. Ranking = pooled OOF. Operating point = Table 2 nested inner F1 (quote). Table 3 pooled F1 is optimistic — excluded from headline."
+    note: "Classic nested-CV rows from the 9-arm anti-leakage dump (same OOF as nested_cv_v35_antileakage_on). Table 3 pooled F1 remains optimistic — excluded from headline."
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Tables 1, 2, S-CI"
     logistic_regression:
@@ -564,101 +646,101 @@ model_results:
       class_weight: balanced
       max_iter: 1000
       nested_cv_oof:
-        pr_auc: {value: 0.3326, ci: [0.2486, 0.4345], fold_mean_sd: "0.3451 ± 0.1213", status: frozen}
-        roc_auc: {value: 0.9224, ci: [0.8966, 0.9449], fold_mean_sd: "0.9235 ± 0.0251", status: frozen}
-        brier: {value: 0.0563, ci: [0.0511, 0.0611], status: frozen}
+        pr_auc: {value: 0.2596, ci: [0.1834, 0.3588], fold_mean_sd: "0.2836 ± 0.1106", status: frozen}
+        roc_auc: {value: 0.8651, ci: [0.8220, 0.9044], fold_mean_sd: "0.8671 ± 0.0479", status: frozen}
+        brier: {value: 0.0788, ci: [0.0730, 0.0844], status: frozen}
       nested_operating_point_table2:
-        threshold_mean_sd: "0.947 ± 0.035"
-        accuracy: 0.9769
-        precision_ppv: 0.3654
-        recall_sensitivity: 0.4130
-        specificity: 0.9870
-        f1: 0.3878
-        f2: 0.4025
-        tn: 5027
-        fp: 66
-        fn: 54
-        tp: 38
+        threshold_mean_sd: "0.964 ± 0.013"
+        accuracy: 0.9740
+        precision_ppv: 0.3028
+        recall_sensitivity: 0.3587
+        specificity: 0.9851
+        f1: 0.3284
+        f2: 0.3459
+        tn: 5017
+        fp: 76
+        fn: 59
+        tp: 33
         status: frozen
       pooled_f1_table3:
         status: excluded
         note: "Optimistic; do not quote instead of Table 2."
     xgboost:
       nested_cv_oof:
-        pr_auc: {value: 0.6815, ci: [0.5881, 0.7703], fold_mean_sd: "0.6928 ± 0.1288", status: frozen}
-        roc_auc: {value: 0.9439, ci: [0.9100, 0.9742], fold_mean_sd: "0.9431 ± 0.0418", status: frozen}
-        brier: {value: 0.0088, ci: [0.0071, 0.0106], status: frozen}
+        pr_auc: {value: 0.6322, ci: [0.5331, 0.7247], fold_mean_sd: "0.6448 ± 0.0880", status: frozen}
+        roc_auc: {value: 0.9374, ci: [0.8967, 0.9699], fold_mean_sd: "0.9366 ± 0.0371", status: frozen}
+        brier: {value: 0.0100, ci: [0.0084, 0.0116], status: frozen}
       nested_operating_point_table2:
-        threshold_mean_sd: "0.225 ± 0.060"
-        accuracy: 0.9875
-        precision_ppv: 0.6452
-        recall_sensitivity: 0.6522
-        specificity: 0.9935
-        f1: 0.6486
-        f2: 0.6508
-        tn: 5060
-        fp: 33
-        fn: 32
-        tp: 60
-        status: frozen
-    lightgbm:
-      nested_cv_oof:
-        pr_auc: {value: 0.6935, ci: [0.6060, 0.7779], fold_mean_sd: "0.6942 ± 0.0920", status: frozen}
-        roc_auc: {value: 0.9681, ci: [0.9490, 0.9831], fold_mean_sd: "0.9695 ± 0.0165", status: frozen}
-        brier: {value: 0.0093, ci: [0.0076, 0.0110], status: frozen}
-      nested_operating_point_table2:
-        threshold_mean_sd: "0.122 ± 0.084"
-        accuracy: 0.9880
-        precision_ppv: 0.6667
-        recall_sensitivity: 0.6522
-        specificity: 0.9941
-        f1: 0.6593
-        f2: 0.6550
-        tn: 5063
-        fp: 30
-        fn: 32
-        tp: 60
-        status: frozen
-      outer_fold_pr_auc: [0.7527, 0.7136, 0.5399, 0.7732, 0.6916]
-      status: frozen
-    catboost:
-      nested_cv_oof:
-        pr_auc: {value: 0.6172, ci: [0.5250, 0.7148], fold_mean_sd: "0.6353 ± 0.0540", status: frozen}
-        roc_auc: {value: 0.9594, ci: [0.9398, 0.9765], fold_mean_sd: "0.9612 ± 0.0137", status: frozen}
-        brier: {value: 0.0101, ci: [0.0084, 0.0119], status: frozen}
-      nested_operating_point_table2:
-        threshold_mean_sd: "0.167 ± 0.040"
-        accuracy: 0.9815
-        precision_ppv: 0.4836
-        recall_sensitivity: 0.6413
-        specificity: 0.9876
-        f1: 0.5514
-        f2: 0.6020
-        tn: 5030
-        fp: 63
-        fn: 33
-        tp: 59
-        status: frozen
-    random_forest:
-      nested_cv_oof:
-        pr_auc: {value: 0.4865, ci: [0.3860, 0.6034], fold_mean_sd: "0.5034 ± 0.0793", status: frozen}
-        roc_auc: {value: 0.9209, ci: [0.8824, 0.9555], fold_mean_sd: "0.9206 ± 0.0423", status: frozen}
-        brier: {value: 0.0143, ci: [0.0137, 0.0148], status: frozen}
-      nested_operating_point_table2:
-        threshold_mean_sd: "0.118 ± 0.013"
-        accuracy: 0.9840
-        precision_ppv: 0.5517
+        threshold_mean_sd: "0.238 ± 0.104"
+        accuracy: 0.9867
+        precision_ppv: 0.6575
         recall_sensitivity: 0.5217
-        specificity: 0.9923
-        f1: 0.5363
-        f2: 0.5275
-        tn: 5054
-        fp: 39
+        specificity: 0.9951
+        f1: 0.5818
+        f2: 0.5442
+        tn: 5068
+        fp: 25
         fn: 44
         tp: 48
         status: frozen
+    lightgbm:
+      nested_cv_oof:
+        pr_auc: {value: 0.6271, ci: [0.5313, 0.7202], fold_mean_sd: "0.6248 ± 0.0990", status: frozen}
+        roc_auc: {value: 0.9444, ci: [0.9135, 0.9698], fold_mean_sd: "0.9458 ± 0.0332", status: frozen}
+        brier: {value: 0.0106, ci: [0.0090, 0.0123], status: frozen}
+      nested_operating_point_table2:
+        threshold_mean_sd: "0.076 ± 0.037"
+        accuracy: 0.9855
+        precision_ppv: 0.5934
+        recall_sensitivity: 0.5870
+        specificity: 0.9927
+        f1: 0.5902
+        f2: 0.5882
+        tn: 5056
+        fp: 37
+        fn: 38
+        tp: 54
+        status: frozen
+      outer_fold_pr_auc: [0.7249, 0.6407, 0.5759, 0.7014, 0.4811]
+      status: frozen
+    catboost:
+      nested_cv_oof:
+        pr_auc: {value: 0.5707, ci: [0.4750, 0.6729], fold_mean_sd: "0.5867 ± 0.0494", status: frozen}
+        roc_auc: {value: 0.9404, ci: [0.9142, 0.9632], fold_mean_sd: "0.9418 ± 0.0168", status: frozen}
+        brier: {value: 0.0108, ci: [0.0091, 0.0125], status: frozen}
+      nested_operating_point_table2:
+        threshold_mean_sd: "0.170 ± 0.064"
+        accuracy: 0.9826
+        precision_ppv: 0.5093
+        recall_sensitivity: 0.5978
+        specificity: 0.9896
+        f1: 0.5500
+        f2: 0.5777
+        tn: 5040
+        fp: 53
+        fn: 37
+        tp: 55
+        status: frozen
+    random_forest:
+      nested_cv_oof:
+        pr_auc: {value: 0.3506, ci: [0.2660, 0.4633], fold_mean_sd: "0.3843 ± 0.0792", status: frozen}
+        roc_auc: {value: 0.8883, ci: [0.8413, 0.9296], fold_mean_sd: "0.8880 ± 0.0228", status: frozen}
+        brier: {value: 0.0150, ci: [0.0144, 0.0155], status: frozen}
+      nested_operating_point_table2:
+        threshold_mean_sd: "0.112 ± 0.016"
+        accuracy: 0.9801
+        precision_ppv: 0.4421
+        recall_sensitivity: 0.4565
+        specificity: 0.9896
+        f1: 0.4492
+        f2: 0.4536
+        tn: 5040
+        fp: 53
+        fn: 50
+        tp: 42
+        status: frozen
     other_models:
-      part4: "None beyond the seven nested-CV arms. Decision Tree and Gaussian NB appear only in the TSSI 70/30 notebooks."
+      part4: "Nine nested-CV arms (five classics + four TabPFN). Decision Tree and Gaussian NB appear only in the TSSI 70/30 notebooks."
       status: methods_only
   tssi_leakage_analysis:
     split: "stratified 70/30; hold-out n=1556 (Figure S-TSSI)"
@@ -668,103 +750,112 @@ model_results:
       without_tssi_notebook: false
       note: "Not a SMOTE-matched ceteris-paribus contrast. Nested-CV Part 4 does not use SMOTE."
     without_tssi_gridsearch_best_params:
-      source_file: .nbdump/code__modeling__rating__baseline_without_tssi.txt
-      source_location: "Best params prints; GridSearchCV scoring=f1, 5-fold stratified, seed 42"
+      source_file: code/modeling/rating/baseline_without_tssi.ipynb
+      source_location: "executed GridSearchCV best_params_ prints (papermill 2026-09-19); also modeling_without_tssi/best_params.csv"
       not_part4_nested_cv: true
-      logistic_regression: {C: 10.0, max_iter: 2000, penalty: l1, solver: liblinear}
-      decision_tree: {criterion: entropy, max_depth: null, min_samples_leaf: 2, min_samples_split: 2}
-      random_forest: {max_depth: 5, min_samples_leaf: 1, n_estimators: 200}
-      gaussian_nb: {var_smoothing: 1.0e-12}
-      catboost: {depth: 4, iterations: 200, l2_leaf_reg: 1, learning_rate: 0.1}
-      xgboost: {learning_rate: 0.1, max_depth: 3, min_child_weight: 1, n_estimators: 200}
-      lightgbm: {learning_rate: 0.1, max_depth: 3, min_child_samples: 20, n_estimators: 200}
-      status: methods_only
-      note: "Do not import these into baseline_plus_tabpfn nested CV."
+      arm: ALL_LEAKS_OFF
+      logistic_regression: {C: 100.0, max_iter: 2000, penalty: l1, solver: liblinear}
+      decision_tree: {criterion: entropy, max_depth: 15, max_features: null, min_samples_leaf: 5, min_samples_split: 2}
+      random_forest: {max_depth: 20, max_features: sqrt, min_samples_leaf: 5, n_estimators: 400}
+      gaussian_nb: {var_smoothing: 1.0e-6}
+      catboost: {depth: 4, iterations: 200, l2_leaf_reg: 1, learning_rate: 0.03}
+      xgboost: {learning_rate: 0.1, max_depth: 3, min_child_weight: 3, n_estimators: 400, subsample: 1.0}
+      lightgbm: {learning_rate: 0.1, max_depth: 5, min_child_samples: 40, n_estimators: 400, num_leaves: 15}
+      status: frozen
+      note: "Do not import these into baseline_plus_tabpfn nested CV. Older .nbdump winners excluded."
     with_tssi_gridsearch_best_params:
-      source_file: .nbdump/code__modeling__rating__baseline_tssi_leakage.txt
-      source_location: "Best params prints; GridSearchCV scoring=f1, 5-fold stratified, seed 42; USE_SMOTE=True"
+      source_file: code/modeling/rating/baseline_tssi_leakage.ipynb
+      source_location: "executed GridSearchCV best_params_ prints (papermill 2026-09-19); also modeling_tssi_leakage/best_params.csv"
       not_part4_nested_cv: true
-      logistic_regression: {C: 1.0, max_iter: 2000, penalty: l1, solver: liblinear}
-      decision_tree: {criterion: gini, max_depth: null, min_samples_leaf: 1, min_samples_split: 10}
-      random_forest: {max_depth: 15, min_samples_leaf: 1, n_estimators: 200}
-      gaussian_nb: {var_smoothing: 1.0e-12}
-      catboost: {depth: 6, iterations: 100, l2_leaf_reg: 1, learning_rate: 0.1}
-      xgboost: {learning_rate: 0.05, max_depth: 5, min_child_weight: 1, n_estimators: 200}
-      lightgbm: {learning_rate: 0.1, max_depth: 5, min_child_samples: 20, n_estimators: 200}
-      status: methods_only
-      note: "Leakage-notebook winners. Do not import into nested CV."
+      arm: ALL_LEAKS_ON
+      logistic_regression: {C: 0.1, max_iter: 2000, penalty: l2, solver: lbfgs}
+      decision_tree: {criterion: entropy, max_depth: 10, max_features: null, min_samples_leaf: 2, min_samples_split: 5}
+      random_forest: {max_depth: 20, max_features: sqrt, min_samples_leaf: 1, n_estimators: 800}
+      gaussian_nb: {var_smoothing: 1.0e-6}
+      catboost: {depth: 4, iterations: 200, l2_leaf_reg: 1, learning_rate: 0.03}
+      xgboost: {learning_rate: 0.1, max_depth: 5, min_child_weight: 1, n_estimators: 200, subsample: 0.8}
+      lightgbm: {learning_rate: 0.03, max_depth: 5, min_child_samples: 10, n_estimators: 400, num_leaves: 15}
+      status: frozen
+      note: "Leakage-notebook winners from stored outputs. Do not import into nested CV. Older .nbdump winners excluded."
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Table S-TSSI; rebuild_tssi_leakage_table.py ROWS"
     models_with_tssi:
       source_file: paper_results/04_tabpfn_rating/paper_figures/paper_table_s_tssi_leakage.csv
-      source_location: "CSV backing Table S-TSSI (markdown caption quotes LR and CatBoost PR-AUC)"
-      logistic_regression: {pr_auc: 0.9575, roc_auc: 0.999, f1: 0.6923, status: frozen}
-      decision_tree: {pr_auc: 0.7308, roc_auc: 0.9696, f1: 0.85, status: frozen}
-      random_forest: {pr_auc: 0.968, roc_auc: 0.9993, f1: 0.8, status: frozen}
-      gaussian_nb: {pr_auc: 0.0209, roc_auc: 0.5854, f1: 0.0409, status: frozen}
-      catboost: {pr_auc: 0.9773, roc_auc: 0.9995, f1: 0.9412, status: frozen}
-      xgboost: {pr_auc: 0.9609, roc_auc: 0.9987, f1: 0.9412, status: frozen}
-      lightgbm: {pr_auc: 0.9708, roc_auc: 0.9989, f1: 0.9412, status: frozen}
+      source_location: "CSV backing Table S-TSSI (2026-09-19 Kaggle test_metrics.csv)"
+      note: "Older rebuild 0.9575/0.5077 excluded. Current = kaggle_tssi_leakage / kaggle_without_tssi."
+      logistic_regression: {pr_auc: 0.913388, roc_auc: 0.995372, f1: 0.675325, status: frozen}
+      decision_tree: {pr_auc: 0.752385, roc_auc: 0.926620, f1: 0.705882, status: frozen}
+      random_forest: {pr_auc: 0.939998, roc_auc: 0.997686, f1: 0.833333, status: frozen}
+      gaussian_nb: {pr_auc: 0.272768, roc_auc: 0.742532, f1: 0.043668, status: frozen}
+      catboost: {pr_auc: 0.959865, roc_auc: 0.996447, f1: 0.923077, status: frozen}
+      xgboost: {pr_auc: 0.954687, roc_auc: 0.996284, f1: 0.923077, status: frozen}
+      lightgbm: {pr_auc: 0.968654, roc_auc: 0.998621, f1: 0.923077, status: frozen}
     models_without_tssi:
-      logistic_regression: {pr_auc: 0.5077, roc_auc: 0.9171, f1: 0.2637, status: frozen}
-      decision_tree: {pr_auc: 0.0405, roc_auc: 0.5774, f1: 0.1875, status: frozen}
-      random_forest: {pr_auc: 0.47, roc_auc: 0.9338, f1: 0.4348, status: frozen}
-      gaussian_nb: {pr_auc: 0.0209, roc_auc: 0.5854, f1: 0.0409, status: frozen}
-      catboost: {pr_auc: 0.6582, roc_auc: 0.9669, f1: 0.5806, status: frozen}
-      xgboost: {pr_auc: 0.6118, roc_auc: 0.9380, f1: 0.5714, status: frozen}
-      lightgbm: {pr_auc: 0.6018, roc_auc: 0.9483, f1: 0.5625, status: frozen}
+      logistic_regression: {pr_auc: 0.343057, roc_auc: 0.831830, f1: 0.209302, status: frozen}
+      decision_tree: {pr_auc: 0.137767, roc_auc: 0.700940, f1: 0.279070, status: frozen}
+      random_forest: {pr_auc: 0.487373, roc_auc: 0.928712, f1: 0.000000, status: frozen}
+      gaussian_nb: {pr_auc: 0.056433, roc_auc: 0.749310, f1: 0.037008, status: frozen}
+      catboost: {pr_auc: 0.494218, roc_auc: 0.910270, f1: 0.409639, status: frozen}
+      xgboost: {pr_auc: 0.568484, roc_auc: 0.918334, f1: 0.550000, status: frozen}
+      lightgbm: {pr_auc: 0.667542, roc_auc: 0.940445, f1: 0.444444, status: frozen}
     interpretation:
       value: "TSSI as a covariate inflates 70/30 ranking. It is excluded from nested-CV baseline models. Not a legitimate baseline predictor."
       status: methods_only
   feature_selection_models:
-    protocol: "Part 2; INNER_VAL_SIZE=0.2; fit 4148 (74 events) / val 1037 (18 events); PR-AUC only; TSSI dropped; SMOTE not used; not a Part 4 mask"
+    protocol: "Part 2; INNER_VAL_SIZE=0.2; fit 4148 (74 events) / val 1037 (18 events); PR-AUC only; TSSI and WBC dropped; scaled 87 columns; SMOTE not used; not a Part 4 mask"
     source_file: paper_results/02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md
     source_location: "Cohort / protocol header; Figure 1"
+    dump_dir: code/modeling/interpretability/Kaggle_baseline_intrepretability_results/
+    generated: "2026-09-19 14:39:53"
     status: methods_only
     ffs:
       pool: 24
       max_steps: 12
       min_gain: 0
-      path_lengths: {lr: 12, rf: 12, rf_b: 8, cat: 4, xgb: 12, xgb_b: 11, lgb: 5}
+      path_lengths: {lr: 12, rf: 8, rf_b: 6, cat: 8, xgb: 10, xgb_b: 12, lgb: 4}
       status: frozen
     other_selection_methods:
-      loco: {cap: 60, unique_names_per_model: 60, status: frozen}
-      shap_coalition: {universe: 40, status: frozen}
+      loco: {cap: 60, unique_names_per_model: 60, all7_top20: ["Cre", "eGFR"], status: frozen}
+      shap_coalition: {universe: 40, all7_top20: ["Cre", "HGB", "LDL", "eGFR"], status: frozen}
+      ffs_all7_top20: []
       strict_7x3_intersection_n: 0
       scored_union_n: 86
+      selector_jaccard_top20_unions: {loco_shap: 0.6029, loco_ffs: 0.3692, shap_ffs: 0.4902}
+      within_model_three_way_n: {cat: 5, lgb: 1, lr: 4, rf: 3, rf_b: 2, xgb: 2, xgb_b: 4}
+      union_by_model: {lr: 33, rf: 31, rf_b: 34, cat: 33, xgb: 33, xgb_b: 32, lgb: 32}
       status: frozen
   feature_extraction_models:
-    methods: "Part 3: univariate FDR catalogue (n=20, TSSI excluded) vs ML LOCO∩SHAP∩FFS top-20 union (n=13)"
+    methods: "Part 3: univariate FDR catalogue (n=20, TSSI excluded) vs ML LOCO∩SHAP∩FFS top-20 union (n=10, 2026-09-19 dump; WBC dropped from ML view)"
     source_file: paper_results/03_stats_vs_ml/feature_extraction_comparison.md
     source_location: "§1–2"
     results:
       statistical_fdr_n: 20
-      ml_consensus_n: 13
+      ml_consensus_n: 10
       intersection_n: 5
-      intersection_names: ["WBC", "eGFR", "LV", "HbA1c", "1.1:1Post dilation"]
-      union_n: 28
+      intersection_names: ["Clopidogrel", "HbA1c", "LV", "No postdilation", "eGFR"]
+      union_n: 25
       jaccard:
-        value: 0.1786
+        value: 0.20
         numerator: 5
-        denominator: 28
-        also_printed_as: "5/28 ≈ 0.18"
+        denominator: 25
+        also_printed_as: "5/25 = 0.20"
+        dual_label_if_wbc_stripped_from_fdr: "5/24"
         source_file: paper_results/03_stats_vs_ml/feature_extraction_comparison.md
-        source_location: "§2; stats_vs_ml_comparison.ipynb cell 4 print"
+        source_location: "§2; rebuild_part3_paper_figures.py"
         status: frozen
+        obsolete: "5/28 ≈ 0.18 with intersection {WBC, eGFR, LV, HbA1c, 1.1:1Post dilation}"
       ml_consensus_names:
-        - "1.1:1Post dilation"
-        - Aneurysm
-        - CaI
+        - Clopidogrel
         - Cre
         - HGB
         - HbA1c
         - LDL
         - LV
-        - LVEF
         - Men
-        - UA
-        - WBC
+        - "No postdilation"
+        - "Stent type-SES_xiencev"
         - eGFR
+      note: "stats_vs_ml_comparison.ipynb loads the 2026-09-19 dump (ML-10; Jaccard 5/25) via rebuild_part3_paper_figures.py. Pre-antileak ML-13 / 5/28 is superseded."
     status: frozen
   tabpfn_thinking_high:
     model_definition:
@@ -784,8 +875,16 @@ model_results:
       source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
       source_location: "This run (D4); Table 0; front matter limitation 5"
       status: methods_only
+    cite: false
+    anti_leakage: off
+    package_pin: "tabpfn-client==0.6.0 (hosted v3.5)"
+    thinking_mode: true
+    thinking_effort: high
+    exclusion:
+      status: excluded
+      reason: "Unlabeled nested PR-AUC 0.9771 is a different two-arm dump, not the 9-arm anti-leakage scoreboard (live thinking v3.5 0.9212)."
     metrics:
-      evaluation: "pooled nested-CV OOF ranking (threshold-independent)"
+      evaluation: "pooled nested-CV OOF ranking (threshold-independent); EXCLUDED dump"
       pr_auc:
         value: 0.9771
         ci: [0.9538, 0.9942]
@@ -794,18 +893,18 @@ model_results:
         wins_vs_lightgbm_folds: "5/5"
         source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
         source_location: "Table 1; after Table 1"
-        status: frozen
+        status: excluded
       roc_auc:
         value: 0.9991
         ci: [0.9979, 0.9999]
         fold_mean_sd: "0.9991 ± 0.0012"
-        status: frozen
+        status: excluded
       brier:
         value: 0.0023
         ci: [0.0016, 0.0032]
         ece: 0.0008
-        note: "Best Brier of seven on this run. Do not collapse with local."
-        status: frozen
+        note: "Best Brier of seven on this excluded dump. Do not collapse with local. Do not quote as live nested."
+        status: excluded
       nested_operating_point_table2:
         threshold_mean_sd: "0.367 ± 0.106"
         accuracy: 0.9977
@@ -818,7 +917,7 @@ model_results:
         fp: 5
         fn: 7
         tp: 85
-        status: frozen
+        status: excluded
       pooled_f1_table3_do_not_quote:
         recall: 0.9022
         f1: 0.9379
@@ -830,13 +929,13 @@ model_results:
         value: 0.2836
         ci: [0.2052, 0.3650]
         p_delta_le_0: "0/2000"
-        status: frozen
+        status: excluded
     confidence_intervals:
       method: "stratified bootstrap n_boot=2000 seed 42 on pooled OOF; models not re-fit"
-      status: frozen
+      status: excluded
     feature_set: "81 non-ID non-TSSI columns after 9-level stent encoder; TabPFN-native (no Part 2/5 mask)"
-    interpretation: "Nested-CV prediction performance on the derivation cohort. Not external validation. Not clinical utility."
-    status: frozen
+    interpretation: "Nested-CV prediction performance on the derivation cohort. Not external validation. Not clinical utility. EXCLUDED: pre-anti-leakage."
+    status: excluded
   tabpfn_local:
     model_definition:
       api: "from tabpfn import TabPFNClassifier"
@@ -851,26 +950,33 @@ model_results:
       source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
       source_location: "This run (D4); Table 0"
       status: methods_only
+    cite: false
+    anti_leakage: off
+    package_pin: "tabpfn==9.0.0 (local v3.5)"
+    thinking_mode: false
+    exclusion:
+      status: excluded
+      reason: "Unlabeled nested PR-AUC 0.9635 is a different two-arm dump, not the 9-arm anti-leakage scoreboard (live TabPFN v3.5 0.8957)."
     metrics:
-      evaluation: "pooled nested-CV OOF ranking (same splits as thinking-high; do not merge arms)"
+      evaluation: "pooled nested-CV OOF ranking (same splits as thinking-high; do not merge arms); EXCLUDED dump"
       pr_auc:
         value: 0.9635
         ci: [0.9339, 0.9883]
         fold_mean_sd: "0.9638 ± 0.0272"
         outer_fold_values: [0.9881, 0.9382, 0.9334, 0.9917, 0.9678]
         wins_vs_lightgbm_folds: "5/5"
-        status: frozen
+        status: excluded
       roc_auc:
         value: 0.9983
         ci: [0.9964, 0.9997]
         fold_mean_sd: "0.9985 ± 0.0014"
-        status: frozen
+        status: excluded
       brier:
         value: 0.0025
         ci: [0.0018, 0.0034]
         ece: 0.0002
-        note: "Second on Brier this run. Do not quote 0.0102 or 0.0673."
-        status: frozen
+        note: "Second on Brier this excluded dump. Do not quote 0.0102 or 0.0673. Do not quote 0.0025 as live nested."
+        status: excluded
       nested_operating_point_table2:
         threshold_mean_sd: "0.393 ± 0.107"
         accuracy: 0.9973
@@ -883,7 +989,7 @@ model_results:
         fp: 8
         fn: 6
         tp: 86
-        status: frozen
+        status: excluded
       pooled_f1_table3_do_not_quote:
         recall: 0.9130
         t_f1: 0.465
@@ -894,7 +1000,7 @@ model_results:
         value: 0.2700
         ci: [0.1939, 0.3513]
         p_delta_le_0: "0/2000"
-        status: frozen
+        status: excluded
       historical_excluded:
         pr_auc: 0.6754
         brier: 0.0673
@@ -904,13 +1010,13 @@ model_results:
       method: "same stratified bootstrap as thinking-high"
       status: frozen
     feature_set: "Same 9-level native frame as thinking-high; no Part 2/5 mask"
-    interpretation: "Separate arm. Second on PR-AUC and ROC-AUC this run. Nested-CV prediction performance only."
-    status: frozen
+    interpretation: "Separate arm. EXCLUDED: pre-anti-leakage nested dump. Not the live v3.5 anti-leakage-ON nested benchmark."
+    status: excluded
 
 metrics:
   pr_auc:
     role: "Primary ranking metric at 1.77% prevalence (prediction: Part 4 pooled OOF)."
-    nested_cv_table1: "see model_results.*.nested_cv_oof.pr_auc"
+    nested_cv_table1: "thinking v3.5 0.9212; TabPFN v3.5 0.8957; thinking v3 0.8319; TabPFN v3 0.7150; XGB 0.6322; LGB 0.6271 (anti-leakage ON 9-arm dump). Unlabeled 0.9771/0.9635 excluded."
     wang_frozen_score: {value: 0.1032, evaluation: "full-cohort integer score, not nested-CV", status: frozen}
     status: frozen
   roc_auc:
@@ -919,17 +1025,17 @@ metrics:
     wang_published_derivation_c: {value: 0.80, ci: [0.75, 0.85], status: frozen, note: "cited Wang, not recomputed Cox"}
     status: frozen
   brier_score:
-    nested_cv_table1: "see model_results; thinking-high 0.0023 vs local 0.0025 — keep separate"
+    nested_cv_table1: "thinking v3.5 0.0047 vs TabPFN v3.5 0.0048 (live anti-leakage dump). Excluded dump 0.0023/0.0025 and Version 4 0.0064/0.0102/0.0673 are other runs."
     status: frozen
   sensitivity:
-    nested_table2_recall: "quote Table 2 (thinking-high 0.9239; local 0.9348; LightGBM 0.6522)"
+    nested_table2_recall: "thinking v3.5 0.8370; TabPFN v3.5 0.7826; LightGBM 0.5870. Quote Table 2."
     pooled_table3: excluded
     status: frozen
   specificity:
-    nested_table2: "thinking-high 0.9990; local 0.9984; LightGBM 0.9941"
+    nested_table2: "thinking v3.5 0.9980; TabPFN v3.5 0.9978; LightGBM 0.9927"
     status: frozen
   ppv:
-    nested_table2_precision: "thinking-high 0.9444; local 0.9149; LightGBM 0.6667"
+    nested_table2_precision: "thinking v3.5 0.8851; TabPFN v3.5 0.8675; LightGBM 0.5934"
     status: frozen
   npv:
     formula: "TN / (TN + FN); printed in this Part 4 notebook as Nested NPV"
@@ -937,15 +1043,15 @@ metrics:
     source_location: "Table 2"
     status: frozen
     note: "Notebook print matches Table 2 2×2."
-    thinking_high: {value: 0.9986, numerator: 5088, denominator: 5095}
-    lightgbm: {value: 0.9937, numerator: 5063, denominator: 5095}
-    xgboost: {value: 0.9937, numerator: 5060, denominator: 5092}
-    tabpfn_local: {value: 0.9988, numerator: 5085, denominator: 5091}
-    catboost: {value: 0.9935, numerator: 5030, denominator: 5063}
-    random_forest: {value: 0.9914, numerator: 5054, denominator: 5098}
-    logistic_regression: {value: 0.9894, numerator: 5027, denominator: 5081}
+    thinking_v3_5: {value: 0.9971, numerator: 5083, denominator: 5098}
+    tabpfn_v3_5: {value: 0.9961, numerator: 5082, denominator: 5102}
+    lightgbm: {value: 0.9925, numerator: 5056, denominator: 5094}
+    xgboost: {value: 0.9914, numerator: 5068, denominator: 5112}
+    catboost: {value: 0.9927, numerator: 5040, denominator: 5077}
+    random_forest: {value: 0.9902, numerator: 5040, denominator: 5090}
+    logistic_regression: {value: 0.9884, numerator: 5017, denominator: 5076}
   f1:
-    quote: "Table 2 nested (thinking-high 0.9341). Table 3 excluded."
+    quote: "Table 2 nested (thinking v3.5 0.8603). Table 3 excluded."
     f2_beta: 2.0
     status: frozen
   accuracy:
@@ -969,32 +1075,36 @@ interpretability:
       non_events_in_heldout: 1528
       backend: "client thinking started; HTTP 429 ~row 550; finished local tabpfn + KV cache"
       top_mean_abs_heldout:
-        eGFR: 1.0439
-        WBC: 1.0202
-        LV: 0.8695
+        eGFR: 1.228766
+        CaI: 1.086730
+        Cre: 0.809273
+        LV: 0.482762
+        status: frozen
+        source: kaggle_interpretability.shap_mean_abs_heldout
       top15_mean_abs_heldout:
-        source_location: "Part 5 Table 4"
+        source_location: "Part 5 Table 4 (2026-09-20 shap dump)"
         status: frozen
         rows:
-          - {rank: 1, feature: eGFR, value: 1.0439}
-          - {rank: 2, feature: WBC, value: 1.0202}
-          - {rank: 3, feature: LV, value: 0.8695}
-          - {rank: 4, feature: "1.1:1Post dilation", value: 0.6906}
-          - {rank: 5, feature: LDL, value: 0.4973}
-          - {rank: 6, feature: "No postdilation", value: 0.2958}
-          - {rank: 7, feature: Cre, value: 0.2449}
-          - {rank: 8, feature: CKD5, value: 0.1872}
-          - {rank: 9, feature: HbA1c, value: 0.1783}
-          - {rank: 10, feature: "Previous PCI", value: 0.1356}
-          - {rank: 11, feature: "Stent type-SES", value: 0.1125}
-          - {rank: 12, feature: CaI, value: 0.0793}
-          - {rank: 13, feature: HGB, value: 0.0664}
-          - {rank: 14, feature: Men, value: 0.0553}
-          - {rank: 15, feature: Fiberinogen, value: 0.0502}
+          - {rank: 1, feature: eGFR, value: 1.228766}
+          - {rank: 2, feature: CaI, value: 1.086730}
+          - {rank: 3, feature: Cre, value: 0.809273}
+          - {rank: 4, feature: LV, value: 0.482762}
+          - {rank: 5, feature: LDL, value: 0.365869}
+          - {rank: 6, feature: "No postdilation", value: 0.281221}
+          - {rank: 7, feature: HbA1c, value: 0.267281}
+          - {rank: 8, feature: "Previous PCI", value: 0.260418}
+          - {rank: 9, feature: "1.1:1Post dilation", value: 0.248324}
+          - {rank: 10, feature: "Stent type-SES", value: 0.240191}
+          - {rank: 11, feature: TCL, value: 0.236850}
+          - {rank: 12, feature: TG, value: 0.221282}
+          - {rank: 13, feature: CKD90, value: 0.137657}
+          - {rank: 14, feature: Men, value: 0.131411}
+          - {rank: 15, feature: HDL, value: 0.117363}
       source_file: paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md
-      source_location: "Table 4 (held-out mean |SHAP|); Table 5 (consensus uses these SHAP values)"
+      source_location: "Table 4 (held-out mean |SHAP|); Table 5 (consensus merges shap dump)"
       status: frozen
-      excluded_old: "15+15 SHAP; Cre mean|SHAP| 0.158; k-SII rows 5099/5093"
+      excluded_old: "e356bb1 Table 4 eGFR 1.0439 / WBC 1.0202 / LV 0.8695; 15+15 SHAP; Cre 0.158"
+      live_dump: kaggle_interpretability.shap_mean_abs_heldout
   shapiq:
     k_sii_row_cohort_index: 5176
     heldout_position: 20
@@ -1005,23 +1115,34 @@ interpretability:
     status: frozen
   ffs:
     part2: "greedy PR-AUC forward search; independent of LOCO"
-    part5_stability_sfs: "10 train resamples; WBC 10/10; Cre and LV 8/10; eGFR 7/10"
-    source_file: paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md
-    source_location: "Table 2"
+    part5_stability_sfs: "8/8 seeds; CaI, LV, eGFR 8/8 (freq 1.0); Cre and HbA1c 7/8; Age 6/8; LVEF 5/8; 1.1:1Post dilation 4/8. WBC not in this dump."
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_feature_stability.csv
+    source_location: "STABILITY_N_SEEDS=8 completed; interpretability_feature_stability_summary.csv times_selected=8 → CaI; LV; eGFR"
     status: frozen
+    excluded_old: "paper_results Table 2: 10 train resamples; WBC 10/10; Cre and LV 8/10; eGFR 7/10. Also any PROVISIONAL — 3/10 seeds tag."
   loco:
     part2: "drop-one PR-AUC on cheap-importance prefix cap 60"
     status: methods_only
   feature_rankings:
-    part5_consensus_3_of_3: ["WBC", "LV", "eGFR"]
-    part5_mi_top1_train: {feature: CaI, mi: 0.022005}
-    cre_train_mi: {value: 0.000000, note: "measured train-split zero"}
-    cre_heldout_mean_abs_shap: {value: 0.2449, rank: 7, of: 81, note: "Part 5 Table 4; not the excluded 0.158 dump"}
+    part5_sfs_8_of_8: ["CaI", "LV", "eGFR"]
+    part5_consensus_report_n_methods_2: ["CaI", "LV", "eGFR"]
+    part5_consensus_3_of_3:
+      value: ["CaI", "eGFR", "LV"]
+      status: frozen
+      note: "Table 5 also 3/3: HbA1c, 1.1:1Post dilation (SFS freq ≥ 0.5). WBC absent."
+    part5_consensus_3_of_3_paper_old:
+      value: ["WBC", "LV", "eGFR"]
+      status: excluded_old
+    part5_mi_top1_train: {feature: CaI, mi: 0.020536, status: frozen, source: kaggle_interpretability}
+    part5_mi_top1_train_paper: {feature: CaI, mi: 0.022005, status: excluded_old}
+    cre_train_mi: {value: 0.000338, note: "2026-09-20 train-split MI; paper Table 5 still prints 0.000000"}
+    cre_heldout_mean_abs_shap: {value: 0.809273, rank: 3, of: 80, note: "kaggle shap dump; paper Table 4 0.2449 rank 7 of 81 is excluded_old"}
     pdp_binary:
-      previous_pci_delta: 0.0137
-      post_dilation_delta: -0.0093
-    source_file: paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md
-    source_location: "Tables 1–5; PDP section"
+      previous_pci_delta: 0.001294
+      post_dilation_delta: -0.000094
+      paper_excluded_old: {previous_pci_delta: 0.0137, post_dilation_delta: -0.0093}
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/
+    source_location: "MI + SFS + PDP CSVs; SHAP from shap/modeling_tabpfn/"
     status: frozen
   caveats:
     items:
@@ -1194,7 +1315,7 @@ figures_and_tables:
     type: table
     source_file: paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md
     source_location: "Table S-TSSI"
-    included_values: "LR 0.9575→0.5077; CatBoost 0.9773→0.6582"
+    included_values: "LR 0.9134→0.3431; CatBoost 0.9599→0.4942; LGB 0.9687→0.6675; GNB 0.2728→0.0564"
     manuscript_role: "leakage demonstration"
     status: frozen
   - id: "Part4-S-Wang"
@@ -1206,11 +1327,11 @@ figures_and_tables:
     manuscript_role: "historical comparator"
     status: frozen
   - id: "Part5-Table4"
-    title: "Held-out mean |SHAP| top 15 of 81"
+    title: "Held-out mean |SHAP| top 15 of 80"
     type: table
     source_file: paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md
     source_location: "Table 4"
-    included_values: "eGFR 1.0439; WBC 1.0202; LV 0.8695; Cre 0.2449 (rank 7)"
+    included_values: "eGFR 1.2288; CaI 1.0867; Cre 0.8093; LV 0.4828; WBC absent"
     manuscript_role: "attribution ranking; not a Part 4 mask"
     status: frozen
   - id: "Part5-Table5"
@@ -1218,7 +1339,7 @@ figures_and_tables:
     type: table
     source_file: paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md
     source_location: "Table 5"
-    included_values: "WBC/LV/eGFR 3/3; Cre MI 0.000000"
+    included_values: "CaI/eGFR/LV 3/3; SFS 8/8; Cre MI 0.000338"
     manuscript_role: "attribution ranking"
     status: frozen
 
@@ -1249,13 +1370,16 @@ provenance:
     - {path: code/analyzes/eda.ipynb, role: provenance}
     - {path: code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb, role: "Jaccard print 0.1786"}
     - {path: code/modeling/interpretability/baseline_feature_selections.ipynb, role: provenance}
-    - {path: code/modeling/interpretability/tabpfn_interpretability.ipynb, role: "Part 5 e356bb1 provenance"}
-    - {path: code/modeling/rating/baseline_plus_tabpfn.ipynb, role: "Part 4 papermill 2026-09-17 tabpfn 9.0.0 / v3.5 provenance"}
-    - {path: code/modeling/rating/baseline_tssi_leakage.ipynb, role: "TSSI with; USE_SMOTE=True"}
-    - {path: code/modeling/rating/baseline_without_tssi.ipynb, role: "TSSI dropped; USE_SMOTE=False"}
+    - {path: code/modeling/interpretability/tabpfn_interpretability.ipynb, role: "Part 5 parent; split into fs_pdp + shap"}
+    - {path: code/modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb, role: "Part 5 MI/SFS/PDP papermill 2026-09-20; STABILITY_N_SEEDS=8"}
+    - {path: code/modeling/interpretability/tabpfn_interpretability_shap.ipynb, role: "Part 5 SHAP/SHAP-IQ papermill 2026-09-20"}
+    - {path: code/modeling/rating/baseline_plus_tabpfn.ipynb, role: "Part 4 nested 9-arm anti-leakage dump (thinking v3.5 PR-AUC 0.9212)"}
+    - {path: code/modeling/rating/baseline_tssi_leakage.ipynb, role: "Leakage contrast ALL LEAKS ON; requested name baseline_tssi_leakage-(3).ipynb"}
+    - {path: code/modeling/rating/baseline_without_tssi.ipynb, role: "Leakage contrast ALL LEAKS OFF; requested name baseline_without_tssi-(3).ipynb"}
     - {path: code/modeling/rating/wang_vlst_score.ipynb, role: "Wang integer formula provenance"}
   code_files:
     - code/modeling/rating/rebuild_tssi_leakage_table.py
+    - code/modeling/tools/rebuild_part4_from_kaggle_dump.py
     - code/modeling/tools/paper_hygiene_b3_b4_b7.py
     - code/modeling/tools/stent_encoding.py
   freeze_date: "2026-09-18"
@@ -1264,15 +1388,393 @@ provenance:
   unresolved_items:
     - "preprocessing.ipynb details for TSSI npy arrays"
     - "calibration slope / intercept (not computed)"
+    - "B11 Shantou n=2058 file absent (external test of Wang score only; not ML)"
   resolved_from_code:
     - "NPV = TN/(TN+FN) from frozen Table 2 2×2; Part 4 metrics_at_threshold now prints npv"
     - "EDA IQR 1.5 screen exists; no row drop; not a modeling exclusion rule"
     - "Part 4 explicit constructor kwargs in RUN_MODELS (methods_only; unspecified = library default)"
     - "TSSI without-TSSI GridSearch best_params from baseline_without_tssi.ipynb (not Part 4 HPs)"
     - "Firth Table 4b sensitivity via fit_firth_logit"
-  evidence_map_rule: "docs/paper_evidence_map.md is a dated ledger. Revision 7 local Brier 0.0673 is excluded. Do not freeze header diary numbers."
+  evidence_map_rule: "docs/paper_evidence_map.md is a dated ledger. Revision 7 local Brier 0.0673 is excluded. Unlabeled nested 0.9771/0.9635 excluded. Revision 19: 9-arm anti-leakage dump is live nested. Do not freeze header diary numbers."
+  kaggle_ingest_date: "2026-09-21"
+  kaggle_ingest_manifest: docs/kaggle_outputs_manifest.md
+
+# --- Kaggle dump ingest ---
+
+kaggle_baseline_plus_tabpfn:
+  status: frozen
+  cite: true
+  provenance:
+    source_notebook: code/modeling/rating/baseline_plus_tabpfn.ipynb
+    dump_dir: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/
+    inner_folder: baseline_plus_tabpfn_results
+    run_manifest: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/run_manifest.json
+    device: "Tesla T4"
+    tabpfn_pin: "tabpfn==9.0.0"
+    tabpfn_client_pin: "tabpfn-client==0.6.0"
+    n_arms: 9
+    thinking_mode:
+      thinking_v3: {thinking_mode: true, thinking_effort: high, thinking_metric: average_precision, model: v3_default}
+      thinking_v3_5: {thinking_mode: true, thinking_effort: high, thinking_metric: average_precision, model: v3.5_default}
+      local_v3: {thinking_mode: false, checkpoint: tabpfn-v3-classifier-v3_default.ckpt}
+      local_v3_5: {thinking_mode: false, checkpoint: tabpfn-v3.5-20260909.safetensors}
+    anti_leakage:
+      status: on
+      tssi_dropped: true
+      wbc_dropped: true
+      quantize_clinical: true
+      stent_encoder_train_only: true
+      nested_5x4_stratified: true
+      smote: false
+      note: "Same anti-leakage flow as baseline_plus_tabpfn.ipynb source. Author: these are the live nested numbers."
+  oof:
+    n: 5185
+    ysum: 92
+    n_folds: 5
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/oof/oof_predictions.csv
+  model_comparison_pooled_oof:
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/model_comparison.csv
+    tabpfn_thinking_v3_5: {pr_auc: 0.921222, roc_auc: 0.996280, brier: 0.004727, pr_auc_mean: 0.922671, pr_auc_sd: 0.042266}
+    tabpfn_v3_5: {pr_auc: 0.895729, roc_auc: 0.991630, brier: 0.004849, pr_auc_mean: 0.899498, pr_auc_sd: 0.052809}
+    tabpfn_thinking_v3: {pr_auc: 0.831894, roc_auc: 0.983379, brier: 0.006623, pr_auc_mean: 0.833460, pr_auc_sd: 0.065760}
+    tabpfn_v3: {pr_auc: 0.715000, roc_auc: 0.973062, brier: 0.009944, pr_auc_mean: 0.728619, pr_auc_sd: 0.031864}
+    xgboost: {pr_auc: 0.632154, roc_auc: 0.937361, brier: 0.009985}
+    lightgbm: {pr_auc: 0.627103, roc_auc: 0.944389, brier: 0.010619}
+    catboost: {pr_auc: 0.570653, roc_auc: 0.940434, brier: 0.010801}
+    random_forest: {pr_auc: 0.350579, roc_auc: 0.888298, brier: 0.014976}
+    logistic_regression: {pr_auc: 0.259589, roc_auc: 0.865103, brier: 0.078808}
+  calibration_ece:
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/calibration_ece.csv
+    strategy: quantile
+    n_bins: 8
+    tabpfn_thinking_v3_5: {brier: 0.004727, ece_quantile_8: 0.002778}
+    tabpfn_v3_5: {brier: 0.004849, ece_quantile_8: 0.000337}
+    tabpfn_thinking_v3: {brier: 0.006623, ece_quantile_8: 0.003629}
+    tabpfn_v3: {brier: 0.009944, ece_quantile_8: 0.005926}
+    xgboost: {brier: 0.009985, ece_quantile_8: 0.006597}
+    lightgbm: {brier: 0.010619, ece_quantile_8: 0.008955}
+    catboost: {brier: 0.010801, ece_quantile_8: 0.003106}
+    random_forest: {brier: 0.014976, ece_quantile_8: 0.009001}
+    logistic_regression: {brier: 0.078808, ece_quantile_8: 0.115637}
+  nested_cv_operating_point:
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/nested_cv_operating_point.csv
+    tabpfn_thinking_v3_5: {tn: 5083, fp: 10, fn: 15, tp: 77, recall: 0.836957, f1: 0.860335, npv: 0.997058, pr_auc: 0.921222, threshold_mean: 0.317527}
+    tabpfn_v3_5: {tn: 5082, fp: 11, fn: 20, tp: 72, recall: 0.782609, f1: 0.822857, npv: 0.996080, pr_auc: 0.895729, threshold_mean: 0.386025}
+    tabpfn_thinking_v3: {tn: 5084, fp: 9, fn: 28, tp: 64, recall: 0.695652, f1: 0.775758, pr_auc: 0.831894}
+    tabpfn_v3: {tn: 5070, fp: 23, fn: 36, tp: 56, recall: 0.608696, f1: 0.654971, pr_auc: 0.715000}
+    xgboost: {tn: 5068, fp: 25, fn: 44, tp: 48, recall: 0.521739, f1: 0.581818, pr_auc: 0.632154}
+    lightgbm: {tn: 5056, fp: 37, fn: 38, tp: 54, recall: 0.586957, f1: 0.590164, pr_auc: 0.627103}
+    catboost: {tn: 5040, fp: 53, fn: 37, tp: 55, recall: 0.597826, f1: 0.550000, pr_auc: 0.570653}
+    random_forest: {tn: 5040, fp: 53, fn: 50, tp: 42, recall: 0.456522, f1: 0.449198, pr_auc: 0.350579}
+    logistic_regression: {tn: 5017, fp: 76, fn: 59, tp: 33, recall: 0.358696, f1: 0.328358, pr_auc: 0.259589}
+  pooled_f1_confusion_counts:
+    note: "Pooled OOF F1 (Table 3). Do not quote instead of nested_cv_operating_point."
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/confusion_counts.csv
+    tabpfn_thinking_v3_5: {threshold: 0.302020, tn: 5085, fp: 8, fn: 14, tp: 78}
+    tabpfn_v3_5: {threshold: 0.257475, tn: 5075, fp: 18, fn: 11, tp: 81}
+  fold_pr_auc:
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/fold_metrics.csv
+    tabpfn_thinking_v3_5: [0.880210, 0.907811, 0.943369, 0.985830, 0.896133]
+    tabpfn_v3_5: [0.936458, 0.899556, 0.823729, 0.959478, 0.878270]
+    tabpfn_thinking_v3: [0.832027, 0.762632, 0.774287, 0.890819, 0.907536]
+    tabpfn_v3: [0.717317, 0.772218, 0.684917, 0.739700, 0.728940]
+    xgboost: [0.670550, 0.703767, 0.611831, 0.729373, 0.508496]
+    lightgbm: [0.724855, 0.640666, 0.575884, 0.701387, 0.481059]
+  leakage_precision_probe:
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/leakage_precision_probe.csv
+    precision_signature_only: {n_features: 243, ap: 0.426969, roc_auc: 0.952239}
+  precision_equalised_sensitivity:
+    source_file: code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/baseline_plus_tabpfn_results/modeling_results/tables/precision_equalised_sensitivity.csv
+    tabpfn_v3_5_ap_drop: 0.051815
+  vs_paper_part4:
+    status: match
+    note: "Part 4 Markdown rebuilt 2026-09-22 from this dump. Headline thinking v3.5 PR 0.9212 / nested 5083/10/15/77; TabPFN v3.5 0.8957 / 5082/11/20/72."
+  historical_unlabeled_two_arm:
+    status: excluded
+    note: "Older inner folder baseline_plus_tabpfn/ unlabeled TabPFN thinking mode 0.9771 / TabPFN 0.9635. Not this dump."
+
+kaggle_tssi_leakage:
+  provenance:
+    source_notebook: code/modeling/rating/baseline_tssi_leakage.ipynb
+    dump_dir: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/
+    nested_folder_spelling: baseline_leakge_results
+    papermill: "2026-09-19T14:00Z–2026-09-19T14:57Z"
+    tabpfn_pin: "not_used (7 sklearn/boosting models; no TabPFN arm)"
+    tabpfn_client_pin: "not_used"
+    model_version: null
+    thinking_mode: "n/a (no TabPFN)"
+    anti_leakage:
+      arm: ALL_LEAKS_ON
+      tssi_retained: true
+      wbc_retained: true
+      quantize_clinical: false
+      stent_encoder_train_only: false
+      use_smote: true
+      split: "stratified 70/30 hold-out; not nested CV"
+      status: leakage_arm_all_leaks_on
+  test_metrics:
+    source_file: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/test_metrics.csv
+    n_models: 7
+    logistic_regression: {accuracy: 0.983933, f1: 0.675325, recall: 0.928571, precision: 0.530612, roc_auc: 0.995372, pr_auc: 0.913388}
+    decision_tree: {accuracy: 0.987147, f1: 0.705882, recall: 0.857143, precision: 0.600000, roc_auc: 0.926620, pr_auc: 0.752385}
+    random_forest: {accuracy: 0.994859, f1: 0.833333, recall: 0.714286, precision: 1.000000, roc_auc: 0.997686, pr_auc: 0.939998}
+    gaussian_nb: {accuracy: 0.437018, f1: 0.043668, recall: 0.714286, precision: 0.022523, roc_auc: 0.742532, pr_auc: 0.272768}
+    catboost: {accuracy: 0.997429, f1: 0.923077, recall: 0.857143, precision: 1.000000, roc_auc: 0.996447, pr_auc: 0.959865}
+    xgboost: {accuracy: 0.997429, f1: 0.923077, recall: 0.857143, precision: 1.000000, roc_auc: 0.996284, pr_auc: 0.954687}
+    lightgbm: {accuracy: 0.997429, f1: 0.923077, recall: 0.857143, precision: 1.000000, roc_auc: 0.998621, pr_auc: 0.968654}
+  threshold_analysis:
+    source_file: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/threshold_analysis.csv
+    model_column: missing
+    n_rows: 17
+    at_0_50: {precision: 1.0, recall: 0.857143, f1: 0.923077}
+  gaps:
+    - "threshold_analysis.csv has no model label"
+  vs_frozen_s_tssi:
+    status: match
+    note: "paper Table S-TSSI rebuilt from this dump 2026-09-21."
+
+kaggle_without_tssi:
+  provenance:
+    source_notebook: code/modeling/rating/baseline_without_tssi.ipynb
+    dump_dir: code/modeling/rating/Kaggle_baseline_without_tssi_results/
+    nested_folder: baseline_without_leakage
+    papermill: "2026-09-19T14:02Z–2026-09-19T14:22Z"
+    tabpfn_pin: "not_used (7 sklearn/boosting models; no TabPFN arm)"
+    tabpfn_client_pin: "not_used"
+    model_version: null
+    thinking_mode: "n/a (no TabPFN)"
+    anti_leakage:
+      arm: ALL_LEAKS_OFF
+      tssi_dropped: true
+      wbc_dropped: true
+      quantize_clinical: true
+      stent_encoder_train_only: true
+      use_smote: false
+      split: "stratified 70/30 hold-out; not nested CV"
+      status: leakage_arm_all_leaks_off
+  test_metrics:
+    source_file: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/test_metrics.csv
+    n_models: 7
+    logistic_regression: {accuracy: 0.912596, f1: 0.209302, recall: 0.642857, precision: 0.125000, roc_auc: 0.831830, pr_auc: 0.343057}
+    decision_tree: {accuracy: 0.960154, f1: 0.279070, recall: 0.428571, precision: 0.206897, roc_auc: 0.700940, pr_auc: 0.137767}
+    random_forest: {accuracy: 0.982005, f1: 0.000000, recall: 0.000000, precision: 0.000000, roc_auc: 0.928712, pr_auc: 0.487373}
+    gaussian_nb: {accuracy: 0.197301, f1: 0.037008, recall: 0.857143, precision: 0.018913, roc_auc: 0.749310, pr_auc: 0.056433}
+    catboost: {accuracy: 0.968509, f1: 0.409639, recall: 0.607143, precision: 0.309091, roc_auc: 0.910270, pr_auc: 0.494218}
+    xgboost: {accuracy: 0.988432, f1: 0.550000, recall: 0.392857, precision: 0.916667, roc_auc: 0.918334, pr_auc: 0.568484}
+    lightgbm: {accuracy: 0.987147, f1: 0.444444, recall: 0.285714, precision: 1.000000, roc_auc: 0.940445, pr_auc: 0.667542}
+  threshold_analysis:
+    source_file: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/threshold_analysis.csv
+    model_column: missing
+    n_rows: 17
+    at_0_50: {precision: 0.916667, recall: 0.392857, f1: 0.550000}
+  gaps:
+    - "threshold_analysis.csv has no model label"
+  vs_frozen_s_tssi:
+    status: match
+    note: "paper Table S-TSSI rebuilt from this dump 2026-09-21."
+  leakage_contrast_vs_kaggle_tssi_leakage:
+    matched_tables: ["test_metrics.csv (same 7 models, same metric columns)", "threshold_analysis.csv (same 17 thresholds, unlabeled)", "confusion_matrices.png", "roc_pr_curves.png", "decision_tree_plot.png", "7x best_*.joblib"]
+    missing_in_one_arm_only: []
+    missing_in_both: []
+
+# Paired 70/30 GridSearch contrast. Numbers from dump test_metrics.csv only. Not nested CV. No TabPFN.
+leakage_contrast:
+  status: frozen
+  protocol: "stratified 70/30 seed 42; train 3629 / test 1556; GridSearchCV on 7 sklearn/boosting models; no TabPFN"
+  all_leaks_on:
+    notebook: code/modeling/rating/baseline_tssi_leakage.ipynb
+    requested_name: baseline_tssi_leakage-(3).ipynb
+    dump_dir: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/
+    artifact_dir: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/
+    flags: {KEEP_TSSI: true, DROP_WBC: false, QUANTIZE_CLINICAL: false, STENT_ENCODER_TRAIN_ONLY: false, USE_SMOTE: true}
+    yaml_key: kaggle_tssi_leakage
+  all_leaks_off:
+    notebook: code/modeling/rating/baseline_without_tssi.ipynb
+    requested_name: baseline_without_tssi-(3).ipynb
+    dump_dir: code/modeling/rating/Kaggle_baseline_without_tssi_results/
+    artifact_dir: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/
+    flags: {KEEP_TSSI: false, DROP_WBC: true, QUANTIZE_CLINICAL: true, STENT_ENCODER_TRAIN_ONLY: true, USE_SMOTE: false}
+    yaml_key: kaggle_without_tssi
+  paired_artifacts:
+    tables:
+      - basename: test_metrics.csv
+        all_leaks_on: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/test_metrics.csv
+        all_leaks_off: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/test_metrics.csv
+      - basename: best_params.csv
+        note: "from executed notebook prints"
+        all_leaks_on: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/best_params.csv
+        all_leaks_off: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/best_params.csv
+      - basename: threshold_analysis.csv
+        all_leaks_on: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/threshold_analysis.csv
+        all_leaks_off: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/threshold_analysis.csv
+        note: "no model column in either arm"
+    figures:
+      - basename: confusion_matrices.png
+        all_leaks_on: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/confusion_matrices.png
+        all_leaks_off: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/confusion_matrices.png
+      - basename: roc_pr_curves.png
+        all_leaks_on: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/roc_pr_curves.png
+        all_leaks_off: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/roc_pr_curves.png
+      - basename: decision_tree_plot.png
+        all_leaks_on: code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage/decision_tree_plot.png
+        all_leaks_off: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/decision_tree_plot.png
+    fitted_models:
+      - best_catboost.joblib
+      - best_decision_tree.joblib
+      - best_gaussian_nb.joblib
+      - best_lightgbm.joblib
+      - best_logistic.joblib
+      - best_random_forest.joblib
+      - best_xgboost.joblib
+    missing_in_both: []
+  test_metrics_pr_auc:
+    source: "both-arm test_metrics.csv; not invented"
+    logistic_regression: {all_leaks_on: 0.913388, all_leaks_off: 0.343057, status: frozen}
+    decision_tree: {all_leaks_on: 0.752385, all_leaks_off: 0.137767, status: frozen}
+    random_forest: {all_leaks_on: 0.939998, all_leaks_off: 0.487373, status: frozen}
+    gaussian_nb: {all_leaks_on: 0.272768, all_leaks_off: 0.056433, status: frozen}
+    catboost: {all_leaks_on: 0.959865, all_leaks_off: 0.494218, status: frozen}
+    xgboost: {all_leaks_on: 0.954687, all_leaks_off: 0.568484, status: frozen}
+    lightgbm: {all_leaks_on: 0.968654, all_leaks_off: 0.667542, status: frozen}
+  not_tabpfn: true
+
+kaggle_feature_selectors:
+  provenance:
+    source_notebook: code/modeling/interpretability/baseline_feature_selections.ipynb
+    dump_dir: code/modeling/interpretability/Kaggle_baseline_intrepretability_results/
+    inner_dir: baseline_interpretability_results/model_feature_selectors_antileak/
+    owner_spelling: intrepretability
+    generated: "2026-09-19 14:39:53"
+    papermill: "selector_report.md Generated: 2026-09-19 14:39:53"
+    tabpfn_pin: "not_used (Part 2 selectors; not TabPFN)"
+    tabpfn_client_pin: "not_used"
+    model_version: null
+    thinking_mode: "n/a"
+    anti_leakage:
+      tssi_dropped: true
+      wbc_dropped: true
+      drop_features: ["Time since stent implantation", "WBC"]
+      quantize: {Cre: 0, CaI: 2, Fiberinogen: 1, Fast-Glu: 1}
+      stent_train_only: true
+      scaler_ohe_train_only: true
+      split: {n_fit: 4148, fit_pos: 74, n_val: 1037, val_pos: 18, random_state: 42, inner_val_size: 0.2}
+      raw_n_features: 80
+      scaled_n_features: 87
+      unused_outer_test: false
+      status: anti_leakage_full_cohort_fit_val
+  n_files: 37
+  status: frozen
+  note: "Selectors independent of each other's selected names; shared cheap fit-slice ranking per model (LOCO prefix 60 / SHAP 40 / FFS 24). WBC absent."
+  vs_paper_part2:
+    status: match
+    note: "paper_results Part 2/3 rebuilt from this dump 2026-09-22 (FFS paths 12/8/6/8/10/12/4; ML union n=10; Jaccard 5/25)."
+    obsolete_88col_wbc_consensus: "2026-08-31 reconstruction (FFS 12/12/8/4/12/11/5; ML n=13 including WBC; Jaccard 5/28)"
+
+kaggle_interpretability:
+  provenance:
+    source_notebooks:
+      - code/modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb
+      - code/modeling/interpretability/tabpfn_interpretability_shap.ipynb
+    parent_notebook: code/modeling/interpretability/tabpfn_interpretability.ipynb
+    dump_dir: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/
+    owner_spelling: intrepretebility
+    papermill:
+      fs_pdp_MI: "2026-09-20T10:58Z–2026-09-20T21:28Z"
+      shap: "2026-09-20T10:05Z–2026-09-20T11:50Z"
+    tabpfn_pin: "tabpfn==9.0.0"
+    tabpfn_client_pin: "tabpfn-client==0.6.0"
+    model_version: "v3.5"
+    thinking_mode:
+      FS_THINKING_MODE: false
+      INTERP_THINKING_MODE: true
+      INTERP_THINKING_EFFORT: high
+      INTERP_THINKING_METRIC: average_precision
+      PDP_USE_CLIENT: false
+      STABILITY_N_SEEDS: 8
+      local_v35: "tabpfn==9.0.0 (fs_pdp MI/SFS/PDP)"
+      hosted_v35: "tabpfn-client==0.6.0 (shap SHAP/k-SII)"
+      note: "shap notebook source still prints STABILITY_N_SEEDS=10 but does not run SFS; completed SFS is fs_pdp_MI with 8 seeds."
+    anti_leakage:
+      tssi_dropped: true
+      wbc_dropped: true
+      note: "WBC dropped as recording-precision / case-control batch marker; TSSI dropped. Train-only MI/SFS/PDP; SHAP on held-out."
+      split: "stratified 70/30 seed 42"
+      status: anti_leakage_heldout_attribution
+  split:
+    train: {n: 3629, events: 64}
+    test: {n: 1556, events: 28}
+    source_files:
+      - code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_train_indices.csv
+      - code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_heldout_indices.csv
+  sfs_stability:
+    status: frozen
+    label: "8/8 seeds"
+    n_seeds: 8
+    n_features_scored: 80
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_feature_stability.csv
+    summary_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_feature_stability_summary.csv
+    times_selected_8_of_8: ["CaI", "LV", "eGFR"]
+    times_selected_7_of_8: ["Cre", "HbA1c"]
+    times_selected_6_of_8: ["Age"]
+    times_selected_5_of_8: ["LVEF"]
+    times_selected_4_of_8: ["1.1:1Post dilation"]
+    wbc_in_stability: false
+    obsolete_tags: ["PROVISIONAL — 3/10 seeds", "10-seed WBC 10/10 table"]
+  mutual_info_train:
+    n_features: 80
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_mutual_info_ranking.csv
+    top5:
+      - {rank: 1, feature: CaI, mi: 0.020536}
+      - {rank: 2, feature: LV, mi: 0.012818}
+      - {rank: 3, feature: eGFR, mi: 0.009424}
+      - {rank: 4, feature: LDL, mi: 0.009367}
+      - {rank: 5, feature: HbA1c, mi: 0.007328}
+    cre_mi: 0.000338
+    wbc_in_mi: false
+  shap_mean_abs_heldout:
+    n_features: 80
+    n_rows_explained: 1556
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/shap/modeling_tabpfn/interpretability_shap_mean_abs.csv
+    top15:
+      - {rank: 1, feature: eGFR, shap_mean_abs: 1.228766}
+      - {rank: 2, feature: CaI, shap_mean_abs: 1.086730}
+      - {rank: 3, feature: Cre, shap_mean_abs: 0.809273}
+      - {rank: 4, feature: LV, shap_mean_abs: 0.482762}
+      - {rank: 5, feature: LDL, shap_mean_abs: 0.365869}
+      - {rank: 6, feature: "No postdilation", shap_mean_abs: 0.281221}
+      - {rank: 7, feature: HbA1c, shap_mean_abs: 0.267281}
+      - {rank: 8, feature: "Previous PCI", shap_mean_abs: 0.260418}
+      - {rank: 9, feature: "1.1:1Post dilation", shap_mean_abs: 0.248324}
+      - {rank: 10, feature: "Stent type-SES", shap_mean_abs: 0.240191}
+      - {rank: 11, feature: TCL, shap_mean_abs: 0.236850}
+      - {rank: 12, feature: TG, shap_mean_abs: 0.221282}
+      - {rank: 13, feature: CKD90, shap_mean_abs: 0.137657}
+      - {rank: 14, feature: Men, shap_mean_abs: 0.131411}
+      - {rank: 15, feature: HDL, shap_mean_abs: 0.117363}
+    wbc_in_shap: false
+  shapiq:
+    first_heldout_vlst1: {cohort_row_index: 5176, heldout_position: 20}
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/shap/modeling_tabpfn/interpretability_shap_explain_indices.csv
+    status: match_vs_paper_row_5176
+  pdp_binary:
+    source_file: code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/modeling_tabpfn/interpretability_pdp_binary.csv
+    scale: empirical_prior_not_part4
+    n: 3629
+    prevalence: 0.017636
+    previous_pci: {p_absent: 0.017711, p_present: 0.019006, delta: 0.001294}
+    post_dilation: {p_absent: 0.019260, p_present: 0.019166, delta: -0.000094}
+    no_postdilation: {delta: 0.000153}
+  consensus_report:
+    source_file: paper_results/05_tabpfn_interpretability/paper_figures/interpretability_feature_importance_report.csv
+    n_features: 80
+    note: "FS dump CSV had shap_mean_abs=0; Table 5 merges shap dump via notebook Borda."
+    top3_n_methods_3: ["CaI", "eGFR", "LV"]
+  vs_paper_part5:
+    status: match
+    note: "paper_results Part 5 tables rebuilt from this dump 2026-09-21 (SFS 8/8; SHAP merged into Table 5)."
 
 conflicts:
+
   blocking_for_same_quantity: []
   documented_different_quantities:
     - id: C1
@@ -1288,6 +1790,12 @@ conflicts:
       note: "Not a conflict — two models."
     - id: TSSI_SMOTE
       note: "Leakage table is frozen as demonstration with SMOTE mismatch documented; not a nested-CV result."
-    - id: nbdump_local_balance_probabilities
-      items: ["historical dumps with balance_probabilities=True", "this run print balance_probabilities=False"]
-      freeze_choice: "This run local = balance_probabilities=False (printed)."
+    - id: TSSI_dump_2026_09_19_vs_S_TSSI_markdown
+      items: ["older rebuild LR PR-AUC 0.9575→0.5077", "2026-09-19 dump LR 0.9134→0.3431"]
+      freeze_choice: "Quote 2026-09-19 dumps / rebuilt Table S-TSSI. Older rebuild excluded."
+    - id: Part5_10seed_WBC_vs_8seed_CaI
+      items: ["paper Table 2 WBC 10/10", "dump CaI/LV/eGFR 8/8; WBC dropped"]
+      freeze_choice: "Quote kaggle_interpretability SFS 8/8 seeds. Paper 10-seed table excluded_old."
+    - id: nested_097_pre_antileakage
+      items: ["unlabeled two-arm dump thinking PR-AUC 0.9771 / local 0.9635", "9-arm anti-leakage dump thinking v3.5 0.9212 / TabPFN v3.5 0.8957"]
+      freeze_choice: "Quote the 9-arm dump (nested_cv_v35_antileakage_on). Unlabeled 0.9771/0.9635 excluded."

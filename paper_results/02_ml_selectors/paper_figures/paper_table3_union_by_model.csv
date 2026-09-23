@@ -1,8 +1,8 @@
 Code,Classic model,Family,Union size
-cat,CatBoost,Boosting,32
-lgb,LightGBM,Boosting,30
-lr,Logistic regression,Linear,32
-rf,Random forest,Bagged trees,35
+cat,CatBoost,Boosting,33
+lgb,LightGBM,Boosting,32
+lr,Logistic regression,Linear,33
+rf,Random forest,Bagged trees,31
 rf_b,Random forest (subsample),Bagged trees,34
-xgb,XGBoost,Boosting,31
-xgb_b,XGBoost (subsample),Boosting,30
+xgb,XGBoost,Boosting,33
+xgb_b,XGBoost (subsample),Boosting,32

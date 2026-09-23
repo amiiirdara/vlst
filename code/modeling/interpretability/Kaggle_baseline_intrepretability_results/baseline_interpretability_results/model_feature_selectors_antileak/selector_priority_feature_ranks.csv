@@ -1,0 +1,232 @@
+model,algorithm,metric,feature,rank,in_topk
+cat,LOCO,pr_auc,"Age, years",,False
+cat,LOCO,pr_auc,Male sex,,False
+cat,LOCO,pr_auc,Current drinking,50.0,True
+cat,LOCO,pr_auc,Diabetes mellitus,,False
+cat,LOCO,pr_auc,aspirin,,False
+cat,LOCO,pr_auc,Hypertension,9.0,True
+cat,LOCO,pr_auc,Dapt,,False
+cat,LOCO,pr_auc,Dyslipidemia,,False
+cat,LOCO,pr_auc,HbA1C,,False
+cat,LOCO,pr_auc,Clopidogrel,10.0,True
+cat,LOCO,pr_auc,Current smoker,35.0,True
+cat,SHAP,pr_auc,"Age, years",,False
+cat,SHAP,pr_auc,Male sex,,False
+cat,SHAP,pr_auc,Current drinking,,False
+cat,SHAP,pr_auc,Diabetes mellitus,,False
+cat,SHAP,pr_auc,aspirin,,False
+cat,SHAP,pr_auc,Hypertension,,False
+cat,SHAP,pr_auc,Dapt,,False
+cat,SHAP,pr_auc,Dyslipidemia,,False
+cat,SHAP,pr_auc,HbA1C,,False
+cat,SHAP,pr_auc,Clopidogrel,12.0,True
+cat,SHAP,pr_auc,Current smoker,14.0,True
+cat,FFS,pr_auc,"Age, years",,False
+cat,FFS,pr_auc,Male sex,,False
+cat,FFS,pr_auc,Current drinking,,False
+cat,FFS,pr_auc,Diabetes mellitus,,False
+cat,FFS,pr_auc,aspirin,,False
+cat,FFS,pr_auc,Hypertension,,False
+cat,FFS,pr_auc,Dapt,,False
+cat,FFS,pr_auc,Dyslipidemia,,False
+cat,FFS,pr_auc,HbA1C,,False
+cat,FFS,pr_auc,Clopidogrel,7.0,True
+cat,FFS,pr_auc,Current smoker,,False
+lgb,LOCO,pr_auc,"Age, years",,False
+lgb,LOCO,pr_auc,Male sex,,False
+lgb,LOCO,pr_auc,Current drinking,35.0,True
+lgb,LOCO,pr_auc,Diabetes mellitus,,False
+lgb,LOCO,pr_auc,aspirin,,False
+lgb,LOCO,pr_auc,Hypertension,36.0,True
+lgb,LOCO,pr_auc,Dapt,,False
+lgb,LOCO,pr_auc,Dyslipidemia,,False
+lgb,LOCO,pr_auc,HbA1C,,False
+lgb,LOCO,pr_auc,Clopidogrel,6.0,True
+lgb,LOCO,pr_auc,Current smoker,17.0,True
+lgb,SHAP,pr_auc,"Age, years",,False
+lgb,SHAP,pr_auc,Male sex,,False
+lgb,SHAP,pr_auc,Current drinking,10.0,True
+lgb,SHAP,pr_auc,Diabetes mellitus,,False
+lgb,SHAP,pr_auc,aspirin,,False
+lgb,SHAP,pr_auc,Hypertension,,False
+lgb,SHAP,pr_auc,Dapt,,False
+lgb,SHAP,pr_auc,Dyslipidemia,,False
+lgb,SHAP,pr_auc,HbA1C,,False
+lgb,SHAP,pr_auc,Clopidogrel,,False
+lgb,SHAP,pr_auc,Current smoker,28.0,True
+lgb,FFS,pr_auc,"Age, years",,False
+lgb,FFS,pr_auc,Male sex,,False
+lgb,FFS,pr_auc,Current drinking,,False
+lgb,FFS,pr_auc,Diabetes mellitus,,False
+lgb,FFS,pr_auc,aspirin,,False
+lgb,FFS,pr_auc,Hypertension,,False
+lgb,FFS,pr_auc,Dapt,,False
+lgb,FFS,pr_auc,Dyslipidemia,,False
+lgb,FFS,pr_auc,HbA1C,,False
+lgb,FFS,pr_auc,Clopidogrel,,False
+lgb,FFS,pr_auc,Current smoker,,False
+lr,LOCO,pr_auc,"Age, years",,False
+lr,LOCO,pr_auc,Male sex,,False
+lr,LOCO,pr_auc,Current drinking,33.0,True
+lr,LOCO,pr_auc,Diabetes mellitus,,False
+lr,LOCO,pr_auc,aspirin,,False
+lr,LOCO,pr_auc,Hypertension,,False
+lr,LOCO,pr_auc,Dapt,,False
+lr,LOCO,pr_auc,Dyslipidemia,,False
+lr,LOCO,pr_auc,HbA1C,,False
+lr,LOCO,pr_auc,Clopidogrel,8.0,True
+lr,LOCO,pr_auc,Current smoker,18.0,True
+lr,SHAP,pr_auc,"Age, years",,False
+lr,SHAP,pr_auc,Male sex,,False
+lr,SHAP,pr_auc,Current drinking,,False
+lr,SHAP,pr_auc,Diabetes mellitus,,False
+lr,SHAP,pr_auc,aspirin,,False
+lr,SHAP,pr_auc,Hypertension,,False
+lr,SHAP,pr_auc,Dapt,,False
+lr,SHAP,pr_auc,Dyslipidemia,,False
+lr,SHAP,pr_auc,HbA1C,,False
+lr,SHAP,pr_auc,Clopidogrel,11.0,True
+lr,SHAP,pr_auc,Current smoker,,False
+lr,FFS,pr_auc,"Age, years",,False
+lr,FFS,pr_auc,Male sex,,False
+lr,FFS,pr_auc,Current drinking,,False
+lr,FFS,pr_auc,Diabetes mellitus,,False
+lr,FFS,pr_auc,aspirin,,False
+lr,FFS,pr_auc,Hypertension,,False
+lr,FFS,pr_auc,Dapt,,False
+lr,FFS,pr_auc,Dyslipidemia,,False
+lr,FFS,pr_auc,HbA1C,,False
+lr,FFS,pr_auc,Clopidogrel,4.0,True
+lr,FFS,pr_auc,Current smoker,,False
+rf,LOCO,pr_auc,"Age, years",,False
+rf,LOCO,pr_auc,Male sex,,False
+rf,LOCO,pr_auc,Current drinking,,False
+rf,LOCO,pr_auc,Diabetes mellitus,,False
+rf,LOCO,pr_auc,aspirin,,False
+rf,LOCO,pr_auc,Hypertension,12.0,True
+rf,LOCO,pr_auc,Dapt,,False
+rf,LOCO,pr_auc,Dyslipidemia,,False
+rf,LOCO,pr_auc,HbA1C,,False
+rf,LOCO,pr_auc,Clopidogrel,5.0,True
+rf,LOCO,pr_auc,Current smoker,10.0,True
+rf,SHAP,pr_auc,"Age, years",,False
+rf,SHAP,pr_auc,Male sex,,False
+rf,SHAP,pr_auc,Current drinking,,False
+rf,SHAP,pr_auc,Diabetes mellitus,,False
+rf,SHAP,pr_auc,aspirin,,False
+rf,SHAP,pr_auc,Hypertension,,False
+rf,SHAP,pr_auc,Dapt,,False
+rf,SHAP,pr_auc,Dyslipidemia,,False
+rf,SHAP,pr_auc,HbA1C,,False
+rf,SHAP,pr_auc,Clopidogrel,11.0,True
+rf,SHAP,pr_auc,Current smoker,29.0,True
+rf,FFS,pr_auc,"Age, years",,False
+rf,FFS,pr_auc,Male sex,,False
+rf,FFS,pr_auc,Current drinking,,False
+rf,FFS,pr_auc,Diabetes mellitus,,False
+rf,FFS,pr_auc,aspirin,,False
+rf,FFS,pr_auc,Hypertension,,False
+rf,FFS,pr_auc,Dapt,,False
+rf,FFS,pr_auc,Dyslipidemia,,False
+rf,FFS,pr_auc,HbA1C,,False
+rf,FFS,pr_auc,Clopidogrel,,False
+rf,FFS,pr_auc,Current smoker,,False
+rf_b,LOCO,pr_auc,"Age, years",,False
+rf_b,LOCO,pr_auc,Male sex,,False
+rf_b,LOCO,pr_auc,Current drinking,,False
+rf_b,LOCO,pr_auc,Diabetes mellitus,,False
+rf_b,LOCO,pr_auc,aspirin,,False
+rf_b,LOCO,pr_auc,Hypertension,25.0,True
+rf_b,LOCO,pr_auc,Dapt,,False
+rf_b,LOCO,pr_auc,Dyslipidemia,,False
+rf_b,LOCO,pr_auc,HbA1C,,False
+rf_b,LOCO,pr_auc,Clopidogrel,7.0,True
+rf_b,LOCO,pr_auc,Current smoker,46.0,True
+rf_b,SHAP,pr_auc,"Age, years",,False
+rf_b,SHAP,pr_auc,Male sex,,False
+rf_b,SHAP,pr_auc,Current drinking,,False
+rf_b,SHAP,pr_auc,Diabetes mellitus,,False
+rf_b,SHAP,pr_auc,aspirin,,False
+rf_b,SHAP,pr_auc,Hypertension,,False
+rf_b,SHAP,pr_auc,Dapt,,False
+rf_b,SHAP,pr_auc,Dyslipidemia,,False
+rf_b,SHAP,pr_auc,HbA1C,,False
+rf_b,SHAP,pr_auc,Clopidogrel,28.0,True
+rf_b,SHAP,pr_auc,Current smoker,,False
+rf_b,FFS,pr_auc,"Age, years",,False
+rf_b,FFS,pr_auc,Male sex,,False
+rf_b,FFS,pr_auc,Current drinking,,False
+rf_b,FFS,pr_auc,Diabetes mellitus,,False
+rf_b,FFS,pr_auc,aspirin,,False
+rf_b,FFS,pr_auc,Hypertension,,False
+rf_b,FFS,pr_auc,Dapt,,False
+rf_b,FFS,pr_auc,Dyslipidemia,,False
+rf_b,FFS,pr_auc,HbA1C,,False
+rf_b,FFS,pr_auc,Clopidogrel,,False
+rf_b,FFS,pr_auc,Current smoker,,False
+xgb,LOCO,pr_auc,"Age, years",,False
+xgb,LOCO,pr_auc,Male sex,,False
+xgb,LOCO,pr_auc,Current drinking,27.0,True
+xgb,LOCO,pr_auc,Diabetes mellitus,,False
+xgb,LOCO,pr_auc,aspirin,,False
+xgb,LOCO,pr_auc,Hypertension,,False
+xgb,LOCO,pr_auc,Dapt,,False
+xgb,LOCO,pr_auc,Dyslipidemia,,False
+xgb,LOCO,pr_auc,HbA1C,,False
+xgb,LOCO,pr_auc,Clopidogrel,5.0,True
+xgb,LOCO,pr_auc,Current smoker,6.0,True
+xgb,SHAP,pr_auc,"Age, years",,False
+xgb,SHAP,pr_auc,Male sex,,False
+xgb,SHAP,pr_auc,Current drinking,,False
+xgb,SHAP,pr_auc,Diabetes mellitus,,False
+xgb,SHAP,pr_auc,aspirin,,False
+xgb,SHAP,pr_auc,Hypertension,,False
+xgb,SHAP,pr_auc,Dapt,,False
+xgb,SHAP,pr_auc,Dyslipidemia,,False
+xgb,SHAP,pr_auc,HbA1C,,False
+xgb,SHAP,pr_auc,Clopidogrel,,False
+xgb,SHAP,pr_auc,Current smoker,,False
+xgb,FFS,pr_auc,"Age, years",,False
+xgb,FFS,pr_auc,Male sex,,False
+xgb,FFS,pr_auc,Current drinking,,False
+xgb,FFS,pr_auc,Diabetes mellitus,,False
+xgb,FFS,pr_auc,aspirin,,False
+xgb,FFS,pr_auc,Hypertension,,False
+xgb,FFS,pr_auc,Dapt,,False
+xgb,FFS,pr_auc,Dyslipidemia,,False
+xgb,FFS,pr_auc,HbA1C,,False
+xgb,FFS,pr_auc,Clopidogrel,,False
+xgb,FFS,pr_auc,Current smoker,,False
+xgb_b,LOCO,pr_auc,"Age, years",,False
+xgb_b,LOCO,pr_auc,Male sex,,False
+xgb_b,LOCO,pr_auc,Current drinking,52.0,True
+xgb_b,LOCO,pr_auc,Diabetes mellitus,,False
+xgb_b,LOCO,pr_auc,aspirin,,False
+xgb_b,LOCO,pr_auc,Hypertension,,False
+xgb_b,LOCO,pr_auc,Dapt,,False
+xgb_b,LOCO,pr_auc,Dyslipidemia,,False
+xgb_b,LOCO,pr_auc,HbA1C,,False
+xgb_b,LOCO,pr_auc,Clopidogrel,21.0,True
+xgb_b,LOCO,pr_auc,Current smoker,,False
+xgb_b,SHAP,pr_auc,"Age, years",,False
+xgb_b,SHAP,pr_auc,Male sex,,False
+xgb_b,SHAP,pr_auc,Current drinking,36.0,True
+xgb_b,SHAP,pr_auc,Diabetes mellitus,,False
+xgb_b,SHAP,pr_auc,aspirin,,False
+xgb_b,SHAP,pr_auc,Hypertension,,False
+xgb_b,SHAP,pr_auc,Dapt,,False
+xgb_b,SHAP,pr_auc,Dyslipidemia,,False
+xgb_b,SHAP,pr_auc,HbA1C,,False
+xgb_b,SHAP,pr_auc,Clopidogrel,29.0,True
+xgb_b,SHAP,pr_auc,Current smoker,,False
+xgb_b,FFS,pr_auc,"Age, years",,False
+xgb_b,FFS,pr_auc,Male sex,,False
+xgb_b,FFS,pr_auc,Current drinking,,False
+xgb_b,FFS,pr_auc,Diabetes mellitus,,False
+xgb_b,FFS,pr_auc,aspirin,,False
+xgb_b,FFS,pr_auc,Hypertension,,False
+xgb_b,FFS,pr_auc,Dapt,,False
+xgb_b,FFS,pr_auc,Dyslipidemia,,False
+xgb_b,FFS,pr_auc,HbA1C,,False
+xgb_b,FFS,pr_auc,Clopidogrel,,False
+xgb_b,FFS,pr_auc,Current smoker,,False
