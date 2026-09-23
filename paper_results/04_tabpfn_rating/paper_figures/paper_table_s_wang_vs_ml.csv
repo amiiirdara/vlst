@@ -1,6 +1,8 @@
 Model,ROC-AUC,PR-AUC,ROC fold mean ± SD,PR fold mean ± SD,Protocol
-Wang 2020 integer score (frozen),0.8013,0.1032,0.8005 ± 0.0607,0.1134 ± 0.0518,"Published points on all 5,185 rows; folds are evaluation only"
-TabPFN (thinking-high),0.9991,0.9771,0.9991 ± 0.0012,0.9776 ± 0.0266,"Part 4 nested 5×4 CV OOF (this notebook, tabpfn 9.0.0 / v3.5)"
-TabPFN (local),0.9983,0.9635,0.9985 ± 0.0014,0.9638 ± 0.0272,"Part 4 nested 5×4 CV OOF (this notebook, tabpfn 9.0.0 / v3.5)"
-LightGBM (untuned nested CV),0.9681,0.6935,0.9695 ± 0.0165,0.6942 ± 0.0920,Part 4 nested 5×4 CV OOF (this notebook)
-Logistic regression (untuned nested CV),0.9224,0.3326,0.9235 ± 0.0251,0.3451 ± 0.1213,Part 4 nested 5×4 CV OOF (this notebook)
+Wang 2020 integer score (frozen),0.8013,0.1032,0.8005 ± 0.0607,0.1134 ± 0.0518,Published points; folds evaluate only
+TabPFN thinking v3.5,0.99628,0.921222,0.9965 ± 0.0027,0.9227 ± 0.0423,Part 4 nested 5×4 CV OOF; anti-leakage ON
+TabPFN v3.5,0.99163,0.895729,0.9922 ± 0.0066,0.8995 ± 0.0528,Part 4 nested 5×4 CV OOF; anti-leakage ON
+TabPFN thinking v3,0.983379,0.831894,0.9843 ± 0.0105,0.8335 ± 0.0658,Part 4 nested 5×4 CV OOF; anti-leakage ON
+TabPFN v3,0.973062,0.715,0.9741 ± 0.0125,0.7286 ± 0.0319,Part 4 nested 5×4 CV OOF; anti-leakage ON
+XGBoost,0.937361,0.632154,0.9366 ± 0.0371,0.6448 ± 0.0880,Part 4 nested 5×4 CV OOF; anti-leakage ON
+LightGBM,0.944389,0.627103,0.9458 ± 0.0332,0.6248 ± 0.0990,Part 4 nested 5×4 CV OOF; anti-leakage ON

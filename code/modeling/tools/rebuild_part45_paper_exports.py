@@ -533,6 +533,14 @@ def rebuild_concat() -> None:
         prefix_assets(_load("04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md"), "04_tabpfn_rating"),
         "Part 4. Nested-CV baselines plus TabPFN",
     )
+    part4b = demote_h1(
+        prefix_assets(
+            _load("04_tabpfn_rating/leakage_contrast_paper_figures_and_tables.md"),
+            "04_tabpfn_rating",
+        ),
+        "Part 4b. Leakage contrast (ALL LEAKS ON vs ALL LEAKS OFF)",
+    )
+
     part5 = demote_h1(
         prefix_assets(
             _load("05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md"),
@@ -546,12 +554,34 @@ def rebuild_concat() -> None:
         "**Asset root:** [04_tabpfn_rating/paper_figures](04_tabpfn_rating/paper_figures/)",
         "**Asset root:** [paper_figures](04_tabpfn_rating/paper_figures/)",
     )
+    part4b = part4b.replace(
+        "**Asset root:** [04_tabpfn_rating/paper_figures](04_tabpfn_rating/paper_figures/)",
+        "**Asset root:** [paper_figures](04_tabpfn_rating/paper_figures/)",
+    )
     part5 = part5.replace(
         "**Asset root:** [05_tabpfn_interpretability/paper_figures/](05_tabpfn_interpretability/paper_figures/)",
         "**Asset root:** [paper_figures/](05_tabpfn_interpretability/paper_figures/)",
     )
 
-    out = header + "\n" + part0.rstrip() + "\n\n---\n" + part1.rstrip() + "\n\n---\n" + parts_2_3 + "\n---\n" + part4.rstrip() + "\n\n---\n" + part5
+    protocol = demote_h1(_load("anti_leakage_protocol.md"), "Anti-leakage protocol and incentives (W1)")
+
+    out = (
+        header
+        + "\n"
+        + part0.rstrip()
+        + "\n\n---\n"
+        + protocol.rstrip()
+        + "\n\n---\n"
+        + part1.rstrip()
+        + "\n\n---\n"
+        + parts_2_3
+        + "\n---\n"
+        + part4.rstrip()
+        + "\n\n---\n"
+        + part4b.rstrip()
+        + "\n\n---\n"
+        + part5
+    )
     (pr / "paper_results.md").write_text(out)
     print("Wrote paper_results/paper_results.md")
 

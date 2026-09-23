@@ -1,0 +1,761 @@
+model,algorithm,metric,rank,feature
+lr,LOCO,pr_auc,1,Men
+lr,LOCO,pr_auc,2,Stent type-SES_xiencev
+lr,LOCO,pr_auc,3,Stent type-SES_other
+lr,LOCO,pr_auc,4,Cre
+lr,LOCO,pr_auc,5,LV
+lr,LOCO,pr_auc,6,Initial diagnosis-AMI
+lr,LOCO,pr_auc,7,TG
+lr,LOCO,pr_auc,8,Clopidogrel
+lr,LOCO,pr_auc,9,Fiberinogen
+lr,LOCO,pr_auc,10,DAPT
+lr,LOCO,pr_auc,11,Min-stent diameter
+lr,LOCO,pr_auc,12,eGFR
+lr,LOCO,pr_auc,13,STEMI
+lr,LOCO,pr_auc,14,TCL
+lr,LOCO,pr_auc,15,Total stent length
+lr,LOCO,pr_auc,16,UA
+lr,LOCO,pr_auc,17,History of peripheral vascualr disease
+lr,LOCO,pr_auc,18,Current smoker
+lr,LOCO,pr_auc,19,Ticagrelor
+lr,LOCO,pr_auc,20,Chronic total occlusion
+lr,LOCO,pr_auc,21,Aspirin
+lr,LOCO,pr_auc,22,Max-stent diameter
+lr,LOCO,pr_auc,23,P-LM
+lr,LOCO,pr_auc,24,Stent type-SES_partner
+lr,LOCO,pr_auc,25,LVEF
+lr,LOCO,pr_auc,26,Previous PCI
+lr,LOCO,pr_auc,27,Thrombus aspiration
+lr,LOCO,pr_auc,28,EVS
+lr,LOCO,pr_auc,29,Diabetes
+lr,LOCO,pr_auc,30,NSTEMI
+lr,LOCO,pr_auc,31,Visual thrombus
+lr,LOCO,pr_auc,32,No.of stents per lesion
+lr,LOCO,pr_auc,33,Current drinking
+lr,LOCO,pr_auc,34,Vessel dialation
+lr,LOCO,pr_auc,35,History of HF
+lr,LOCO,pr_auc,36,PES
+lr,LOCO,pr_auc,37,Stent type-SES_resolute
+lr,LOCO,pr_auc,38,P-LCX
+lr,LOCO,pr_auc,39,Stent type-SES_firebird
+lr,LOCO,pr_auc,40,stent overlap
+lr,LOCO,pr_auc,41,ZES
+lr,LOCO,pr_auc,42,TIMI-0
+lr,LOCO,pr_auc,43,LDL
+lr,LOCO,pr_auc,44,HL
+lr,LOCO,pr_auc,45,TIMI-2
+lr,LOCO,pr_auc,46,Pre-TIMI flow-3
+lr,LOCO,pr_auc,47,CKD90
+lr,LOCO,pr_auc,48,Stent type-SES_xv
+lr,LOCO,pr_auc,49,1.1:1Post dilation
+lr,LOCO,pr_auc,50,No postdilation
+lr,LOCO,pr_auc,51,Stent type-SES_xx
+lr,LOCO,pr_auc,52,P-RCA
+lr,LOCO,pr_auc,53,CKD5
+lr,LOCO,pr_auc,54,CKD60
+lr,LOCO,pr_auc,55,Moderate/severe tortuosity
+lr,LOCO,pr_auc,56,Stent type-SES_tivoli
+lr,LOCO,pr_auc,57,Chronic renal insufficiency
+lr,LOCO,pr_auc,58,Proximal
+lr,LOCO,pr_auc,59,Previous CABG
+lr,LOCO,pr_auc,60,HGB
+rf,LOCO,pr_auc,1,eGFR
+rf,LOCO,pr_auc,2,HGB
+rf,LOCO,pr_auc,3,Cre
+rf,LOCO,pr_auc,4,Stent type-SES_xiencev
+rf,LOCO,pr_auc,5,Clopidogrel
+rf,LOCO,pr_auc,6,TG
+rf,LOCO,pr_auc,7,LVEF
+rf,LOCO,pr_auc,8,STEMI
+rf,LOCO,pr_auc,9,1.1:1Post dilation
+rf,LOCO,pr_auc,10,Current smoker
+rf,LOCO,pr_auc,11,LV
+rf,LOCO,pr_auc,12,Hypertension
+rf,LOCO,pr_auc,13,Platelet
+rf,LOCO,pr_auc,14,Fast-Glu
+rf,LOCO,pr_auc,15,NSTEMI
+rf,LOCO,pr_auc,16,Staged PCI
+rf,LOCO,pr_auc,17,Men
+rf,LOCO,pr_auc,18,CKD90
+rf,LOCO,pr_auc,19,NO.of vessels
+rf,LOCO,pr_auc,20,LDL
+rf,LOCO,pr_auc,21,Max-stent diameter
+rf,LOCO,pr_auc,22,Multi-vessel CAD
+rf,LOCO,pr_auc,23,HbA1c
+rf,LOCO,pr_auc,24,Stent type-SES_resolute
+rf,LOCO,pr_auc,25,Total stent length
+rf,LOCO,pr_auc,26,CaI
+rf,LOCO,pr_auc,27,Stent type-SES_firebird
+rf,LOCO,pr_auc,28,PES
+rf,LOCO,pr_auc,29,Min-stent diameter
+rf,LOCO,pr_auc,30,HL
+rf,LOCO,pr_auc,31,Diabetes
+rf,LOCO,pr_auc,32,TCL
+rf,LOCO,pr_auc,33,2-vessel disease
+rf,LOCO,pr_auc,34,Aspirin
+rf,LOCO,pr_auc,35,UA
+rf,LOCO,pr_auc,36,Stent type-SES_tivoli
+rf,LOCO,pr_auc,37,No.of stents per lesion
+rf,LOCO,pr_auc,38,Single-vessel disease
+rf,LOCO,pr_auc,39,P-LCX
+rf,LOCO,pr_auc,40,P-LAD
+rf,LOCO,pr_auc,41,Previous PCI
+rf,LOCO,pr_auc,42,Pre-TIMI flow-3
+rf,LOCO,pr_auc,43,P-RCA
+rf,LOCO,pr_auc,44,Initial diagnosis-AMI
+rf,LOCO,pr_auc,45,TIMI-0
+rf,LOCO,pr_auc,46,3-vessel disease
+rf,LOCO,pr_auc,47,TIMI-2
+rf,LOCO,pr_auc,48,Bifurcation
+rf,LOCO,pr_auc,49,CKD5
+rf,LOCO,pr_auc,50,Proximal
+rf,LOCO,pr_auc,51,DAPT
+rf,LOCO,pr_auc,52,HDL
+rf,LOCO,pr_auc,53,ZES
+rf,LOCO,pr_auc,54,EVS
+rf,LOCO,pr_auc,55,No postdilation
+rf,LOCO,pr_auc,56,Fiberinogen
+rf,LOCO,pr_auc,57,Age
+rf,LOCO,pr_auc,58,Stent type-SES_partner
+rf,LOCO,pr_auc,59,Stent release pressure
+rf,LOCO,pr_auc,60,stent overlap
+rf_b,LOCO,pr_auc,1,eGFR
+rf_b,LOCO,pr_auc,2,Platelet
+rf_b,LOCO,pr_auc,3,Fast-Glu
+rf_b,LOCO,pr_auc,4,ZES
+rf_b,LOCO,pr_auc,5,Cre
+rf_b,LOCO,pr_auc,6,CaI
+rf_b,LOCO,pr_auc,7,Clopidogrel
+rf_b,LOCO,pr_auc,8,HbA1c
+rf_b,LOCO,pr_auc,9,Thrombus aspiration
+rf_b,LOCO,pr_auc,10,EVS
+rf_b,LOCO,pr_auc,11,TIMI-0
+rf_b,LOCO,pr_auc,12,Stent type-SES_xiencev
+rf_b,LOCO,pr_auc,13,CKD90
+rf_b,LOCO,pr_auc,14,No.of stents per lesion
+rf_b,LOCO,pr_auc,15,Stent type-SES_partner
+rf_b,LOCO,pr_auc,16,PES
+rf_b,LOCO,pr_auc,17,P-LCX
+rf_b,LOCO,pr_auc,18,HDL
+rf_b,LOCO,pr_auc,19,DAPT
+rf_b,LOCO,pr_auc,20,Previous PCI
+rf_b,LOCO,pr_auc,21,LVEF
+rf_b,LOCO,pr_auc,22,Max-stent diameter
+rf_b,LOCO,pr_auc,23,LV
+rf_b,LOCO,pr_auc,24,Staged PCI
+rf_b,LOCO,pr_auc,25,Hypertension
+rf_b,LOCO,pr_auc,26,Stent type-SES_tivoli
+rf_b,LOCO,pr_auc,27,Stent type-SES_firebird
+rf_b,LOCO,pr_auc,28,NSTEMI
+rf_b,LOCO,pr_auc,29,Pre-TIMI flow-3
+rf_b,LOCO,pr_auc,30,HGB
+rf_b,LOCO,pr_auc,31,Single-vessel disease
+rf_b,LOCO,pr_auc,32,LDL
+rf_b,LOCO,pr_auc,33,stent overlap
+rf_b,LOCO,pr_auc,34,Multi-vessel CAD
+rf_b,LOCO,pr_auc,35,STEMI
+rf_b,LOCO,pr_auc,36,Min-stent diameter
+rf_b,LOCO,pr_auc,37,Stent type-SES_resolute
+rf_b,LOCO,pr_auc,38,HL
+rf_b,LOCO,pr_auc,39,P-RCA
+rf_b,LOCO,pr_auc,40,Stent release pressure
+rf_b,LOCO,pr_auc,41,Total stent length
+rf_b,LOCO,pr_auc,42,Age
+rf_b,LOCO,pr_auc,43,NO.of vessels
+rf_b,LOCO,pr_auc,44,Aspirin
+rf_b,LOCO,pr_auc,45,Men
+rf_b,LOCO,pr_auc,46,Current smoker
+rf_b,LOCO,pr_auc,47,TCL
+rf_b,LOCO,pr_auc,48,Initial diagnosis-AMI
+rf_b,LOCO,pr_auc,49,CKD5
+rf_b,LOCO,pr_auc,50,1.1:1Post dilation
+rf_b,LOCO,pr_auc,51,No postdilation
+rf_b,LOCO,pr_auc,52,2-vessel disease
+rf_b,LOCO,pr_auc,53,UA
+rf_b,LOCO,pr_auc,54,Proximal
+rf_b,LOCO,pr_auc,55,P-LAD
+rf_b,LOCO,pr_auc,56,Fiberinogen
+rf_b,LOCO,pr_auc,57,Bifurcation
+rf_b,LOCO,pr_auc,58,3-vessel disease
+rf_b,LOCO,pr_auc,59,TG
+rf_b,LOCO,pr_auc,60,Diabetes
+cat,LOCO,pr_auc,1,eGFR
+cat,LOCO,pr_auc,2,Cre
+cat,LOCO,pr_auc,3,Bifurcation
+cat,LOCO,pr_auc,4,Single-vessel disease
+cat,LOCO,pr_auc,5,HbA1c
+cat,LOCO,pr_auc,6,TIMI-0
+cat,LOCO,pr_auc,7,LDL
+cat,LOCO,pr_auc,8,STEMI
+cat,LOCO,pr_auc,9,Hypertension
+cat,LOCO,pr_auc,10,Clopidogrel
+cat,LOCO,pr_auc,11,CKD5
+cat,LOCO,pr_auc,12,No.of stents per lesion
+cat,LOCO,pr_auc,13,HGB
+cat,LOCO,pr_auc,14,stent overlap
+cat,LOCO,pr_auc,15,LV
+cat,LOCO,pr_auc,16,TG
+cat,LOCO,pr_auc,17,Pre-TIMI flow-3
+cat,LOCO,pr_auc,18,UA
+cat,LOCO,pr_auc,19,No postdilation
+cat,LOCO,pr_auc,20,Stent type-SES_xiencev
+cat,LOCO,pr_auc,21,P-LCX
+cat,LOCO,pr_auc,22,LVEF
+cat,LOCO,pr_auc,23,2-vessel disease
+cat,LOCO,pr_auc,24,NSTEMI
+cat,LOCO,pr_auc,25,Max-stent diameter
+cat,LOCO,pr_auc,26,Multi-vessel CAD
+cat,LOCO,pr_auc,27,CKD90
+cat,LOCO,pr_auc,28,Platelet
+cat,LOCO,pr_auc,29,Previous CABG
+cat,LOCO,pr_auc,30,Fast-Glu
+cat,LOCO,pr_auc,31,Total stent length
+cat,LOCO,pr_auc,32,Stent type-SES_resolute
+cat,LOCO,pr_auc,33,TCL
+cat,LOCO,pr_auc,34,Aspirin
+cat,LOCO,pr_auc,35,Current smoker
+cat,LOCO,pr_auc,36,Stent type-SES_tivoli
+cat,LOCO,pr_auc,37,Stent release pressure
+cat,LOCO,pr_auc,38,DAPT
+cat,LOCO,pr_auc,39,Men
+cat,LOCO,pr_auc,40,Initial diagnosis-AMI
+cat,LOCO,pr_auc,41,P-LAD
+cat,LOCO,pr_auc,42,Proximal
+cat,LOCO,pr_auc,43,HDL
+cat,LOCO,pr_auc,44,Thrombus aspiration
+cat,LOCO,pr_auc,45,Min-stent diameter
+cat,LOCO,pr_auc,46,ZES
+cat,LOCO,pr_auc,47,NO.of vessels
+cat,LOCO,pr_auc,48,CaI
+cat,LOCO,pr_auc,49,Stent type-SES_partner
+cat,LOCO,pr_auc,50,Current drinking
+cat,LOCO,pr_auc,51,1.1:1Post dilation
+cat,LOCO,pr_auc,52,P-RCA
+cat,LOCO,pr_auc,53,Stent type-SES_firebird
+cat,LOCO,pr_auc,54,HL
+cat,LOCO,pr_auc,55,Previous PCI
+cat,LOCO,pr_auc,56,PES
+cat,LOCO,pr_auc,57,Fiberinogen
+cat,LOCO,pr_auc,58,Diabetes
+cat,LOCO,pr_auc,59,Age
+cat,LOCO,pr_auc,60,3-vessel disease
+xgb,LOCO,pr_auc,1,eGFR
+xgb,LOCO,pr_auc,2,Cre
+xgb,LOCO,pr_auc,3,LV
+xgb,LOCO,pr_auc,4,HbA1c
+xgb,LOCO,pr_auc,5,Clopidogrel
+xgb,LOCO,pr_auc,6,Current smoker
+xgb,LOCO,pr_auc,7,LVEF
+xgb,LOCO,pr_auc,8,Platelet
+xgb,LOCO,pr_auc,9,Lesion location-Ostial
+xgb,LOCO,pr_auc,10,Fast-Glu
+xgb,LOCO,pr_auc,11,Dissection
+xgb,LOCO,pr_auc,12,STEMI
+xgb,LOCO,pr_auc,13,UA
+xgb,LOCO,pr_auc,14,TG
+xgb,LOCO,pr_auc,15,HGB
+xgb,LOCO,pr_auc,16,Stent type-SES_xx
+xgb,LOCO,pr_auc,17,Total stent length
+xgb,LOCO,pr_auc,18,Proximal
+xgb,LOCO,pr_auc,19,TCL
+xgb,LOCO,pr_auc,20,Visual thrombus
+xgb,LOCO,pr_auc,21,LDL
+xgb,LOCO,pr_auc,22,TIMI-0
+xgb,LOCO,pr_auc,23,Thrombus aspiration
+xgb,LOCO,pr_auc,24,Diabetes
+xgb,LOCO,pr_auc,25,ZES
+xgb,LOCO,pr_auc,26,NSTEMI
+xgb,LOCO,pr_auc,27,Current drinking
+xgb,LOCO,pr_auc,28,Stent release pressure
+xgb,LOCO,pr_auc,29,Chronic renal insufficiency
+xgb,LOCO,pr_auc,30,Men
+xgb,LOCO,pr_auc,31,Cardiogenic shock
+xgb,LOCO,pr_auc,32,1.1:1Post dilation
+xgb,LOCO,pr_auc,33,No postdilation
+xgb,LOCO,pr_auc,34,No reflow
+xgb,LOCO,pr_auc,35,Min-stent diameter
+xgb,LOCO,pr_auc,36,Stent type-SES_tivoli
+xgb,LOCO,pr_auc,37,CaI
+xgb,LOCO,pr_auc,38,PES
+xgb,LOCO,pr_auc,39,Aneurysm
+xgb,LOCO,pr_auc,40,stent overlap
+xgb,LOCO,pr_auc,41,Previous CABG
+xgb,LOCO,pr_auc,42,Slow flow
+xgb,LOCO,pr_auc,43,Initial diagnosis-AMI
+xgb,LOCO,pr_auc,44,TIMI-1
+xgb,LOCO,pr_auc,45,Previous PCI
+xgb,LOCO,pr_auc,46,Stent type-SES_other
+xgb,LOCO,pr_auc,47,Bifurcation
+xgb,LOCO,pr_auc,48,Max-stent diameter
+xgb,LOCO,pr_auc,49,P-LCX
+xgb,LOCO,pr_auc,50,HL
+xgb,LOCO,pr_auc,51,Stent type-SES_xiencev
+xgb,LOCO,pr_auc,52,Stent type-SES_partner
+xgb,LOCO,pr_auc,53,Age
+xgb,LOCO,pr_auc,54,Previous MI
+xgb,LOCO,pr_auc,55,HDL
+xgb,LOCO,pr_auc,56,P-RCA
+xgb,LOCO,pr_auc,57,Stent type-SES_resolute
+xgb,LOCO,pr_auc,58,2-vessel disease
+xgb,LOCO,pr_auc,59,Moderate/severe calcification
+xgb,LOCO,pr_auc,60,Fiberinogen
+xgb_b,LOCO,pr_auc,1,eGFR
+xgb_b,LOCO,pr_auc,2,Cre
+xgb_b,LOCO,pr_auc,3,LV
+xgb_b,LOCO,pr_auc,4,Men
+xgb_b,LOCO,pr_auc,5,Fast-Glu
+xgb_b,LOCO,pr_auc,6,History of HF
+xgb_b,LOCO,pr_auc,7,HbA1c
+xgb_b,LOCO,pr_auc,8,Stent type-SES_xx
+xgb_b,LOCO,pr_auc,9,Pre-TIMI flow-3
+xgb_b,LOCO,pr_auc,10,Stent type-SES_partner
+xgb_b,LOCO,pr_auc,11,CKD5
+xgb_b,LOCO,pr_auc,12,P-RCA
+xgb_b,LOCO,pr_auc,13,Stent type-SES_xiencev
+xgb_b,LOCO,pr_auc,14,Cardiogenic shock
+xgb_b,LOCO,pr_auc,15,TIMI-2
+xgb_b,LOCO,pr_auc,16,HGB
+xgb_b,LOCO,pr_auc,17,LVEF
+xgb_b,LOCO,pr_auc,18,LDL
+xgb_b,LOCO,pr_auc,19,Lesion location-Ostial
+xgb_b,LOCO,pr_auc,20,NSTEMI
+xgb_b,LOCO,pr_auc,21,Clopidogrel
+xgb_b,LOCO,pr_auc,22,Stent type-SES_tivoli
+xgb_b,LOCO,pr_auc,23,TG
+xgb_b,LOCO,pr_auc,24,NO.of vessels
+xgb_b,LOCO,pr_auc,25,DAPT
+xgb_b,LOCO,pr_auc,26,TCL
+xgb_b,LOCO,pr_auc,27,Total stent length
+xgb_b,LOCO,pr_auc,28,EVS
+xgb_b,LOCO,pr_auc,29,Thrombus aspiration
+xgb_b,LOCO,pr_auc,30,Age
+xgb_b,LOCO,pr_auc,31,TIMI-1
+xgb_b,LOCO,pr_auc,32,No.of stents per lesion
+xgb_b,LOCO,pr_auc,33,PES
+xgb_b,LOCO,pr_auc,34,No reflow
+xgb_b,LOCO,pr_auc,35,Ticagrelor
+xgb_b,LOCO,pr_auc,36,Proximal
+xgb_b,LOCO,pr_auc,37,No postdilation
+xgb_b,LOCO,pr_auc,38,Min-stent diameter
+xgb_b,LOCO,pr_auc,39,Chronic total occlusion
+xgb_b,LOCO,pr_auc,40,Platelet
+xgb_b,LOCO,pr_auc,41,STEMI
+xgb_b,LOCO,pr_auc,42,Bifurcation
+xgb_b,LOCO,pr_auc,43,Diabetes
+xgb_b,LOCO,pr_auc,44,Stent type-SES_other
+xgb_b,LOCO,pr_auc,45,Previous PCI
+xgb_b,LOCO,pr_auc,46,Vessel dialation
+xgb_b,LOCO,pr_auc,47,1.1:1Post dilation
+xgb_b,LOCO,pr_auc,48,TIMI-0
+xgb_b,LOCO,pr_auc,49,Initial diagnosis-AMI
+xgb_b,LOCO,pr_auc,50,HDL
+xgb_b,LOCO,pr_auc,51,Previous MI
+xgb_b,LOCO,pr_auc,52,Current drinking
+xgb_b,LOCO,pr_auc,53,ZES
+xgb_b,LOCO,pr_auc,54,UA
+xgb_b,LOCO,pr_auc,55,Stent release pressure
+xgb_b,LOCO,pr_auc,56,Max-stent diameter
+xgb_b,LOCO,pr_auc,57,Fiberinogen
+xgb_b,LOCO,pr_auc,58,Stent type-SES_resolute
+xgb_b,LOCO,pr_auc,59,CaI
+xgb_b,LOCO,pr_auc,60,Slow flow
+lgb,LOCO,pr_auc,1,eGFR
+lgb,LOCO,pr_auc,2,Cre
+lgb,LOCO,pr_auc,3,LDL
+lgb,LOCO,pr_auc,4,Total stent length
+lgb,LOCO,pr_auc,5,Platelet
+lgb,LOCO,pr_auc,6,Clopidogrel
+lgb,LOCO,pr_auc,7,LVEF
+lgb,LOCO,pr_auc,8,Stent type-SES_xiencev
+lgb,LOCO,pr_auc,9,Previous PCI
+lgb,LOCO,pr_auc,10,Diabetes
+lgb,LOCO,pr_auc,11,HbA1c
+lgb,LOCO,pr_auc,12,No postdilation
+lgb,LOCO,pr_auc,13,DAPT
+lgb,LOCO,pr_auc,14,Previous MI
+lgb,LOCO,pr_auc,15,PES
+lgb,LOCO,pr_auc,16,HDL
+lgb,LOCO,pr_auc,17,Current smoker
+lgb,LOCO,pr_auc,18,Stent type-SES_partner
+lgb,LOCO,pr_auc,19,P-LAD
+lgb,LOCO,pr_auc,20,Fast-Glu
+lgb,LOCO,pr_auc,21,TIMI-1
+lgb,LOCO,pr_auc,22,Cardiogenic shock
+lgb,LOCO,pr_auc,23,Pre-TIMI flow-3
+lgb,LOCO,pr_auc,24,Initial diagnosis-AMI
+lgb,LOCO,pr_auc,25,Max-stent diameter
+lgb,LOCO,pr_auc,26,Thrombus aspiration
+lgb,LOCO,pr_auc,27,Age
+lgb,LOCO,pr_auc,28,ZES
+lgb,LOCO,pr_auc,29,Men
+lgb,LOCO,pr_auc,30,P-RCA
+lgb,LOCO,pr_auc,31,Lesion location-Ostial
+lgb,LOCO,pr_auc,32,2-vessel disease
+lgb,LOCO,pr_auc,33,Proximal
+lgb,LOCO,pr_auc,34,Stroke/TIA
+lgb,LOCO,pr_auc,35,Current drinking
+lgb,LOCO,pr_auc,36,Hypertension
+lgb,LOCO,pr_auc,37,LV
+lgb,LOCO,pr_auc,38,TCL
+lgb,LOCO,pr_auc,39,Bifurcation
+lgb,LOCO,pr_auc,40,Previous CABG
+lgb,LOCO,pr_auc,41,Visual thrombus
+lgb,LOCO,pr_auc,42,Staged PCI
+lgb,LOCO,pr_auc,43,Aspirin
+lgb,LOCO,pr_auc,44,Stent type-SES_xx
+lgb,LOCO,pr_auc,45,STEMI
+lgb,LOCO,pr_auc,46,Stent release pressure
+lgb,LOCO,pr_auc,47,Stent type-SES_tivoli
+lgb,LOCO,pr_auc,48,Min-stent diameter
+lgb,LOCO,pr_auc,49,NSTEMI
+lgb,LOCO,pr_auc,50,HGB
+lgb,LOCO,pr_auc,51,HL
+lgb,LOCO,pr_auc,52,1.1:1Post dilation
+lgb,LOCO,pr_auc,53,NO.of vessels
+lgb,LOCO,pr_auc,54,3-vessel disease
+lgb,LOCO,pr_auc,55,TG
+lgb,LOCO,pr_auc,56,Moderate/severe calcification
+lgb,LOCO,pr_auc,57,UA
+lgb,LOCO,pr_auc,58,TIMI-0
+lgb,LOCO,pr_auc,59,Fiberinogen
+lgb,LOCO,pr_auc,60,CaI
+lr,SHAP,pr_auc,1,CKD60
+lr,SHAP,pr_auc,2,eGFR
+lr,SHAP,pr_auc,3,P-LM
+lr,SHAP,pr_auc,4,DAPT
+lr,SHAP,pr_auc,5,Cre
+lr,SHAP,pr_auc,6,LDL
+lr,SHAP,pr_auc,7,CKD5
+lr,SHAP,pr_auc,8,Total stent length
+lr,SHAP,pr_auc,9,Min-stent diameter
+lr,SHAP,pr_auc,10,Max-stent diameter
+lr,SHAP,pr_auc,11,Clopidogrel
+lr,SHAP,pr_auc,12,UA
+lr,SHAP,pr_auc,13,P-RCA
+lr,SHAP,pr_auc,14,STEMI
+lr,SHAP,pr_auc,15,HGB
+lr,SHAP,pr_auc,16,Stent type-SES_xiencev
+lr,SHAP,pr_auc,17,No postdilation
+lr,SHAP,pr_auc,18,Men
+lr,SHAP,pr_auc,19,Initial diagnosis-AMI
+lr,SHAP,pr_auc,20,TIMI-0
+lr,SHAP,pr_auc,21,NSTEMI
+lr,SHAP,pr_auc,22,Stent type-SES_resolute
+lr,SHAP,pr_auc,23,No.of stents per lesion
+lr,SHAP,pr_auc,24,TG
+lr,SHAP,pr_auc,25,LVEF
+lr,SHAP,pr_auc,26,Stent type-SES_tivoli
+lr,SHAP,pr_auc,27,Previous PCI
+lr,SHAP,pr_auc,28,1.1:1Post dilation
+lr,SHAP,pr_auc,29,LV
+lr,SHAP,pr_auc,30,TCL
+lr,SHAP,pr_auc,31,PES
+lr,SHAP,pr_auc,32,Stent type-SES_xx
+lr,SHAP,pr_auc,33,Thrombus aspiration
+lr,SHAP,pr_auc,34,Moderate/severe tortuosity
+lr,SHAP,pr_auc,35,EVS
+lr,SHAP,pr_auc,36,Chronic total occlusion
+lr,SHAP,pr_auc,37,ZES
+lr,SHAP,pr_auc,38,History of HF
+lr,SHAP,pr_auc,39,Ticagrelor
+lr,SHAP,pr_auc,40,Stent type-SES_xv
+rf,SHAP,pr_auc,1,1.1:1Post dilation
+rf,SHAP,pr_auc,2,Fiberinogen
+rf,SHAP,pr_auc,3,eGFR
+rf,SHAP,pr_auc,4,LV
+rf,SHAP,pr_auc,5,No postdilation
+rf,SHAP,pr_auc,6,Platelet
+rf,SHAP,pr_auc,7,HGB
+rf,SHAP,pr_auc,8,LDL
+rf,SHAP,pr_auc,9,HbA1c
+rf,SHAP,pr_auc,10,Proximal
+rf,SHAP,pr_auc,11,Clopidogrel
+rf,SHAP,pr_auc,12,LVEF
+rf,SHAP,pr_auc,13,Total stent length
+rf,SHAP,pr_auc,14,Cre
+rf,SHAP,pr_auc,15,No.of stents per lesion
+rf,SHAP,pr_auc,16,Men
+rf,SHAP,pr_auc,17,NO.of vessels
+rf,SHAP,pr_auc,18,Initial diagnosis-AMI
+rf,SHAP,pr_auc,19,Max-stent diameter
+rf,SHAP,pr_auc,20,HDL
+rf,SHAP,pr_auc,21,CKD5
+rf,SHAP,pr_auc,22,Min-stent diameter
+rf,SHAP,pr_auc,23,UA
+rf,SHAP,pr_auc,24,Diabetes
+rf,SHAP,pr_auc,25,CaI
+rf,SHAP,pr_auc,26,TIMI-0
+rf,SHAP,pr_auc,27,stent overlap
+rf,SHAP,pr_auc,28,Age
+rf,SHAP,pr_auc,29,Current smoker
+rf,SHAP,pr_auc,30,TG
+rf,SHAP,pr_auc,31,Stent type-SES_partner
+rf,SHAP,pr_auc,32,Fast-Glu
+rf,SHAP,pr_auc,33,Stent type-SES_tivoli
+rf,SHAP,pr_auc,34,Pre-TIMI flow-3
+rf,SHAP,pr_auc,35,Stent release pressure
+rf,SHAP,pr_auc,36,Stent type-SES_resolute
+rf,SHAP,pr_auc,37,CKD90
+rf,SHAP,pr_auc,38,TCL
+rf,SHAP,pr_auc,39,PES
+rf,SHAP,pr_auc,40,Previous PCI
+rf_b,SHAP,pr_auc,1,HGB
+rf_b,SHAP,pr_auc,2,Fiberinogen
+rf_b,SHAP,pr_auc,3,eGFR
+rf_b,SHAP,pr_auc,4,1.1:1Post dilation
+rf_b,SHAP,pr_auc,5,No postdilation
+rf_b,SHAP,pr_auc,6,LV
+rf_b,SHAP,pr_auc,7,HbA1c
+rf_b,SHAP,pr_auc,8,LDL
+rf_b,SHAP,pr_auc,9,CKD5
+rf_b,SHAP,pr_auc,10,Men
+rf_b,SHAP,pr_auc,11,Cre
+rf_b,SHAP,pr_auc,12,Diabetes
+rf_b,SHAP,pr_auc,13,LVEF
+rf_b,SHAP,pr_auc,14,TCL
+rf_b,SHAP,pr_auc,15,Previous PCI
+rf_b,SHAP,pr_auc,16,Min-stent diameter
+rf_b,SHAP,pr_auc,17,CKD90
+rf_b,SHAP,pr_auc,18,stent overlap
+rf_b,SHAP,pr_auc,19,Stent type-SES_resolute
+rf_b,SHAP,pr_auc,20,Fast-Glu
+rf_b,SHAP,pr_auc,21,Max-stent diameter
+rf_b,SHAP,pr_auc,22,NO.of vessels
+rf_b,SHAP,pr_auc,23,UA
+rf_b,SHAP,pr_auc,24,Pre-TIMI flow-3
+rf_b,SHAP,pr_auc,25,Stent type-SES_partner
+rf_b,SHAP,pr_auc,26,TIMI-0
+rf_b,SHAP,pr_auc,27,HDL
+rf_b,SHAP,pr_auc,28,Clopidogrel
+rf_b,SHAP,pr_auc,29,Stent release pressure
+rf_b,SHAP,pr_auc,30,Initial diagnosis-AMI
+rf_b,SHAP,pr_auc,31,Stent type-SES_tivoli
+rf_b,SHAP,pr_auc,32,Age
+rf_b,SHAP,pr_auc,33,Platelet
+rf_b,SHAP,pr_auc,34,ZES
+rf_b,SHAP,pr_auc,35,Proximal
+rf_b,SHAP,pr_auc,36,CaI
+rf_b,SHAP,pr_auc,37,TG
+rf_b,SHAP,pr_auc,38,No.of stents per lesion
+rf_b,SHAP,pr_auc,39,Total stent length
+rf_b,SHAP,pr_auc,40,PES
+cat,SHAP,pr_auc,1,eGFR
+cat,SHAP,pr_auc,2,LV
+cat,SHAP,pr_auc,3,1.1:1Post dilation
+cat,SHAP,pr_auc,4,Men
+cat,SHAP,pr_auc,5,Fiberinogen
+cat,SHAP,pr_auc,6,HGB
+cat,SHAP,pr_auc,7,Cre
+cat,SHAP,pr_auc,8,LDL
+cat,SHAP,pr_auc,9,HbA1c
+cat,SHAP,pr_auc,10,Initial diagnosis-AMI
+cat,SHAP,pr_auc,11,CKD5
+cat,SHAP,pr_auc,12,Clopidogrel
+cat,SHAP,pr_auc,13,NO.of vessels
+cat,SHAP,pr_auc,14,Current smoker
+cat,SHAP,pr_auc,15,Platelet
+cat,SHAP,pr_auc,16,TCL
+cat,SHAP,pr_auc,17,No postdilation
+cat,SHAP,pr_auc,18,P-RCA
+cat,SHAP,pr_auc,19,Total stent length
+cat,SHAP,pr_auc,20,Stent type-SES_partner
+cat,SHAP,pr_auc,21,Pre-TIMI flow-3
+cat,SHAP,pr_auc,22,No.of stents per lesion
+cat,SHAP,pr_auc,23,Age
+cat,SHAP,pr_auc,24,PES
+cat,SHAP,pr_auc,25,Previous PCI
+cat,SHAP,pr_auc,26,UA
+cat,SHAP,pr_auc,27,Min-stent diameter
+cat,SHAP,pr_auc,28,TG
+cat,SHAP,pr_auc,29,Stent type-SES_tivoli
+cat,SHAP,pr_auc,30,HDL
+cat,SHAP,pr_auc,31,Aspirin
+cat,SHAP,pr_auc,32,Stent release pressure
+cat,SHAP,pr_auc,33,LVEF
+cat,SHAP,pr_auc,34,Max-stent diameter
+cat,SHAP,pr_auc,35,Fast-Glu
+cat,SHAP,pr_auc,36,stent overlap
+cat,SHAP,pr_auc,37,STEMI
+cat,SHAP,pr_auc,38,NSTEMI
+cat,SHAP,pr_auc,39,CaI
+cat,SHAP,pr_auc,40,Stent type-SES_xiencev
+xgb,SHAP,pr_auc,1,eGFR
+xgb,SHAP,pr_auc,2,Fiberinogen
+xgb,SHAP,pr_auc,3,LV
+xgb,SHAP,pr_auc,4,HGB
+xgb,SHAP,pr_auc,5,Men
+xgb,SHAP,pr_auc,6,Cre
+xgb,SHAP,pr_auc,7,HbA1c
+xgb,SHAP,pr_auc,8,Platelet
+xgb,SHAP,pr_auc,9,LDL
+xgb,SHAP,pr_auc,10,1.1:1Post dilation
+xgb,SHAP,pr_auc,11,Bifurcation
+xgb,SHAP,pr_auc,12,Stent type-SES_other
+xgb,SHAP,pr_auc,13,Lesion location-Ostial
+xgb,SHAP,pr_auc,14,TCL
+xgb,SHAP,pr_auc,15,Total stent length
+xgb,SHAP,pr_auc,16,Fast-Glu
+xgb,SHAP,pr_auc,17,Initial diagnosis-AMI
+xgb,SHAP,pr_auc,18,Cardiogenic shock
+xgb,SHAP,pr_auc,19,Stent release pressure
+xgb,SHAP,pr_auc,20,Stent type-SES_xiencev
+xgb,SHAP,pr_auc,21,Stent type-SES_tivoli
+xgb,SHAP,pr_auc,22,CaI
+xgb,SHAP,pr_auc,23,TG
+xgb,SHAP,pr_auc,24,Previous CABG
+xgb,SHAP,pr_auc,25,Previous PCI
+xgb,SHAP,pr_auc,26,No reflow
+xgb,SHAP,pr_auc,27,ZES
+xgb,SHAP,pr_auc,28,Stent type-SES_xx
+xgb,SHAP,pr_auc,29,Visual thrombus
+xgb,SHAP,pr_auc,30,LVEF
+xgb,SHAP,pr_auc,31,Stent type-SES_resolute
+xgb,SHAP,pr_auc,32,No postdilation
+xgb,SHAP,pr_auc,33,Previous MI
+xgb,SHAP,pr_auc,34,Age
+xgb,SHAP,pr_auc,35,stent overlap
+xgb,SHAP,pr_auc,36,PES
+xgb,SHAP,pr_auc,37,Thrombus aspiration
+xgb,SHAP,pr_auc,38,Min-stent diameter
+xgb,SHAP,pr_auc,39,2-vessel disease
+xgb,SHAP,pr_auc,40,Dissection
+xgb_b,SHAP,pr_auc,1,eGFR
+xgb_b,SHAP,pr_auc,2,Fiberinogen
+xgb_b,SHAP,pr_auc,3,1.1:1Post dilation
+xgb_b,SHAP,pr_auc,4,HbA1c
+xgb_b,SHAP,pr_auc,5,Cre
+xgb_b,SHAP,pr_auc,6,HGB
+xgb_b,SHAP,pr_auc,7,LDL
+xgb_b,SHAP,pr_auc,8,LV
+xgb_b,SHAP,pr_auc,9,Platelet
+xgb_b,SHAP,pr_auc,10,Fast-Glu
+xgb_b,SHAP,pr_auc,11,CaI
+xgb_b,SHAP,pr_auc,12,Previous PCI
+xgb_b,SHAP,pr_auc,13,Total stent length
+xgb_b,SHAP,pr_auc,14,UA
+xgb_b,SHAP,pr_auc,15,Stent type-SES_xiencev
+xgb_b,SHAP,pr_auc,16,Cardiogenic shock
+xgb_b,SHAP,pr_auc,17,Age
+xgb_b,SHAP,pr_auc,18,PES
+xgb_b,SHAP,pr_auc,19,Diabetes
+xgb_b,SHAP,pr_auc,20,Lesion location-Ostial
+xgb_b,SHAP,pr_auc,21,Initial diagnosis-AMI
+xgb_b,SHAP,pr_auc,22,Slow flow
+xgb_b,SHAP,pr_auc,23,No postdilation
+xgb_b,SHAP,pr_auc,24,EVS
+xgb_b,SHAP,pr_auc,25,Stent type-SES_partner
+xgb_b,SHAP,pr_auc,26,Stent type-SES_tivoli
+xgb_b,SHAP,pr_auc,27,Stent type-SES_xx
+xgb_b,SHAP,pr_auc,28,Previous MI
+xgb_b,SHAP,pr_auc,29,Clopidogrel
+xgb_b,SHAP,pr_auc,30,CKD5
+xgb_b,SHAP,pr_auc,31,ZES
+xgb_b,SHAP,pr_auc,32,STEMI
+xgb_b,SHAP,pr_auc,33,Pre-TIMI flow-3
+xgb_b,SHAP,pr_auc,34,Stent type-SES_resolute
+xgb_b,SHAP,pr_auc,35,TCL
+xgb_b,SHAP,pr_auc,36,Current drinking
+xgb_b,SHAP,pr_auc,37,Ticagrelor
+xgb_b,SHAP,pr_auc,38,LVEF
+xgb_b,SHAP,pr_auc,39,Thrombus aspiration
+xgb_b,SHAP,pr_auc,40,TIMI-0
+lgb,SHAP,pr_auc,1,eGFR
+lgb,SHAP,pr_auc,2,HbA1c
+lgb,SHAP,pr_auc,3,Cre
+lgb,SHAP,pr_auc,4,LDL
+lgb,SHAP,pr_auc,5,No postdilation
+lgb,SHAP,pr_auc,6,HGB
+lgb,SHAP,pr_auc,7,Men
+lgb,SHAP,pr_auc,8,Initial diagnosis-AMI
+lgb,SHAP,pr_auc,9,1.1:1Post dilation
+lgb,SHAP,pr_auc,10,Current drinking
+lgb,SHAP,pr_auc,11,CaI
+lgb,SHAP,pr_auc,12,LV
+lgb,SHAP,pr_auc,13,TCL
+lgb,SHAP,pr_auc,14,Platelet
+lgb,SHAP,pr_auc,15,Fiberinogen
+lgb,SHAP,pr_auc,16,LVEF
+lgb,SHAP,pr_auc,17,HDL
+lgb,SHAP,pr_auc,18,Fast-Glu
+lgb,SHAP,pr_auc,19,Min-stent diameter
+lgb,SHAP,pr_auc,20,Max-stent diameter
+lgb,SHAP,pr_auc,21,Pre-TIMI flow-3
+lgb,SHAP,pr_auc,22,Stent type-SES_tivoli
+lgb,SHAP,pr_auc,23,TG
+lgb,SHAP,pr_auc,24,Stent type-SES_xiencev
+lgb,SHAP,pr_auc,25,Stent release pressure
+lgb,SHAP,pr_auc,26,HL
+lgb,SHAP,pr_auc,27,Stent type-SES_partner
+lgb,SHAP,pr_auc,28,Current smoker
+lgb,SHAP,pr_auc,29,Stent type-SES_xx
+lgb,SHAP,pr_auc,30,P-RCA
+lgb,SHAP,pr_auc,31,TIMI-0
+lgb,SHAP,pr_auc,32,Thrombus aspiration
+lgb,SHAP,pr_auc,33,Aspirin
+lgb,SHAP,pr_auc,34,DAPT
+lgb,SHAP,pr_auc,35,Age
+lgb,SHAP,pr_auc,36,Bifurcation
+lgb,SHAP,pr_auc,37,Previous PCI
+lgb,SHAP,pr_auc,38,STEMI
+lgb,SHAP,pr_auc,39,Total stent length
+lgb,SHAP,pr_auc,40,NSTEMI
+lr,FFS,pr_auc,1,LV
+lr,FFS,pr_auc,2,No.of stents per lesion
+lr,FFS,pr_auc,3,NSTEMI
+lr,FFS,pr_auc,4,Clopidogrel
+lr,FFS,pr_auc,5,Cre
+lr,FFS,pr_auc,6,CKD5
+lr,FFS,pr_auc,7,Men
+lr,FFS,pr_auc,8,eGFR
+lr,FFS,pr_auc,9,HGB
+lr,FFS,pr_auc,10,Previous PCI
+lr,FFS,pr_auc,11,LDL
+lr,FFS,pr_auc,12,Stent type-SES_xx
+rf,FFS,pr_auc,1,CaI
+rf,FFS,pr_auc,2,LDL
+rf,FFS,pr_auc,3,HbA1c
+rf,FFS,pr_auc,4,LV
+rf,FFS,pr_auc,5,Fast-Glu
+rf,FFS,pr_auc,6,HDL
+rf,FFS,pr_auc,7,Stent release pressure
+rf,FFS,pr_auc,8,HGB
+rf_b,FFS,pr_auc,1,CaI
+rf_b,FFS,pr_auc,2,eGFR
+rf_b,FFS,pr_auc,3,Cre
+rf_b,FFS,pr_auc,4,Men
+rf_b,FFS,pr_auc,5,LVEF
+rf_b,FFS,pr_auc,6,Stent type-SES_resolute
+cat,FFS,pr_auc,1,HbA1c
+cat,FFS,pr_auc,2,LV
+cat,FFS,pr_auc,3,Fast-Glu
+cat,FFS,pr_auc,4,Max-stent diameter
+cat,FFS,pr_auc,5,LDL
+cat,FFS,pr_auc,6,No postdilation
+cat,FFS,pr_auc,7,Clopidogrel
+cat,FFS,pr_auc,8,Total stent length
+xgb,FFS,pr_auc,1,CaI
+xgb,FFS,pr_auc,2,HGB
+xgb,FFS,pr_auc,3,LVEF
+xgb,FFS,pr_auc,4,1.1:1Post dilation
+xgb,FFS,pr_auc,5,Stent type-SES_xx
+xgb,FFS,pr_auc,6,Stent type-SES_resolute
+xgb,FFS,pr_auc,7,Stent type-SES_tivoli
+xgb,FFS,pr_auc,8,Initial diagnosis-AMI
+xgb,FFS,pr_auc,9,Stent type-SES_other
+xgb,FFS,pr_auc,10,eGFR
+xgb_b,FFS,pr_auc,1,CaI
+xgb_b,FFS,pr_auc,2,PES
+xgb_b,FFS,pr_auc,3,HGB
+xgb_b,FFS,pr_auc,4,No postdilation
+xgb_b,FFS,pr_auc,5,LVEF
+xgb_b,FFS,pr_auc,6,CKD5
+xgb_b,FFS,pr_auc,7,Cre
+xgb_b,FFS,pr_auc,8,eGFR
+xgb_b,FFS,pr_auc,9,Stent type-SES_tivoli
+xgb_b,FFS,pr_auc,10,Total stent length
+xgb_b,FFS,pr_auc,11,Stent type-SES_xiencev
+xgb_b,FFS,pr_auc,12,Previous PCI
+lgb,FFS,pr_auc,1,HbA1c
+lgb,FFS,pr_auc,2,LV
+lgb,FFS,pr_auc,3,1.1:1Post dilation
+lgb,FFS,pr_auc,4,NSTEMI

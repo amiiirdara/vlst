@@ -1,4 +1,4 @@
 Algorithm,Metric,n common,Features shared by all 7 models
-LOCO,pr_auc,5,Cre; LV; LVEF; WBC; eGFR
-SHAP,pr_auc,2,HGB; WBC
+LOCO,pr_auc,2,Cre; eGFR
+SHAP,pr_auc,4,Cre; HGB; LDL; eGFR
 FFS,pr_auc,0,

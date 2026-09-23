@@ -2,9 +2,9 @@
 
 This document gathers publication-oriented figures and tables from the multi-model feature selectors in `baseline_feature_selections.ipynb`.
 
-**Cohort / protocol (2026-08-31 Kaggle run).** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. `Time since stent implantation` is dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol:** no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE=0.2`, `random_state=42`): **fit = 4,148 rows (74 events)** / **val = 1,037 rows (18 events)**. **PR-AUC only.** LOCO / SHAP / FFS are **independent** (each takes its own cheap fit-slice importance pool). Budget: top-20; SHAP universe 40; LOCO cap 60; FFS pool 24 × 12 steps with early stop (`FFS_MIN_GAIN=0`); boosting 400 rounds. `USE_CACHE=False`. GPU: Tesla T4. Models use the **scaled** view: shared 9-level stent-brand encoder, then `ColumnTransformer` one-hot (drop-first) + `StandardScaler` → **88 columns** (81 raw − 1 brand + 8 dummies). Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`.
+**Cohort / protocol (2026-09-19 Kaggle dump).** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. **ALL LEAKS OFF** (same protocol as nested CV; [`../anti_leakage_protocol.md`](../anti_leakage_protocol.md)): drop `Time since stent implantation` (mixed time-to-event vs follow-up) **and** `WBC` (recording-precision / batch marker; Wang also excluded it from Cox). Labs `Cre`/`CaI`/`Fiberinogen`/`Fast-Glu` quantized **pre-split** (`split_manifest.json` `quantize`). Stent codebook train-only (`stent_train_only`); scaler / OHE train-only (`scaler_ohe_train_only`). No SMOTE. Identifiers dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol:** no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE=0.2`, `random_state=42`): **fit = 4,148 rows (74 events)** / **val = 1,037 rows (18 events)**. **PR-AUC only.** LOCO / SHAP / FFS are **independent of each other’s selected names** (each takes its own prefix of one shared cheap fit-slice importance ranking). Budget: top-20; SHAP universe 40; LOCO cap 60; FFS pool 24 × 12 steps with early stop (`FFS_MIN_GAIN=0`); boosting 400 rounds. `USE_CACHE=False`. GPU: Tesla T4. Models use the **scaled** view: shared 9-level stent-brand encoder, then `ColumnTransformer` one-hot (drop-first) + `StandardScaler` → **87 columns** (80 raw − 1 brand + 8 dummies). Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`. Catalogues **do not** feed Part 4.
 
-**Kaggle note.** Per-selector CSVs (`selector_summary_long.csv`, `loco_*.csv`, …) were written to `/kaggle/working/model_feature_selectors` and are **not** in this repo. Tables below are reconstructed from the notebook’s displayed frames and the three compact PNGs embedded in the report cell. XGBoost’s 7-name three-way list was truncated in HTML as `… LV; WB…`; the alphabetically sorted completion is `WBC; eGFR`.
+**Kaggle note.** Dump: `code/modeling/interpretability/Kaggle_baseline_intrepretability_results/baseline_interpretability_results/model_feature_selectors_antileak/`. `selector_report.md` generated **2026-09-19 14:39:53**. Tables below are rebuilt from those CSVs (not from HTML truncation). **`WBC` is not a column** on this run.
 
 **Selectors.** LOCO = drop-one and refit on the val slice (cheap-importance prefix of 60). Coalition SHAP = permutation coalitions on a cheap-importance universe of 40 (not LOCO’s names). FFS = greedy forward search on its own 24-name pool, stop at 12 steps or when PR-AUC stops rising. Objective: **`pr_auc` only**. These catalogues are **interpretation / attribution**, not prediction, and do **not** feed Part 4. SMOTE is not used.
 
@@ -31,7 +31,7 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 ![Table 0](paper_figures/paper_table0_classic_models.png)
 
-**Table 0.** Seven sklearn-style classifiers from the notebook `MODEL_SPECS` (TabPFN omitted). Row colour encodes family: linear (navy), bagged trees (teal), boosting (violet). All seven share the same 88-column scaled matrix; only the inductive bias changes.
+**Table 0.** Seven sklearn-style classifiers from the notebook `MODEL_SPECS` (TabPFN omitted). Row colour encodes family: linear (navy), bagged trees (teal), boosting (violet). All seven share the same 87-column scaled matrix; only the inductive bias changes.
 
 | Code | Classic model | Family | GPU | Specification (notebook) |
 | --- | --- | --- | --- | --- |
@@ -45,9 +45,9 @@ This document gathers publication-oriented figures and tables from the multi-mod
 
 **How to read later tables through this lens.**
 
-- **Logistic regression** can only use additive log-odds. Consensus sits on renal labs (`Cre`, `eGFR`), inflammation (`WBC`), sex (`Men`), ACS presentation (`UA`), and `LV`.
-- **Random forests** split on interactions and keep both a lab and its clinical twin (`LVEF` beside `LV`).
-- **Boosting** recovers post-dilation and `WBC` most often; LightGBM’s three-way set is `HbA1c; LV` only.
+- **Logistic regression** can only use additive log-odds. Consensus sits on a drug (`Clopidogrel`), renal labs (`Cre`, `eGFR`), and sex (`Men`).
+- **Random forests** split on interactions and keep haemoglobin / lipids (`HGB`, `LDL`) plus `LV`.
+- **Boosting** is heterogeneous: CatBoost’s three-way is the largest (5 names); LightGBM’s is `HbA1c` only.
 
 **Source files:** [paper_figures/paper_table0_classic_models.png](paper_figures/paper_table0_classic_models.png), [paper_figures/paper_table0_classic_models.csv](paper_figures/paper_table0_classic_models.csv)
 
@@ -66,12 +66,12 @@ LOCO scores a 60-name cheap-importance prefix, so every model reports **60** uni
 | Model | Family | LOCO | SHAP | FFS |
 | --- | --- | ---: | ---: | ---: |
 | lr | Linear | 60 | 40 | 12 |
-| rf | Bagged trees | 60 | 40 | 12 |
-| rf_b | Bagged trees | 60 | 40 | 8 |
-| cat | Boosting | 60 | 40 | 4 |
-| xgb | Boosting | 60 | 40 | 12 |
-| xgb_b | Boosting | 60 | 40 | 11 |
-| lgb | Boosting | 60 | 40 | 5 |
+| rf | Bagged trees | 60 | 40 | 8 |
+| rf_b | Bagged trees | 60 | 40 | 6 |
+| cat | Boosting | 60 | 40 | 8 |
+| xgb | Boosting | 60 | 40 | 10 |
+| xgb_b | Boosting | 60 | 40 | 12 |
+| lgb | Boosting | 60 | 40 | 4 |
 
 **Source file:** [paper_figures/paper_fig1_unique_counts.png](paper_figures/paper_fig1_unique_counts.png)
 
@@ -79,17 +79,17 @@ LOCO scores a 60-name cheap-importance prefix, so every model reports **60** uni
 
 ![Table 3](paper_figures/paper_table3_union_by_model.png)
 
-**Table 3.** Size of the union of **top-20** sets across LOCO, SHAP, and FFS (PR-AUC only). Feature-name lists were truncated in the notebook HTML and are not reconstructed here.
+**Table 3.** Size of the union of **top-20** sets across LOCO, SHAP, and FFS (PR-AUC only).
 
 | Code | Classic model | Family | Union size |
 | --- | --- | --- | ---: |
-| lr | Logistic regression | Linear | 32 |
-| rf | Random forest | Bagged trees | 35 |
+| lr | Logistic regression | Linear | 33 |
+| rf | Random forest | Bagged trees | 31 |
 | rf_b | Random forest (subsample) | Bagged trees | 34 |
-| cat | CatBoost | Boosting | 32 |
-| xgb | XGBoost | Boosting | 31 |
-| xgb_b | XGBoost (subsample) | Boosting | 30 |
-| lgb | LightGBM | Boosting | 30 |
+| cat | CatBoost | Boosting | 33 |
+| xgb | XGBoost | Boosting | 33 |
+| xgb_b | XGBoost (subsample) | Boosting | 32 |
+| lgb | LightGBM | Boosting | 32 |
 
 **Source files:** [paper_figures/paper_table3_union_by_model.png](paper_figures/paper_table3_union_by_model.png), [paper_figures/paper_table3_union_by_model.csv](paper_figures/paper_table3_union_by_model.csv)
 
@@ -111,12 +111,12 @@ A feature is “shared by all 7 models” only if it appears in every classic mo
 
 ![Table 1](paper_figures/paper_table1_common_by_algorithm.png)
 
-**Table 1.** Cross-model intersection (row colour = selector). LOCO agrees on five labs/cardiac names. SHAP agrees only on `HGB` and `WBC`. FFS agrees on **nothing** — greedy paths diverge once each model’s own 24-name pool is searched independently.
+**Table 1.** Cross-model intersection (row colour = selector). LOCO agrees on two renal names. SHAP agrees on four labs. FFS agrees on **nothing** — greedy paths diverge once each model’s own 24-name pool is searched independently.
 
 | Algorithm | Metric | n common | Features shared by all 7 models |
 | --- | --- | ---: | --- |
-| LOCO | pr_auc | 5 | Cre; LV; LVEF; WBC; eGFR |
-| SHAP | pr_auc | 2 | HGB; WBC |
+| LOCO | pr_auc | 2 | Cre; eGFR |
+| SHAP | pr_auc | 4 | Cre; HGB; LDL; eGFR |
 | FFS | pr_auc | 0 | — |
 
 **Source files:** [paper_figures/paper_table1_common_by_algorithm.png](paper_figures/paper_table1_common_by_algorithm.png), [paper_figures/paper_table1_common_by_algorithm.csv](paper_figures/paper_table1_common_by_algorithm.csv)
@@ -133,7 +133,7 @@ A feature is “shared by all 7 models” only if it appears in every classic mo
 
 ![Figure 2](paper_figures/paper_fig2_jaccard.png)
 
-**Figure 2.** Jaccard index between the unions of **top-20** sets (all seven models pooled). LOCO vs SHAP = **0.62**; SHAP vs FFS = **0.48**; LOCO vs FFS = **0.43**. These are moderate because the three selectors are **independent**. The previous 0.95–0.97 figure was an artefact of nesting SHAP/FFS inside one LOCO pool.
+**Figure 2.** Jaccard index between the unions of **top-20** sets (all seven models pooled). LOCO vs SHAP = **0.60**; SHAP vs FFS = **0.49**; LOCO vs FFS = **0.37**. These are moderate because the three selectors do not consume each other’s selected names. The previous 0.95–0.97 figure was an artefact of nesting SHAP/FFS inside one LOCO pool.
 
 **Source file:** [paper_figures/paper_fig2_jaccard.png](paper_figures/paper_fig2_jaccard.png)
 
@@ -147,21 +147,21 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ![Table 2](paper_figures/paper_table2_consensus_by_model.png)
 
-**Table 2.** Within-model three-selector consensus. Row colour = family. XGBoost has the largest set (7 names); LightGBM the smallest (2).
+**Table 2.** Within-model three-selector consensus. Row colour = family. CatBoost has the largest set (5 names); LightGBM the smallest (1).
 
 | Code | Classic model | Family | Metric | n (LOCO ∩ SHAP ∩ FFS) | Consensus features |
 | --- | --- | --- | --- | ---: | --- |
-| lr | Logistic regression | Linear | pr_auc | 6 | Cre; LV; Men; UA; WBC; eGFR |
-| rf | Random forest | Bagged trees | pr_auc | 6 | HGB; LDL; LVEF; Men; WBC; eGFR |
-| rf_b | Random forest (subsample) | Bagged trees | pr_auc | 4 | CaI; HGB; LVEF; WBC |
-| cat | CatBoost | Boosting | pr_auc | 3 | 1.1:1Post dilation; HGB; WBC |
-| xgb | XGBoost | Boosting | pr_auc | 7 | 1.1:1Post dilation; Aneurysm; Cre; HGB; LV; WBC; eGFR |
-| xgb_b | XGBoost (subsample) | Boosting | pr_auc | 5 | 1.1:1Post dilation; LV; LVEF; WBC; eGFR |
-| lgb | LightGBM | Boosting | pr_auc | 2 | HbA1c; LV |
+| lr | Logistic regression | Linear | pr_auc | 4 | Clopidogrel; Cre; Men; eGFR |
+| rf | Random forest | Bagged trees | pr_auc | 3 | HGB; LDL; LV |
+| rf_b | Random forest (subsample) | Bagged trees | pr_auc | 2 | Cre; eGFR |
+| cat | CatBoost | Boosting | pr_auc | 5 | Clopidogrel; HbA1c; LDL; LV; No postdilation |
+| xgb | XGBoost | Boosting | pr_auc | 2 | HGB; eGFR |
+| xgb_b | XGBoost (subsample) | Boosting | pr_auc | 4 | Cre; HGB; Stent type-SES_xiencev; eGFR |
+| lgb | LightGBM | Boosting | pr_auc | 1 | HbA1c |
 
 **Source files:** [paper_figures/paper_table2_consensus_by_model.png](paper_figures/paper_table2_consensus_by_model.png), [paper_figures/paper_table2_consensus_by_model.csv](paper_figures/paper_table2_consensus_by_model.csv)
 
-**ML consensus catalogue (union of Table 2, n = 13):** `1.1:1Post dilation`, `Aneurysm`, `CaI`, `Cre`, `HGB`, `HbA1c`, `LDL`, `LV`, `LVEF`, `Men`, `UA`, `WBC`, `eGFR`. This is the set compared with statistical FDR in Part 3.
+**ML consensus catalogue (union of Table 2, n = 10):** `Clopidogrel`, `Cre`, `HGB`, `HbA1c`, `LDL`, `LV`, `Men`, `No postdilation`, `Stent type-SES_xiencev`, `eGFR`. This is the set compared with statistical FDR in Part 3. **`WBC` is not in this dump.**
 
 ### Figure 3. Consensus-set size
 
@@ -175,7 +175,7 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ![Figure 4](paper_figures/paper_fig4_feature_by_model.png)
 
-**Figure 4.** Cell = 1 if the feature is in that model’s LOCO ∩ SHAP ∩ FFS set (PR-AUC). `WBC` appears in six of seven models; `eGFR` and `LV` in four; `1.1:1Post dilation` in the three boosting variants except LightGBM.
+**Figure 4.** Cell = 1 if the feature is in that model’s LOCO ∩ SHAP ∩ FFS set (PR-AUC). `eGFR` appears in four of seven models; `Cre` and `HGB` in three; `HbA1c`, `LDL`, `LV`, and `Clopidogrel` in two. `Stent type-SES_xiencev` is XGBoost-subsample only. `No postdilation` is CatBoost only.
 
 **Source file:** [paper_figures/paper_fig4_feature_by_model.png](paper_figures/paper_fig4_feature_by_model.png)
 
@@ -183,23 +183,23 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 
 ![Figure 5](paper_figures/paper_fig5_family_stacked.png)
 
-**Figure 5.** For each consensus feature, how many models in each family include it. `WBC` has support in all three families. `Men` is linear + bagged. `1.1:1Post dilation` is boosting-only. `Aneurysm` is XGBoost-only.
+**Figure 5.** For each consensus feature, how many models in each family include it. `eGFR` and `Cre` have linear + bagged + boosting support. `Clopidogrel` is linear + boosting. `No postdilation` and `Stent type-SES_xiencev` are boosting-only.
 
 **Source file:** [paper_figures/paper_fig5_family_stacked.png](paper_figures/paper_fig5_family_stacked.png)
 
 ### Reading Table 2 / Figures 3–5 by classic model
 
-**Logistic regression (`lr`).** Linear three-way: `Cre`, `LV`, `Men`, `UA`, `WBC`, `eGFR`. Sex and unstable-angina are almost unique to LR among the consensus names.
+**Logistic regression (`lr`).** Linear three-way: `Clopidogrel`, `Cre`, `Men`, `eGFR`. Sex is almost unique to LR among the consensus names.
 
-**Random forest (`rf`).** `HGB`, `LDL`, `LVEF`, `Men`, `WBC`, `eGFR`. Keeps haemoglobin and LDL that the linear model does not.
+**Random forest (`rf`).** `HGB`, `LDL`, `LV`. Keeps haemoglobin and LDL that the linear model does not.
 
-**Random forest, subsampled (`rf_b`).** `CaI`, `HGB`, `LVEF`, `WBC`. Treat `rf_b` as a sensitivity check on `rf`; `CaI` is unique to this variant.
+**Random forest, subsampled (`rf_b`).** `Cre`, `eGFR`. Treat `rf_b` as a sensitivity check on `rf`; the three-way set collapses onto the two renal labs.
 
-**CatBoost (`cat`).** `1.1:1Post dilation`, `HGB`, `WBC`. Does not put `eGFR` or `LV` in the three-way set on this run.
+**CatBoost (`cat`).** Largest three-way: `Clopidogrel`, `HbA1c`, `LDL`, `LV`, `No postdilation`. The only model that puts `No postdilation` in the intersection.
 
-**XGBoost (`xgb` / `xgb_b`).** Both recover `1.1:1Post dilation`, `LV`, `WBC`; the full XGB run also keeps `Aneurysm`, `Cre`, `HGB`, `eGFR`.
+**XGBoost (`xgb` / `xgb_b`).** Full XGB: `HGB`, `eGFR`. Subsampled XGB: `Cre`, `HGB`, `Stent type-SES_xiencev`, `eGFR` — the only three-way that keeps a 9-level brand dummy.
 
-**LightGBM (`lgb`).** Smallest three-way: `HbA1c; LV`. This is the only model that puts `HbA1c` in the intersection — and that is enough to put `HbA1c` in the Part 3 consensus union.
+**LightGBM (`lgb`).** Smallest three-way: `HbA1c`. That is enough to put `HbA1c` in the Part 3 consensus union (CatBoost also has it).
 
 ---
 
@@ -214,7 +214,7 @@ Here the intersection is inside one model: names that LOCO, SHAP, and FFS all pu
 | Scope | n features | Features |
 | --- | ---: | --- |
 | All 7 models × LOCO, SHAP, FFS (PR-AUC top-20) | 0 | — |
-| Any model / selector (union of scored names) | 86 | 86 unique names (full string not downloaded from Kaggle) |
+| Any model / selector (union of scored names) | 86 | 86 unique names (`selector_all_unique_features.csv`) |
 
 **Source files:** [paper_figures/paper_table4_global_common.png](paper_figures/paper_table4_global_common.png), [paper_figures/paper_table4_global_common.csv](paper_figures/paper_table4_global_common.csv)
 
@@ -228,7 +228,7 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list (Wang Table 1 Engl
 
 ![Table 5](paper_figures/paper_table5_priority_ranks_excerpt.png)
 
-**Table 5.** Hits under CatBoost LOCO: Current smoker (rank 24), Clopidogrel (50), Current drinking (51), Hypertension (55). SHAP hit: Hypertension (35). The rest miss because of the alias mismatch, not because the clinical variables were unscored.
+**Table 5.** Hits under CatBoost LOCO: Hypertension (rank 9), Clopidogrel (10), Current smoker (35), Current drinking (50). SHAP hits: Clopidogrel (12), Current smoker (14). The rest miss because of the alias mismatch, not because the clinical variables were unscored.
 
 **Source files:** [paper_figures/paper_table5_priority_ranks_excerpt.png](paper_figures/paper_table5_priority_ranks_excerpt.png), [paper_figures/paper_table5_priority_ranks_excerpt.csv](paper_figures/paper_table5_priority_ranks_excerpt.csv)
 
@@ -244,7 +244,7 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list (Wang Table 1 Engl
 
 ![Figure S2](paper_figures/selector_top_repeated_features.png)
 
-**Supplementary Figure S2.** Features most often written into `selector_summary_long` (max 21 = 7 models × 3 selectors). `WBC` leads; `HGB` / `LV` / post-dilation complements / `eGFR` follow. `Stent type-SES_resolute` (a 9-level dummy) appears in the top 25 — the brand signal is now a named level, not 106 fragments.
+**Supplementary Figure S2.** Features most often written into `selector_summary_long` (max 21 = 7 models × 3 selectors). `LV`, `HGB`, and `eGFR` lead (18 each); `LDL` / `Cre` / `LVEF` follow. `WBC` is absent. Several 9-level stent dummies (`Stent type-SES_tivoli`, `_xiencev`, `_resolute`) appear in the top 25.
 
 **Source file:** [paper_figures/selector_top_repeated_features.png](paper_figures/selector_top_repeated_features.png)
 
@@ -279,4 +279,4 @@ The notebook scores a hand-specified `PRIORITY_FEATURES` list (Wang Table 1 Engl
 
 ---
 
-*Numbers from the 2026-08-31 paper-protocol Kaggle run of* `baseline_feature_selections.ipynb` *(seven classic models, PR-AUC, independent selectors, 9-level stent encoder → 88 columns, fit/val 4148/1037). Regenerated by* `code/modeling/tools/rebuild_part2_paper_figures.py`.
+*Numbers from the 2026-09-19 dump of* `baseline_feature_selections.ipynb` *(`selector_report.md` generated 2026-09-19 14:39:53; seven classic models, PR-AUC, independent selectors, 9-level stent encoder → 87 columns after TSSI+WBC drop, fit/val 4148/1037). Regenerated by* `code/modeling/tools/rebuild_part2_paper_figures.py`.

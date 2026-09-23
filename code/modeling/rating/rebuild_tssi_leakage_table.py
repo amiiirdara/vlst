@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Supplementary table: with-TSSI vs without-TSSI single-split baselines.
 
-Numbers are taken from the stored notebook outputs (no refit):
-  baseline_tssi_leakage.ipynb  and  baseline_without_tssi.ipynb
+Numbers are taken from the 2026-09-19 Kaggle dumps (no refit):
+  Kaggle_baseline_tssi_leakage_results/.../test_metrics.csv
+  Kaggle_baseline_without_tssi_results/.../test_metrics.csv
+GridSearch best_params_ are the executed notebook prints (2026-09-19 papermill),
+written to modeling_*/best_params.csv and paper_table_s_tssi_best_params.*.
 """
 
 from __future__ import annotations
@@ -20,15 +23,15 @@ from paper_paths import paper_figure_dirs  # noqa: E402
 
 OUT_DIRS = paper_figure_dirs("04_tabpfn_rating")
 
-# Stored test-set metrics. Duplicate RF rows in the leaky notebook are collapsed.
+# 2026-09-19 Kaggle test_metrics.csv (papermill 14:00–14:57 WITH, 14:02–14:22 WITHOUT).
 ROWS = [
-    ("Logistic Regression", 0.9846, 0.6923, 1.0000, 0.5294, 0.9990, 0.9575, 0.9354, 0.2637, 0.6667, 0.1644, 0.9171, 0.5077),
-    ("Decision Tree", 0.9942, 0.8500, 0.9444, 0.7727, 0.9696, 0.7308, 0.9749, 0.1875, 0.1667, 0.2143, 0.5774, 0.0405),
-    ("Random Forest", 0.9942, 0.8000, 0.6667, 1.0000, 0.9993, 0.9680, 0.9749, 0.4348, 0.5556, 0.3571, 0.9338, 0.4700),
-    ("Gaussian NB", 0.1851, 0.0409, 1.0000, 0.0209, 0.5854, 0.0209, 0.1851, 0.0409, 1.0000, 0.0209, 0.5854, 0.0209),
-    ("CatBoost", 0.9981, 0.9412, 0.8889, 1.0000, 0.9995, 0.9773, 0.9875, 0.5806, 0.5000, 0.6923, 0.9669, 0.6582),
-    ("XGBoost", 0.9981, 0.9412, 0.8889, 1.0000, 0.9987, 0.9609, 0.9884, 0.5714, 0.4444, 0.8000, 0.9380, 0.6118),
-    ("LightGBM", 0.9981, 0.9412, 0.8889, 1.0000, 0.9989, 0.9708, 0.9865, 0.5625, 0.5000, 0.6429, 0.9483, 0.6018),
+    ("Logistic Regression", 0.983933, 0.675325, 0.928571, 0.530612, 0.995372, 0.913388, 0.912596, 0.209302, 0.642857, 0.125000, 0.831830, 0.343057),
+    ("Decision Tree", 0.987147, 0.705882, 0.857143, 0.600000, 0.926620, 0.752385, 0.960154, 0.279070, 0.428571, 0.206897, 0.700940, 0.137767),
+    ("Random Forest", 0.994859, 0.833333, 0.714286, 1.000000, 0.997686, 0.939998, 0.982005, 0.000000, 0.000000, 0.000000, 0.928712, 0.487373),
+    ("Gaussian NB", 0.437018, 0.043668, 0.714286, 0.022523, 0.742532, 0.272768, 0.197301, 0.037008, 0.857143, 0.018913, 0.749310, 0.056433),
+    ("CatBoost", 0.997429, 0.923077, 0.857143, 1.000000, 0.996447, 0.959865, 0.968509, 0.409639, 0.607143, 0.309091, 0.910270, 0.494218),
+    ("XGBoost", 0.997429, 0.923077, 0.857143, 1.000000, 0.996284, 0.954687, 0.988432, 0.550000, 0.392857, 0.916667, 0.918334, 0.568484),
+    ("LightGBM", 0.997429, 0.923077, 0.857143, 1.000000, 0.998621, 0.968654, 0.987147, 0.444444, 0.285714, 1.000000, 0.940445, 0.667542),
 ]
 COLS = [
     "model",
@@ -47,38 +50,40 @@ COLS = [
 ]
 
 # GridSearchCV(scoring="f1", cv=StratifiedKFold(5, shuffle=True, random_state=42)).
-# Prints from executed notebooks. Not Part 4 nested-CV hyperparameters.
+# LIVE prints from executed 2026-09-19 notebooks (not the older .nbdump).
+# ALL LEAKS ON = baseline_tssi_leakage.ipynb; ALL LEAKS OFF = baseline_without_tssi.ipynb.
+# Not Part 4 nested-CV hyperparameters.
 BEST_PARAMS = [
     (
         "Logistic Regression",
-        "C=1.0, max_iter=2000, penalty=l1, solver=liblinear",
-        "C=10.0, max_iter=2000, penalty=l1, solver=liblinear",
+        "C=0.1, max_iter=2000, penalty=l2, solver=lbfgs",
+        "C=100.0, max_iter=2000, penalty=l1, solver=liblinear",
     ),
     (
         "Decision Tree",
-        "criterion=gini, max_depth=None, min_samples_leaf=1, min_samples_split=10",
-        "criterion=entropy, max_depth=None, min_samples_leaf=2, min_samples_split=2",
+        "criterion=entropy, max_depth=10, max_features=None, min_samples_leaf=2, min_samples_split=5",
+        "criterion=entropy, max_depth=15, max_features=None, min_samples_leaf=5, min_samples_split=2",
     ),
     (
         "Random Forest",
-        "max_depth=15, min_samples_leaf=1, n_estimators=200",
-        "max_depth=5, min_samples_leaf=1, n_estimators=200",
+        "max_depth=20, max_features=sqrt, min_samples_leaf=1, n_estimators=800",
+        "max_depth=20, max_features=sqrt, min_samples_leaf=5, n_estimators=400",
     ),
-    ("Gaussian NB", "var_smoothing=1e-12", "var_smoothing=1e-12"),
+    ("Gaussian NB", "var_smoothing=1e-06", "var_smoothing=1e-06"),
     (
         "CatBoost",
-        "depth=6, iterations=100, l2_leaf_reg=1, learning_rate=0.1",
-        "depth=4, iterations=200, l2_leaf_reg=1, learning_rate=0.1",
+        "depth=4, iterations=200, l2_leaf_reg=1, learning_rate=0.03",
+        "depth=4, iterations=200, l2_leaf_reg=1, learning_rate=0.03",
     ),
     (
         "XGBoost",
-        "learning_rate=0.05, max_depth=5, min_child_weight=1, n_estimators=200",
-        "learning_rate=0.1, max_depth=3, min_child_weight=1, n_estimators=200",
+        "learning_rate=0.1, max_depth=5, min_child_weight=1, n_estimators=200, subsample=0.8",
+        "learning_rate=0.1, max_depth=3, min_child_weight=3, n_estimators=400, subsample=1.0",
     ),
     (
         "LightGBM",
-        "learning_rate=0.1, max_depth=5, min_child_samples=20, n_estimators=200",
-        "learning_rate=0.1, max_depth=3, min_child_samples=20, n_estimators=200",
+        "learning_rate=0.03, max_depth=5, min_child_samples=10, n_estimators=400, num_leaves=15",
+        "learning_rate=0.1, max_depth=5, min_child_samples=40, n_estimators=400, num_leaves=15",
     ),
 ]
 
@@ -124,7 +129,7 @@ def main() -> None:
         elif r % 2 == 0:
             cell.set_facecolor("#F4F7FA")
     ax.set_title(
-        "Single-split 70/30 baselines with vs without Time since stent implantation",
+        "70/30 GridSearch: ALL LEAKS ON vs ALL LEAKS OFF",
         pad=12,
     )
     for out in OUT_DIRS:
@@ -133,15 +138,15 @@ def main() -> None:
 
     fig, ax = plt.subplots(figsize=(8.4, 4.6))
     y = range(len(df))
-    ax.barh([i + 0.18 for i in y], df["with_pr_auc"], height=0.34, color=HARMONY[0], label="With TSSI (leaky)")
-    ax.barh([i - 0.18 for i in y], df["without_pr_auc"], height=0.34, color=HARMONY[7], label="Without TSSI")
+    ax.barh([i + 0.18 for i in y], df["with_pr_auc"], height=0.34, color=HARMONY[0], label="ALL LEAKS ON")
+    ax.barh([i - 0.18 for i in y], df["without_pr_auc"], height=0.34, color=HARMONY[7], label="ALL LEAKS OFF")
     ax.set_yticks(list(y))
     ax.set_yticklabels(df["model"])
     ax.set_xlabel("PR-AUC (single stratified 70/30 hold-out)")
     ax.axvline(0.0177, color="0.4", ls=":", lw=1, label="prevalence = 0.0177")
     ax.set_xlim(0, 1.05)
     ax.legend(frameon=False, loc="lower right")
-    ax.set_title("Dropping the follow-up-time column collapses ranking")
+    ax.set_title("ALL LEAKS ON vs ALL LEAKS OFF — PR-AUC on the 70/30 hold-out")
     for out in OUT_DIRS:
         fig.savefig(out / "paper_fig_s_tssi_pr_auc.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -156,8 +161,8 @@ def main() -> None:
     hp_disp = pd.DataFrame(
         {
             "Model": hp["model"],
-            "With TSSI (leaky) best_params_": hp["best_params_with_tssi"],
-            "Without TSSI best_params_": hp["best_params_without_tssi"],
+            "ALL LEAKS ON best_params_": hp["best_params_with_tssi"],
+            "ALL LEAKS OFF best_params_": hp["best_params_without_tssi"],
         }
     )
     fig, ax = plt.subplots(figsize=(16.2, 3.8))
@@ -178,13 +183,22 @@ def main() -> None:
         elif r % 2 == 0:
             cell.set_facecolor("#F4F7FA")
     ax.set_title(
-        "GridSearchCV F1 winners (70/30 notebooks; not Part 4 nested CV)",
+        "GridSearchCV F1 winners from executed notebooks (not Part 4 nested CV)",
         pad=12,
     )
     for out in OUT_DIRS:
         fig.savefig(out / "paper_table_s_tssi_best_params.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print("Wrote TSSI leakage table, figure, and GridSearch best_params_.")
+
+    dump_on = ROOT / "code/modeling/rating/Kaggle_baseline_tssi_leakage_results/baseline_leakge_results/modeling_tssi_leakage"
+    dump_off = ROOT / "code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi"
+    on_rows = [{"model": m, "best_params": p} for m, p, _ in BEST_PARAMS]
+    off_rows = [{"model": m, "best_params": p} for m, _, p in BEST_PARAMS]
+    if dump_on.is_dir():
+        pd.DataFrame(on_rows).to_csv(dump_on / "best_params.csv", index=False)
+    if dump_off.is_dir():
+        pd.DataFrame(off_rows).to_csv(dump_off / "best_params.csv", index=False)
+    print("Wrote TSSI leakage table, figure, GridSearch best_params_, and dump best_params.csv.")
 
 
 if __name__ == "__main__":

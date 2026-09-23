@@ -1,8 +1,10 @@
-Model,Family,GPU,Specification (notebook)
+Model,Family,GPU,Specification
 Logistic Regression,Linear,No,"L2, class_weight=balanced, max_iter=1000"
 Random Forest,Bagged trees,No,"class_weight=balanced, random_state=42"
 XGBoost,Boosting,Yes,eval_metric=aucpr; scale_pos_weight from train fold
 LightGBM,Boosting,Yes,metric=average_precision; class_weight=balanced
 CatBoost,Boosting,Yes,auto_class_weights=Balanced; eval_metric=PRAUC
-TabPFN (thinking-high),Foundation (tabular),Kaggle T4 + client,tabpfn_client==0.6.0; thinking_mode=True; thinking_effort=high; thinking_metric=average_precision
-TabPFN (local),Foundation (tabular),Yes (Kaggle T4),tabpfn==9.0.0 (v3.5 weights tabpfn-v3.5-20260909.safetensors); n_estimators=auto; no balance_probabilities; restore skipped
+TabPFN thinking v3,Foundation (tabular),Kaggle T4 + client,tabpfn-client==0.6.0; model v3_default; thinking_mode=True; effort=high; metric=average_precision
+TabPFN thinking v3.5,Foundation (tabular),Kaggle T4 + client,tabpfn-client==0.6.0; model v3.5_default; thinking_mode=True; effort=high; metric=average_precision
+TabPFN v3,Foundation (tabular),Kaggle T4,tabpfn==9.0.0; checkpoint tabpfn-v3-classifier-v3_default.ckpt; n_estimators=auto; no balance_probabilities
+TabPFN v3.5,Foundation (tabular),Kaggle T4,tabpfn==9.0.0; checkpoint tabpfn-v3.5-20260909.safetensors; n_estimators=auto; no balance_probabilities
