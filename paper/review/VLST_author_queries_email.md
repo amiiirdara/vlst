@@ -6,10 +6,13 @@
 
 ## Part 1 — Email (ready to send)
 
-**To:** Prof. Yang Zheng and Prof. Jie Du (corresponding authors, Wang et al., *Sci Rep* 2020;10:6378); Dr Xiang Wang (wangxiang17@mails.jlu.edu.cn)
+**To:** Prof. Yang Zheng <zhengyang@jlu.edu.cn>; Prof. Jie Du <jiedu@ccmu.edu.cn> (corresponding authors, Wang et al., *Sci Rep* 2020;10:6378)
+**Cc:** Dr Xiang Wang <wangxiang17@mails.jlu.edu.cn> (first author; 2020 student account, may be inactive); Dr Yulin Li <lyllyl_1111@163.com>; Dr Muli Wu <wuml85@126.com> (Shantou validation site; identity match probable, not certain); He Cai <caihe19@mails.jlu.edu.cn> (student account)
+<!-- No public email found for Xinxin Chen, Tao Tian, Xiaoyu Du or Hongzhao You (checked 4 Nov 2026). -->
+
 **Subject:** Questions about the public VLST dataset (Figshare 10.6084/m9.figshare.7409606)
 
-Dear Professor Zheng, Professor Du and Dr Wang,
+Dear Professor Zheng, Professor Du, Dr Xiang Wang, Dr Yulin Li, Dr Muli Wu and Dr He Cai,
 
 We are carrying out a secondary analysis of the derivation-cohort dataset that you deposited on Figshare alongside your 2020 *Scientific Reports* paper on very late stent thrombosis. Thank you for making it available. Before we report anything, we want to describe the variables accurately, and several questions arose that only you can answer. They are grouped below; brief answers to any of them would help.
 
