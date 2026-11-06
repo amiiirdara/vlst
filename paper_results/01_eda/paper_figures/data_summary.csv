@@ -1,0 +1,2 @@
+Total_Rows,Total_Columns,Target_Class_0,Target_Class_1,Class_Imbalance_Ratio,Missing_Values_Total,Binary_Features,Continuous_Features,Categorical_Features
+5185,83,5093,92,0.01806400942470057,0,57,24,1

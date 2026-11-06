@@ -1,0 +1,11 @@
+Outcome,Medicine,Patients on medicine,Patients not on medicine,Percentage on medicine
+Stent thrombosis (VLST),Aspirin,45,47,48.91
+Stent thrombosis (VLST),Clopidogrel,28,64,30.43
+Stent thrombosis (VLST),Ticagrelor,1,91,1.09
+Stent thrombosis (VLST),DAPT,35,57,38.04
+Stent thrombosis (VLST),No antiplatelet medicine,41,51,44.57
+No stent thrombosis,Aspirin,3148,1945,61.81
+No stent thrombosis,Clopidogrel,2368,2725,46.5
+No stent thrombosis,Ticagrelor,90,5003,1.77
+No stent thrombosis,DAPT,2260,2833,44.37
+No stent thrombosis,No antiplatelet medicine,1747,3346,34.3
