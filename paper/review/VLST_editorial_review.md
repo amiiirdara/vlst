@@ -2,13 +2,55 @@
 
 **Sources used (confirmed with the authors).** `VLST_Introduction.docx` and `VLST_methods.docx` (both 21 Oct 2026), `VLST_Discussion_Clinical_Limitations_WBC_Revised.docx` (28 Oct 2026), `main_paper_formal_report.md` (24 Sep 2026) and `wang_vlst.pdf` (Wang et al., *Sci Rep* 2020;10:6378). The older Discussion draft, `main_paper.pdf`, every other `.md` file in the repository and the earlier review in `paper/review/` were **not** used.
 
-**What was inspected beyond the reports.** I read the analysis code and its stored outputs: `preprocessing.ipynb`, `baseline_plus_tabpfn.ipynb` (the primary nested benchmark), `wang_vlst_score.ipynb`, `baseline_tssi_leakage.ipynb`, `baseline_without_tssi.ipynb`, `baseline_feature_selections.ipynb`, `tabpfn_interpretability_fs_pdp.ipynb`, `tabpfn_interpretability_shap.ipynb`, `eda.ipynb` and `tools/rebuild_part4_from_kaggle_dump.py`. I checked the result CSVs these produce against the report. With the authors' permission I ran read-only checks on `data/raw/VLST.csv` using `paper/review/vlst_data_checks.py`; it uses the standard library only and reproduces every data-level number below.
+**What was inspected beyond the reports.** I read the analysis code and its stored outputs: `preprocessing.ipynb`, `baseline_plus_tabpfn.ipynb` (the primary nested benchmark), `wang_vlst_score.ipynb`, `baseline_tssi_leakage.ipynb`, `baseline_without_leakage.ipynb`, `baseline_feature_selections.ipynb`, `tabpfn_interpretability_fs_pdp.ipynb`, `tabpfn_interpretability_shap.ipynb`, `eda.ipynb` and `tools/rebuild_part4_from_kaggle_dump.py`. I checked the result CSVs these produce against the report. With the authors' permission I ran read-only checks on `data/raw/VLST.csv` using `paper/review/vlst_data_checks.py`; it uses the standard library only and reproduces every data-level number below.
 
 **What was not done.** I re-ran none of the models. **No figure image was viewed**, so captions are judged from the text alone. I did not open Wang's supplementary material, which is not in the source set.
 
 **Evidence labels used throughout.** **[D]** directly documented in a source or in code output. **[V]** verified by my own read-only check of the data or code. **[I]** my interpretation. **[U]** unverified. **[C]** contradiction between sources. **[M]** missing information.
 
 ---
+
+## Update, 9 November 2026
+
+- R3 (R1 + `CaI` dropped + `LV` in 5-mm bins) is now the main analysis; the benchmark and both interpretability notebooks default to it. R1 and the unrestricted run are sensitivity analyses.
+- R3 sensitivity variant (`R3_CAI_HANDLING = "censor"`, tag `r3_caicensor`): `CaI` kept with values below 0.1 set to 0.1 (298 patients), instead of dropped.
+- All notebooks pin the newest releases: tabpfn 9.2.0, tabpfn-client 0.7.1, tabpfn-extensions 0.6.3, shapiq 1.8.0, shap 0.54.1. The v3.5 checkpoint and its defaults are unchanged from tabpfn 9.0.0.
+- The consensus report now accepts only SHAP output from the same analysis variant, leaves the SHAP column empty (not zero) when it is missing, and marks the figure incomplete. `code/modeling/tools/rebuild_consensus_report.py` rebuilds the full report locally from both output folders.
+- Local TabPFN is not tuned: it is used as the documented in-context-learning default, and its search space would cost a full refit per configuration on GPU; the tiers make this explicit.
+
+## Update, 7 November 2026 (supersedes earlier statements where they conflict)
+
+**Original authors cannot be contacted.** Every item that was "pending author or custodian confirmation" (Section B2, Section E) is now reported in the manuscript as undocumented and unconfirmable, with the reasoning used in its place. The email in `VLST_author_queries_email.md` is kept only as the list of open questions.
+
+**The analysed file is unmodified.** Its SHA-256 (`0b8cf3da…d93e`) is identical in every Kaggle run manifest. Differences between Wang's paper and the file (follow-up medians, previous PCI, AMI, HbA1c, risk-group sizes) are therefore differences between the publication and its own deposit [V].
+
+**R1 has been run** (Kaggle, `baseline_plus_tabpfn.ipynb`, tag `r1_postpci`; 76 features) [D]:
+
+| Arm | AP unrestricted → R1 | ROC-AUC R1 | Brier R1 | AP after precision equalisation (R1) |
+|---|---|---|---|---|
+| TabPFN v3.5 (local) | 0.896 → 0.668 | 0.978 | 0.0095 | 0.441 |
+| TabPFN thinking v3 | 0.832 → 0.473 | 0.952 | 0.0128 | not run |
+| XGBoost | 0.632 → 0.447 | 0.911 | 0.0131 | 0.244 |
+| LightGBM | 0.627 → 0.422 | 0.904 | 0.0136 | 0.287 |
+| CatBoost | 0.571 → 0.384 | 0.879 | 0.0137 | 0.217 |
+| TabPFN v3 (local) | 0.715 → 0.322 | 0.917 | 0.0145 | 0.219 |
+| Random forest | 0.351 → 0.185 | 0.874 | 0.0159 | 0.134 |
+| Logistic regression | 0.260 → 0.123 | 0.784 | 0.1116 | 0.120 |
+
+Hosted v3.5 thinking was skipped (quote ≈ 149 M tokens against a 5 M/day allowance). The R1 out-of-fold CSV is not yet in the repository, so bootstrap intervals and calibration slopes for R1 are pending.
+
+**New audit finding [V].** `CaI` = 0.034 in 20/92 cases (21.7%) vs 10/5,093 controls (0.2%); after the 2-dp rounding it is 0.03 in 20 cases and 16 controls, so the rounding does not remove it. `CaI` is ranked first by SHAP, mutual information and forward selection in the R1 attribution run. `LVEF` = 56: 25% of cases vs 14% of controls (weaker). R3 (drop `CaI`; `LV` in 5-mm bins) was added as a switch; full-file precision equalisation was rejected as a primary rule because it rounds stent diameters and HbA1c to whole units.
+
+**R1 attribution run [D].** Local v3.5 checkpoint `tabpfn-v3.5-20260909.safetensors` for Shapley values, forward selection and partial dependence; Shapley scale verified as the class-1 logit (reconstruction error 0.008 on logit vs 9.7 on probability); laboratory rounding and train-only stent codebook applied. Mean |SHAP|: `CaI` 1.29, `LV` 0.64, `LDL` 0.40, `HbA1c` 0.32. Forward selection (8 of 76 features, 3-fold, 8 seeds, `n_estimators = 1`): `CaI`, `HbA1c`, `LV`, `LVEF` 8/8; `eGFR` 1/8 (was 8/8); `Cre` 0/8 (was 7/8). The forward-selection/PDP run predates the version pins (tabpfn-extensions built from its development branch), so it should be re-run for a reproducible record. Hosted-model SHAP is not feasible within the token allowance.
+
+**R2 [D].** eGFR OR per SD 0.57 (0.45–0.72) with recorded eGFR → 1.18 (0.97–1.44) with recalculated eGFR. Number of vessels 1.21 → 1.32 (1.04–1.67); `PES` 1.73 → 1.81 (1.01–3.23) in specification C.
+
+**Code changes made on 7 November** (all uncommitted; the user commits):
+- `baseline_plus_tabpfn.ipynb`: `TUNE_CLASSICS` (inner random search, 20 draws, AP) with per-fold tuned parameters saved and reused by the equalisation refit; `R3_RESIDUAL_ARTEFACTS` switch; calibration intercept, slope, O/E, scaled Brier and zoomed reliability plots; tables and figures label the metric AP (the stored key stays `pr_auc` for downstream tools).
+- `baseline_tssi_leakage.ipynb` and `baseline_without_leakage.ipynb` (renamed from `baseline_without_tssi.ipynb`): SMOTE removed; the gap is described as data leakage as a whole.
+- `wang_vlst_score.ipynb`: post-dilation coding fixed by the published evidence (five statements for, one reversed-reference error against), no longer "pending"; comparison caveats (apparent vs out-of-fold, Cox c vs binary AUC, 8 vs about 80 inputs) printed with the table; new run folders read automatically.
+- Interpretability notebooks: shapiq 1.8.0 and shap 0.54.1 pinned (tabpfn-extensions 0.6.3 is already the newest); tabpfn/tabpfn-client kept at 9.0.0/0.6.0 to match the benchmark; R3 switch; provenance print fixed.
+- Tools: bootstrap P printed as "< 0.0005 (0/2000)" instead of 0; Part 5 SFS description corrected; new `tools/calibration_metrics.py` (run on the unrestricted OOF: scaled Brier 0.72 for local v3.5, slope 1.38; logistic regression −3.52).
 
 ## A. Executive assessment
 

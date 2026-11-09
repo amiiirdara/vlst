@@ -30,6 +30,14 @@ DUMP = (
 )
 P4 = paper_figure_dirs("04_tabpfn_rating")
 N_BOOT = 2000
+
+
+def fmt_boot_p(p, n_boot):
+    """Bootstrap tail share as "k/n"; zero is reported as below 1/n, never as P = 0."""
+    k = int(round(float(p) * n_boot))
+    if k == 0:
+        return f"< {1 / n_boot:.4f} (0/{n_boot})"
+    return f"{float(p):.4f} ({k}/{n_boot})"
 SEED = 42
 
 OOF_COLS = [
@@ -404,14 +412,14 @@ def bootstrap() -> None:
     pdisp = pd.DataFrame(
         {
             "Contrast": paired_df["contrast"],
-            "Δ PR-AUC": [f"{v:.4f}" for v in paired_df["delta_pr_auc"]],
+            "Δ AP": [f"{v:.4f}" for v in paired_df["delta_pr_auc"]],
             "95% CI": [f"[{r.ci_low:.4f}, {r.ci_high:.4f}]" for r in paired_df.itertuples()],
-            "P(Δ ≤ 0)": [f"{v:.4f}" for v in paired_df["p_bootstrap_one_sided_le0"]],
+            "Bootstrap P(Δ ≤ 0)": [fmt_boot_p(v, N_BOOT) for v in paired_df["p_bootstrap_one_sided_le0"]],
         }
     )
     save_table_png(
         pdisp,
-        title="Paired bootstrap Δ PR-AUC on pooled OOF (n_boot=2000)",
+        title="Paired bootstrap Δ AP on pooled OOF (n_boot=2000)",
         filename="paper_table_s_paired_delta.png",
         figsize=(13.8, 2.6),
         fontsize=8,

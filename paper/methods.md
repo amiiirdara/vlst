@@ -57,7 +57,7 @@ This split is **not** the prediction evaluation. Nested stratified CV (section 7
 
 Seven classic families appear in the twin notebooks: logistic regression (LR), decision tree (DT), random forest (RF), Gaussian naïve Bayes (GNB), CatBoost, XGBoost (XGB), and LightGBM (LGBM). They are run under two **non-interchangeable** regimes.
 
-**(a) GridSearchCV regime (leakage twins only).** `baseline_tssi_leakage.ipynb` (ALL LEAKS ON) and `baseline_without_tssi.ipynb` (ALL LEAKS OFF) share the 3,629/1,556 split and `GridSearchCV` with `GRID_SCORING="average_precision"` and `StratifiedKFold(n_splits=5, shuffle=True, random_state=42)`. Class weights are used; SMOTE is applied to the ON-twin training set only. Executed `best_params_` are archived as a leakage-axis supplement, not as nested-CV hyperparameters.
+**(a) GridSearchCV regime (leakage twins only).** `baseline_tssi_leakage.ipynb` (ALL LEAKS ON) and `baseline_without_leakage.ipynb` (ALL LEAKS OFF) share the 3,629/1,556 split and `GridSearchCV` with `GRID_SCORING="average_precision"` and `StratifiedKFold(n_splits=5, shuffle=True, random_state=42)`. Class weights are used; SMOTE is applied to the ON-twin training set only. Executed `best_params_` are archived as a leakage-axis supplement, not as nested-CV hyperparameters.
 
 **(b) Main benchmark regime (nested CV).** `baseline_plus_tabpfn.ipynb` fits five classics — LR, RF, XGB, LGBM, CatBoost — plus four TabPFN arms (nine `RUN_MODELS` arms). Constructors are library defaults plus class weighting (`class_weight="balanced"` or CatBoost `auto_class_weights="Balanced"`; XGBoost sets `scale_pos_weight` from the outer-train fold). The inner loop tunes the **F1 decision threshold only**. DT and GNB are not nested-CV arms. **GridSearch winners from the twin notebooks are not imported.** The five classics are an **untuned reference panel**. The nine-arm table ranks these fitted objects; it is not a nested inner GridSearch of boosting versus TabPFN.
 
@@ -123,7 +123,7 @@ SECTION → FILE TRACEABILITY
    paper/manuscript_outline.md — §0.2 eda.ipynb "Logic unchanged"; §4.1–4.2
 
 2. Anti-leakage protocol (flags = operational definition)
-   code/modeling/rating/baseline_without_tssi.ipynb cell 2 —
+   code/modeling/rating/baseline_without_leakage.ipynb cell 2 —
      KEEP_TSSI=False; DROP_WBC=True; QUANTIZE_CLINICAL=True; STENT_ENCODER_TRAIN_ONLY=True;
      CLINICAL_QUANTIZE_PLACES; TEST_SIZE=0.30; RANDOM_STATE=42
    code/modeling/rating/baseline_tssi_leakage.ipynb cell 2 — inverse flags (ALL LEAKS ON)
@@ -145,7 +145,7 @@ SECTION → FILE TRACEABILITY
    validation.validation_framework — nested CV is the only prediction evaluation
 
 4. Classic models, two regimes
-   (a) twins: baseline_tssi_leakage.ipynb + baseline_without_tssi.ipynb
+   (a) twins: baseline_tssi_leakage.ipynb + baseline_without_leakage.ipynb
        GRID_SCORING="average_precision"; 7 models LR/DT/RF/GNB/CatBoost/XGB/LGBM;
        USE_SMOTE True/False; StratifiedKFold n_splits=5 seed 42
    (b) baseline_plus_tabpfn.ipynb RUN_MODELS — LR/RF/XGB/LGBM/CatBoost + 4 TabPFN;

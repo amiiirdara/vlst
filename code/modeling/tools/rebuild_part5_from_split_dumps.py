@@ -181,7 +181,7 @@ def write_tables(consensus: pd.DataFrame) -> None:
                 "Stability (repeated SFS)",
                 "Selection frequency",
                 "local TabPFN (v3.5, FS_THINKING_MODE=False)",
-                f"{N_SEEDS}/{N_SEEDS} resamples × top-10 forward SFS, AP scoring, train",
+                f"{N_SEEDS} resamples × forward SFS to 8 features (3-fold CV, AP scoring, local TabPFN v3.5, n_estimators=1), train split",
             ],
             [
                 "PDP",
@@ -244,7 +244,7 @@ def write_tables(consensus: pd.DataFrame) -> None:
     stab_disp["Frequency"] = stab_disp["Frequency"].map(lambda x: f"{x:.3f}")
     save_table_png(
         stab_disp,
-        title=f"Stability selection frequency ({N_SEEDS}/{N_SEEDS} seeds × top-10 forward SFS; train)",
+        title=f"Stability selection frequency ({N_SEEDS} seeds × forward SFS to 8 features, 3-fold CV; train)",
         filename="paper_table2_stability.png",
         figsize=(8.2, 6.4),
         fontsize=8,

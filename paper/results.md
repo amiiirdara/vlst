@@ -94,7 +94,7 @@ Same seven classic models, same stratified 70/30 (train 3,629 / test 1,556, seed
 | Tag | Notebook | Flags |
 | --- | --- | --- |
 | **ALL LEAKS ON** | `baseline_tssi_leakage.ipynb` | `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True` |
-| **ALL LEAKS OFF** | `baseline_without_tssi.ipynb` | inverse flags, `USE_SMOTE=False` |
+| **ALL LEAKS OFF** | `baseline_without_leakage.ipynb` | inverse flags, `USE_SMOTE=False` |
 
 Hold-out metrics from dump `test_metrics.csv` (YAML `kaggle_tssi_leakage` / `kaggle_without_tssi`). Δ = ON − OFF. Positive Δ is optimistic bias of the leaks-on pipeline on this 1,556-row hold-out.
 

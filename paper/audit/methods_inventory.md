@@ -36,7 +36,7 @@ The inspected reports state **81 features** after dropping identifiers (`NO.`, `
 | --- | --- | --- | --- | --- |
 | 81 columns after dropping IDs + TSSI | Part 4 protocol; Part 5 protocol; front matter EPV table | report | methodological detail |
 | Identifiers dropped | `NO.`, `Name` | Part 4 header; `baseline_plus_tabpfn.ipynb` cell 5 `X = df.drop(columns=["NO.", "Name", "Time since stent implantation", TARGET], errors="ignore")`; Part 5 cell 6 `ID_COLS` | notebook / report | methodological detail |
-| Candidate removed before modeling (all ML parts) | `Time since stent implantation` | Part 2 `DROP_FEATURES` cell 1; Part 4 cell 5; Part 5 cell 6; `baseline_without_tssi.ipynb` cells 3–4 | notebook | methodological detail |
+| Candidate removed before modeling (all ML parts) | `Time since stent implantation` | Part 2 `DROP_FEATURES` cell 1; Part 4 cell 5; Part 5 cell 6; `baseline_without_leakage.ipynb` cells 3–4 | notebook | methodological detail |
 | Variable types (as used) | Mixed tabular: binary flags, continuous labs/echo, categorical `Stent type-SES` (9-level encoder), integer counts | Part 1 test-selection; Part 4 ColumnTransformer; Part 5 TabPFN-native integer categoricals | report | methodological detail |
 
 ### Variables retained by family
@@ -77,7 +77,7 @@ Every inspected occurrence of follow-up time / TSSI:
 | Dropped before Part 4 nested CV | `df.drop(..., "Time since stent implantation", ...)` | `baseline_plus_tabpfn.ipynb` cell 5 | notebook |
 | Dropped before Part 5 | `DROP_FEATURES` cell 6 | `tabpfn_interpretability.ipynb` | notebook |
 | **Used as a model feature** | Leakage demonstration only | `baseline_tssi_leakage.ipynb` (loads processed arrays that still contain the column) | notebook |
-| Removed after load | Leakage control | `baseline_without_tssi.ipynb` cells 3–4 `DROP_FEATURES = ["Time since stent implantation"]` | notebook |
+| Removed after load | Leakage control | `baseline_without_leakage.ipynb` cells 3–4 `DROP_FEATURES = ["Time since stent implantation"]` | notebook |
 | Supplementary Table S-TSSI / Figure S-TSSI | With vs without metrics | Part 4 §6; `rebuild_tssi_leakage_table.py` `ROWS` | report / script |
 | Front matter W1 | Already covered in Part 4 | `00_front_matter.md` line 5 | report |
 
@@ -99,7 +99,7 @@ Every inspected occurrence of follow-up time / TSSI:
 
 Part 4 prose: LR PR-AUC 0.958 → 0.508; CatBoost 0.977 → 0.658 (rounding of the script values).
 
-**Protocol caveat (methods, not a new number).** `baseline_tssi_leakage.ipynb` cell 4 sets `USE_SMOTE = True` (global SMOTE on train). `baseline_without_tssi.ipynb` cell 6 sets `USE_SMOTE = False`. Part 4 claims “same stratified 70/30 split and tuning protocol.” That SMOTE mismatch is a methodological discrepancy (conflict ledger). Nested-CV Part 4 does **not** use SMOTE.
+**Protocol caveat (methods, not a new number).** `baseline_tssi_leakage.ipynb` cell 4 sets `USE_SMOTE = True` (global SMOTE on train). `baseline_without_leakage.ipynb` cell 6 sets `USE_SMOTE = False`. Part 4 claims “same stratified 70/30 split and tuning protocol.” That SMOTE mismatch is a methodological discrepancy (conflict ledger). Nested-CV Part 4 does **not** use SMOTE.
 
 ---
 

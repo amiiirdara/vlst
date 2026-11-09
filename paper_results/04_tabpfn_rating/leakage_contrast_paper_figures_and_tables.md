@@ -30,7 +30,7 @@ Same seven classic models, same stratified 70/30 (`train_test_split(test_size=0.
 | Tag | Notebook | Flags | What that arm is testing |
 | --- | --- | --- | --- |
 | **ALL LEAKS ON** | `code/modeling/rating/baseline_tssi_leakage.ipynb` | `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True` | Keep mixed-definition follow-up time; keep WBC batch/precision marker; keep raw lab decimals; fit stent codebook on the **full** cohort before split; SMOTE the train set. |
-| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_tssi.ipynb` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` | Inverse of every ON flag — same state as nested CV / Part 2 / Part 5. |
+| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_leakage.ipynb` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` | Inverse of every ON flag — same state as nested CV / Part 2 / Part 5. |
 
 **Why these five, not TSSI alone.**
 

@@ -4,7 +4,7 @@ This is the pack’s operational anti-leakage definition. It is **not** “drop 
 
 Freeze string (`nested_cv_v35_antileakage_on.anti_leakage_flow`): drop `NO.` / `Name` / TSSI / WBC; quantize `Cre` / `CaI` / `Fiberinogen` / `Fast-Glu`; stent encoder **train-fold only**; **no SMOTE**.
 
-Live code: `baseline_plus_tabpfn.ipynb` (nested); `baseline_without_tssi.ipynb` (OFF twin); `baseline_tssi_leakage.ipynb` (ON twin); `baseline_feature_selections.ipynb` (`split_manifest.json`); `tabpfn_interpretability_fs_pdp.ipynb` / `_shap.ipynb`.
+Live code: `baseline_plus_tabpfn.ipynb` (nested); `baseline_without_leakage.ipynb` (OFF twin); `baseline_tssi_leakage.ipynb` (ON twin); `baseline_feature_selections.ipynb` (`split_manifest.json`); `tabpfn_interpretability_fs_pdp.ipynb` / `_shap.ipynb`.
 
 ---
 

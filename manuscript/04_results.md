@@ -19,7 +19,7 @@ Same seven classic models, same stratified 70/30 (train 3,629 / test 1,556, seed
 | Tag | Notebook | Flags |
 | --- | --- | --- |
 | **ALL LEAKS ON** | `baseline_tssi_leakage.ipynb` | `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True` |
-| **ALL LEAKS OFF** | `baseline_without_tssi.ipynb` | inverse flags, `USE_SMOTE=False` |
+| **ALL LEAKS OFF** | `baseline_without_leakage.ipynb` | inverse flags, `USE_SMOTE=False` |
 
 Hold-out PR-AUC (primary ranking metric at prevalence 0.0177); Δ = ON − OFF:
 

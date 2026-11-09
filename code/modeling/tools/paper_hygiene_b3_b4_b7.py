@@ -28,6 +28,14 @@ from figure_style import HARMONY, apply_style  # noqa: E402
 from paper_paths import paper_figure_dirs  # noqa: E402
 
 N_BOOT = 2000
+
+
+def fmt_boot_p(p, n_boot):
+    """Bootstrap tail share as "k/n"; zero is reported as below 1/n, never as P = 0."""
+    k = int(round(float(p) * n_boot))
+    if k == 0:
+        return f"< {1 / n_boot:.4f} (0/{n_boot})"
+    return f"{float(p):.4f} ({k}/{n_boot})"
 SEED = 42
 TARGET = "Stent thrombosis"
 
@@ -531,15 +539,15 @@ def run_b3() -> dict:
     pdisp = pd.DataFrame(
         {
             "Contrast": paired_df["contrast"],
-            "Δ PR-AUC": [f"{v:.4f}" for v in paired_df["delta_pr_auc"]],
+            "Δ AP": [f"{v:.4f}" for v in paired_df["delta_pr_auc"]],
             "95% CI": [fmt_ci(r.ci_low, r.ci_high) for r in paired_df.itertuples()],
-            "P(Δ ≤ 0)": [f"{v:.4f}" for v in paired_df["p_bootstrap_one_sided_le0"]],
-            "Two-sided p": [f"{v:.4f}" for v in paired_df["p_bootstrap_two_sided"]],
+            "Bootstrap P(Δ ≤ 0)": [fmt_boot_p(v, N_BOOT) for v in paired_df["p_bootstrap_one_sided_le0"]],
+            "Bootstrap two-sided P": [fmt_boot_p(v, N_BOOT) for v in paired_df["p_bootstrap_two_sided"]],
         }
     )
     save_table_png(
         pdisp,
-        title="Paired bootstrap Δ PR-AUC vs LightGBM (same resampled OOF rows)",
+        title="Paired bootstrap Δ AP vs LightGBM (same resampled OOF rows)",
         filename="paper_table_s_paired_delta.png",
         dirs=P4_DIRS,
         figsize=(12.4, 2.6),

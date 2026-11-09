@@ -39,7 +39,7 @@ The requested filenames with suffixes `-(2)` and `-(3)` were **not on disk**. Ca
 - `code/modeling/interpretability/baseline_feature_selections.ipynb`
 - `code/modeling/interpretability/tabpfn_interpretability.ipynb` (`e356bb1`, Version 5)
 - `code/modeling/rating/baseline_plus_tabpfn.ipynb` (papermill 2026-09-17; `tabpfn==9.0.0` / v3.5)
-- `code/modeling/rating/baseline_tssi_leakage.ipynb` / `baseline_without_tssi.ipynb`
+- `code/modeling/rating/baseline_tssi_leakage.ipynb` / `baseline_without_leakage.ipynb`
 - `code/modeling/rating/wang_vlst_score.ipynb`
 - `code/modeling/rating/rebuild_tssi_leakage_table.py`
 - `code/modeling/tools/paper_hygiene_b3_b4_b7.py`

@@ -750,7 +750,7 @@ model_results:
       without_tssi_notebook: false
       note: "Not a SMOTE-matched ceteris-paribus contrast. Nested-CV Part 4 does not use SMOTE."
     without_tssi_gridsearch_best_params:
-      source_file: code/modeling/rating/baseline_without_tssi.ipynb
+      source_file: code/modeling/rating/baseline_without_leakage.ipynb
       source_location: "executed GridSearchCV best_params_ prints (papermill 2026-09-19); also modeling_without_tssi/best_params.csv"
       not_part4_nested_cv: true
       arm: ALL_LEAKS_OFF
@@ -1375,7 +1375,7 @@ provenance:
     - {path: code/modeling/interpretability/tabpfn_interpretability_shap.ipynb, role: "Part 5 SHAP/SHAP-IQ papermill 2026-09-20"}
     - {path: code/modeling/rating/baseline_plus_tabpfn.ipynb, role: "Part 4 nested 9-arm anti-leakage dump (thinking v3.5 PR-AUC 0.9212)"}
     - {path: code/modeling/rating/baseline_tssi_leakage.ipynb, role: "Leakage contrast ALL LEAKS ON; requested name baseline_tssi_leakage-(3).ipynb"}
-    - {path: code/modeling/rating/baseline_without_tssi.ipynb, role: "Leakage contrast ALL LEAKS OFF; requested name baseline_without_tssi-(3).ipynb"}
+    - {path: code/modeling/rating/baseline_without_leakage.ipynb, role: "Leakage contrast ALL LEAKS OFF; requested name baseline_without_tssi-(3).ipynb"}
     - {path: code/modeling/rating/wang_vlst_score.ipynb, role: "Wang integer formula provenance"}
   code_files:
     - code/modeling/rating/rebuild_tssi_leakage_table.py
@@ -1393,7 +1393,7 @@ provenance:
     - "NPV = TN/(TN+FN) from frozen Table 2 2×2; Part 4 metrics_at_threshold now prints npv"
     - "EDA IQR 1.5 screen exists; no row drop; not a modeling exclusion rule"
     - "Part 4 explicit constructor kwargs in RUN_MODELS (methods_only; unspecified = library default)"
-    - "TSSI without-TSSI GridSearch best_params from baseline_without_tssi.ipynb (not Part 4 HPs)"
+    - "TSSI without-TSSI GridSearch best_params from baseline_without_leakage.ipynb (not Part 4 HPs)"
     - "Firth Table 4b sensitivity via fit_firth_logit"
   evidence_map_rule: "docs/paper_evidence_map.md is a dated ledger. Revision 7 local Brier 0.0673 is excluded. Unlabeled nested 0.9771/0.9635 excluded. Revision 19: 9-arm anti-leakage dump is live nested. Do not freeze header diary numbers."
   kaggle_ingest_date: "2026-09-21"
@@ -1535,7 +1535,7 @@ kaggle_tssi_leakage:
 
 kaggle_without_tssi:
   provenance:
-    source_notebook: code/modeling/rating/baseline_without_tssi.ipynb
+    source_notebook: code/modeling/rating/baseline_without_leakage.ipynb
     dump_dir: code/modeling/rating/Kaggle_baseline_without_tssi_results/
     nested_folder: baseline_without_leakage
     papermill: "2026-09-19T14:02Z–2026-09-19T14:22Z"
@@ -1589,7 +1589,7 @@ leakage_contrast:
     flags: {KEEP_TSSI: true, DROP_WBC: false, QUANTIZE_CLINICAL: false, STENT_ENCODER_TRAIN_ONLY: false, USE_SMOTE: true}
     yaml_key: kaggle_tssi_leakage
   all_leaks_off:
-    notebook: code/modeling/rating/baseline_without_tssi.ipynb
+    notebook: code/modeling/rating/baseline_without_leakage.ipynb
     requested_name: baseline_without_tssi-(3).ipynb
     dump_dir: code/modeling/rating/Kaggle_baseline_without_tssi_results/
     artifact_dir: code/modeling/rating/Kaggle_baseline_without_tssi_results/baseline_without_leakage/modeling_without_tssi/

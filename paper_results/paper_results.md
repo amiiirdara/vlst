@@ -136,7 +136,7 @@ This is the pack’s operational anti-leakage definition. It is **not** “drop 
 
 Freeze string (`nested_cv_v35_antileakage_on.anti_leakage_flow`): drop `NO.` / `Name` / TSSI / WBC; quantize `Cre` / `CaI` / `Fiberinogen` / `Fast-Glu`; stent encoder **train-fold only**; **no SMOTE**.
 
-Live code: `baseline_plus_tabpfn.ipynb` (nested); `baseline_without_tssi.ipynb` (OFF twin); `baseline_tssi_leakage.ipynb` (ON twin); `baseline_feature_selections.ipynb` (`split_manifest.json`); `tabpfn_interpretability_fs_pdp.ipynb` / `_shap.ipynb`.
+Live code: `baseline_plus_tabpfn.ipynb` (nested); `baseline_without_leakage.ipynb` (OFF twin); `baseline_tssi_leakage.ipynb` (ON twin); `baseline_feature_selections.ipynb` (`split_manifest.json`); `tabpfn_interpretability_fs_pdp.ipynb` / `_shap.ipynb`.
 
 ---
 
@@ -662,7 +662,7 @@ Clinical-block analysis (section 10g): predictors grouped by medical domain; cor
 
 This document gathers publication-oriented figures and tables from the multi-model feature selectors in `baseline_feature_selections.ipynb`.
 
-**Cohort / protocol (2026-09-19 Kaggle dump).** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. **ALL LEAKS OFF** (same protocol as nested CV; [`../anti_leakage_protocol.md`](../anti_leakage_protocol.md)): drop `Time since stent implantation` (mixed time-to-event vs follow-up) **and** `WBC` (recording-precision / batch marker; Wang also excluded it from Cox). Labs `Cre`/`CaI`/`Fiberinogen`/`Fast-Glu` quantized **pre-split** (`split_manifest.json` `quantize`). Stent codebook train-only (`stent_train_only`); scaler / OHE train-only (`scaler_ohe_train_only`). No SMOTE. Identifiers dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol:** no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE=0.2`, `random_state=42`): **fit = 4,148 rows (74 events)** / **val = 1,037 rows (18 events)**. **PR-AUC only.** LOCO / SHAP / FFS are **independent of each other’s selected names** (each takes its own prefix of one shared cheap fit-slice importance ranking). Budget: top-20; SHAP universe 40; LOCO cap 60; FFS pool 24 × 12 steps with early stop (`FFS_MIN_GAIN=0`); boosting 400 rounds. `USE_CACHE=False`. GPU: Tesla T4. Models use the **scaled** view: shared 9-level stent-brand encoder, then `ColumnTransformer` one-hot (drop-first) + `StandardScaler` → **87 columns** (80 raw − 1 brand + 8 dummies). Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_tssi.ipynb`. Catalogues **do not** feed Part 4.
+**Cohort / protocol (2026-09-19 Kaggle dump).** Full VLST cohort, n = 5,185. Target = `Stent thrombosis`. **ALL LEAKS OFF** (same protocol as nested CV; [`../anti_leakage_protocol.md`](../anti_leakage_protocol.md)): drop `Time since stent implantation` (mixed time-to-event vs follow-up) **and** `WBC` (recording-precision / batch marker; Wang also excluded it from Cox). Labs `Cre`/`CaI`/`Fiberinogen`/`Fast-Glu` quantized **pre-split** (`split_manifest.json` `quantize`). Stent codebook train-only (`stent_train_only`); scaler / OHE train-only (`scaler_ohe_train_only`). No SMOTE. Identifiers dropped. This is **not** the TabPFN playground notebook (out of scope). **Paper protocol:** no parked 70/30 test — every row is split once into fit / val (`INNER_VAL_SIZE=0.2`, `random_state=42`): **fit = 4,148 rows (74 events)** / **val = 1,037 rows (18 events)**. **PR-AUC only.** LOCO / SHAP / FFS are **independent of each other’s selected names** (each takes its own prefix of one shared cheap fit-slice importance ranking). Budget: top-20; SHAP universe 40; LOCO cap 60; FFS pool 24 × 12 steps with early stop (`FFS_MIN_GAIN=0`); boosting 400 rounds. `USE_CACHE=False`. GPU: Tesla T4. Models use the **scaled** view: shared 9-level stent-brand encoder, then `ColumnTransformer` one-hot (drop-first) + `StandardScaler` → **87 columns** (80 raw − 1 brand + 8 dummies). Median / most-frequent imputers sit in that transformer; the CSV has **no missing values**, so they are inert. Selector hyperparameters are the notebook’s own factories (`C=2`, RF 500 trees, `lr=0.05`) — **not** `GridSearchCV` winners from `baseline_without_leakage.ipynb`. Catalogues **do not** feed Part 4.
 
 **Kaggle note.** Dump: `code/modeling/interpretability/Kaggle_baseline_intrepretability_results/baseline_interpretability_results/model_feature_selectors_antileak/`. `selector_report.md` generated **2026-09-19 14:39:53**. Tables below are rebuilt from those CSVs (not from HTML truncation). **`WBC` is not a column** on this run.
 
@@ -1199,11 +1199,11 @@ This document gathers publication-oriented figures and tables from the nested cr
 
 Do not collapse v3 with v3.5, or thinking with local. Do not quote unlabeled nested PR-AUC **0.9771 / 0.9635** as axis 4.
 
-**Protocol — classics are an untuned reference panel; no imported GridSearch winners.** Nested-CV LR / RF / XGB / LGB / CatBoost use library defaults plus class weighting (`class_weight="balanced"`, `scale_pos_weight`, `auto_class_weights="Balanced"`). The inner loop tunes only the F1 **threshold**. `GridSearchCV` `best_params_` from `baseline_tssi_leakage.ipynb` / `baseline_without_tssi.ipynb` (Table S-TSSI-HP; leakage sub-report) are **not** imported. Table 1 ranks these fitted objects versus four TabPFN arms; it is not a hyperparameter-matched contest. No SMOTE.
+**Protocol — classics are an untuned reference panel; no imported GridSearch winners.** Nested-CV LR / RF / XGB / LGB / CatBoost use library defaults plus class weighting (`class_weight="balanced"`, `scale_pos_weight`, `auto_class_weights="Balanced"`). The inner loop tunes only the F1 **threshold**. `GridSearchCV` `best_params_` from `baseline_tssi_leakage.ipynb` / `baseline_without_leakage.ipynb` (Table S-TSSI-HP; leakage sub-report) are **not** imported. Table 1 ranks these fitted objects versus four TabPFN arms; it is not a hyperparameter-matched contest. No SMOTE.
 
 **Methods note — feature views.** Classics sit in an sklearn `Pipeline` with a `ColumnTransformer` **cloned and fitted inside every CV split**: numeric columns get `SimpleImputer(median)` + `StandardScaler`; the encoded `Stent type-SES` gets most-frequent imputation + `OneHotEncoder(handle_unknown="ignore")`. EDA found **no missing values**, so both imputers are inert. TabPFN arms are not in that pipeline.
 
-**Methods note — GridSearch is a different notebook.** `baseline_without_tssi.ipynb` / `baseline_tssi_leakage.ipynb` tune hyperparameters on a single 70/30 split (ALL LEAKS OFF / ALL LEAKS ON). Those `best_params_` are in Table S-TSSI-HP and are **not** imported here. Classics in nested CV use library defaults plus class weighting. The inner loop tunes only the F1 **threshold**.
+**Methods note — GridSearch is a different notebook.** `baseline_without_leakage.ipynb` / `baseline_tssi_leakage.ipynb` tune hyperparameters on a single 70/30 split (ALL LEAKS OFF / ALL LEAKS ON). Those `best_params_` are in Table S-TSSI-HP and are **not** imported here. Classics in nested CV use library defaults plus class weighting. The inner loop tunes only the F1 **threshold**.
 
 **Methods note — why the anti-leakage protocol (five flags, not TSSI alone).** Wang 2020 analysed this cohort with Cox regression, in which follow-up duration is the *time axis*, not a covariate. Recoded as a binary classifier, `Time since stent implantation` mixes two definitions: time-to-event for the 92 VLST cases (min 380 days) and event-free follow-up for the 5,093 non-events (min 1,241 days). Independently, the file is sorted by outcome and cases were transcribed at a different numeric precision, so recording precision is a batch marker (`WBC` dropped; named labs quantized pre-split). A full-cohort stent codebook would leak rare brands into the test fold; SMOTE on a leaks-on train set inflates hold-out ranking and is unmatched vs nested CV. The leakage-contrast twins invert **all five** flags (`KEEP_TSSI`, `DROP_WBC`, `QUANTIZE_CLINICAL`, `STENT_ENCODER_TRAIN_ONLY`, `USE_SMOTE`) together (Table S-TSSI). Nested CV uses the OFF state. Twin GridSearch winners are **not** imported here.
 
@@ -1427,7 +1427,7 @@ These numbers come from the 2026-09-19 Kaggle dumps of the leakage-contrast twin
 
 **ALL LEAKS ON** (`baseline_tssi_leakage.ipynb`): `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True`. Artifacts: `modeling_tssi_leakage/`.
 
-**ALL LEAKS OFF** (`baseline_without_tssi.ipynb`): `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False`. Artifacts: `modeling_without_tssi/`.
+**ALL LEAKS OFF** (`baseline_without_leakage.ipynb`): `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False`. Artifacts: `modeling_without_tssi/`.
 
 **What the TSSI column is.** For VLST = 1 it is time from index PCI to angiographic thrombosis (min 380 days, Wang median 697). For VLST = 0 it is completed event-free follow-up (min 1,241, max 1,605 days; cohort median follow-up 1,502). That is binary-ified survival time, not a baseline covariate. TSSI is leakage-only, not a baseline.
 
@@ -1465,7 +1465,7 @@ These numbers come from the 2026-09-19 Kaggle dumps of the leakage-contrast twin
 
 **Source file:** [paper_figures/paper_fig_s_tssi_pr_auc.png](04_tabpfn_rating/paper_figures/paper_fig_s_tssi_pr_auc.png)
 
-Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/rating/baseline_without_tssi.ipynb`. Metrics: `test_metrics.csv` (papermill 2026-09-19). `best_params_` from notebook prints → dump `best_params.csv`. Rebuild: `code/modeling/rating/rebuild_tssi_leakage_table.py`.
+Notebooks: `code/modeling/rating/baseline_tssi_leakage.ipynb`, `code/modeling/rating/baseline_without_leakage.ipynb`. Metrics: `test_metrics.csv` (papermill 2026-09-19). `best_params_` from notebook prints → dump `best_params.csv`. Rebuild: `code/modeling/rating/rebuild_tssi_leakage_table.py`.
 
 ---
 
@@ -1622,7 +1622,7 @@ Same seven classic models, same stratified 70/30 (`train_test_split(test_size=0.
 | Tag | Notebook | Flags | What that arm is testing |
 | --- | --- | --- | --- |
 | **ALL LEAKS ON** | `code/modeling/rating/baseline_tssi_leakage.ipynb` | `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True` | Keep mixed-definition follow-up time; keep WBC batch/precision marker; keep raw lab decimals; fit stent codebook on the **full** cohort before split; SMOTE the train set. |
-| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_tssi.ipynb` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` | Inverse of every ON flag — same state as nested CV / Part 2 / Part 5. |
+| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_leakage.ipynb` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` | Inverse of every ON flag — same state as nested CV / Part 2 / Part 5. |
 
 **Why these five, not TSSI alone.**
 

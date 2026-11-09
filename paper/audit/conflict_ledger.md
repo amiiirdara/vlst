@@ -42,7 +42,7 @@ Terminology now quotes **Table 4b** (`1.1:1Post dilation` 0.152; `Clopidogrel` 0
 
 | Side A | Side B |
 | --- | --- |
-| Part 4 §6: “Same stratified 70/30 split and tuning protocol.” Table S-TSSI presented as with vs without the column. | `baseline_tssi_leakage.ipynb` cell 4: `USE_SMOTE = True` (global SMOTE on train). `baseline_without_tssi.ipynb` cell 6: `USE_SMOTE = False` (print: original imbalanced training set). |
+| Part 4 §6: “Same stratified 70/30 split and tuning protocol.” Table S-TSSI presented as with vs without the column. | `baseline_tssi_leakage.ipynb` cell 4: `USE_SMOTE = True` (global SMOTE on train). `baseline_without_leakage.ipynb` cell 6: `USE_SMOTE = False` (print: original imbalanced training set). |
 
 The PR-AUC collapse is still directionally a TSSI effect (Gaussian NB unchanged; LR 0.9575 → 0.5077 is too large to be SMOTE alone), but the table is **not** a pure ceteris-paribus TSSI contrast. Nested-CV Part 4 does not use SMOTE and is unaffected.
 

@@ -1,6 +1,8 @@
 # Queries for the original authors / data custodian
 
-**Part 1** is a ready-to-send email. **Part 2** keeps our working hypotheses apart from the email: they are not confirmed definitions and are not used as such in the manuscript.
+**Status, 7 November 2026: not to be sent.** The original authors cannot be contacted. The questions below are kept as the list of points the manuscript reports as unconfirmed, each with the reasoning used instead (see the revised manuscript, Sections 2.2–2.3 and 2.9).
+
+**Part 1** was drafted as an email. **Part 2** keeps our working hypotheses apart from the email: they are not confirmed definitions and are not used as such in the manuscript.
 
 ---
 

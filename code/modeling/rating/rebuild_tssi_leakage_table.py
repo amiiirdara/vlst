@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supplementary table: with-TSSI vs without-TSSI single-split baselines.
+"""Supplementary table: with-leakage vs without-leakage single-split baselines.
 
 Numbers are taken from the 2026-09-19 Kaggle dumps (no refit):
   Kaggle_baseline_tssi_leakage_results/.../test_metrics.csv
@@ -51,7 +51,7 @@ COLS = [
 
 # GridSearchCV(scoring="f1", cv=StratifiedKFold(5, shuffle=True, random_state=42)).
 # LIVE prints from executed 2026-09-19 notebooks (not the older .nbdump).
-# ALL LEAKS ON = baseline_tssi_leakage.ipynb; ALL LEAKS OFF = baseline_without_tssi.ipynb.
+# ALL LEAKS ON = baseline_tssi_leakage.ipynb; ALL LEAKS OFF = baseline_without_leakage.ipynb.
 # Not Part 4 nested-CV hyperparameters.
 BEST_PARAMS = [
     (
@@ -97,13 +97,13 @@ def main() -> None:
     display = pd.DataFrame(
         {
             "Model": df["model"],
-            "With TSSI PR-AUC": df["with_pr_auc"].map(lambda x: f"{x:.4f}"),
-            "Without TSSI PR-AUC": df["without_pr_auc"].map(lambda x: f"{x:.4f}"),
+            "With leakage AP": df["with_pr_auc"].map(lambda x: f"{x:.4f}"),
+            "Without leakage AP": df["without_pr_auc"].map(lambda x: f"{x:.4f}"),
             "Δ PR-AUC": df["delta_pr_auc"].map(lambda x: f"{x:+.4f}"),
-            "With TSSI ROC-AUC": df["with_roc_auc"].map(lambda x: f"{x:.4f}"),
-            "Without TSSI ROC-AUC": df["without_roc_auc"].map(lambda x: f"{x:.4f}"),
-            "With TSSI F1": df["with_f1"].map(lambda x: f"{x:.4f}"),
-            "Without TSSI F1": df["without_f1"].map(lambda x: f"{x:.4f}"),
+            "With leakage ROC-AUC": df["with_roc_auc"].map(lambda x: f"{x:.4f}"),
+            "Without leakage ROC-AUC": df["without_roc_auc"].map(lambda x: f"{x:.4f}"),
+            "With leakage F1": df["with_f1"].map(lambda x: f"{x:.4f}"),
+            "Without leakage F1": df["without_f1"].map(lambda x: f"{x:.4f}"),
         }
     )
 
@@ -198,7 +198,7 @@ def main() -> None:
         pd.DataFrame(on_rows).to_csv(dump_on / "best_params.csv", index=False)
     if dump_off.is_dir():
         pd.DataFrame(off_rows).to_csv(dump_off / "best_params.csv", index=False)
-    print("Wrote TSSI leakage table, figure, GridSearch best_params_, and dump best_params.csv.")
+    print("Wrote leakage-contrast table, figure, GridSearch best_params_, and dump best_params.csv.")
 
 
 if __name__ == "__main__":

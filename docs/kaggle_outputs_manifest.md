@@ -8,7 +8,7 @@ Pin (interp notebooks + Part 4 protocol): `tabpfn==9.0.0` / `tabpfn-client==0.6.
 | --- | --- | --- | --- | --- | ---: |
 | `Kaggle_baseline_plus_tabpfn_results/` | `code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/` | `code/modeling/rating/baseline_plus_tabpfn.ipynb` | 9-arm dump `baseline_plus_tabpfn_results/` (run_manifest Tesla T4; tabpfn 9.0.0 / client 0.6.0) | `kaggle_baseline_plus_tabpfn` | 24 |
 | `Kaggle_baseline_tssi_leakage_results/` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/` | `code/modeling/rating/baseline_tssi_leakage.ipynb` | papermill 2026-09-19T14:00Z–2026-09-19T14:57Z | `kaggle_tssi_leakage` | 19 |
-| `Kaggle_baseline_without_tssi_results/` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` | `code/modeling/rating/baseline_without_tssi.ipynb` | papermill 2026-09-19T14:02Z–2026-09-19T14:22Z | `kaggle_without_tssi` | 19 |
+| `Kaggle_baseline_without_tssi_results/` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` | `code/modeling/rating/baseline_without_leakage.ipynb` | papermill 2026-09-19T14:02Z–2026-09-19T14:22Z | `kaggle_without_tssi` | 19 |
 | `Kaggle_baseline_intrepretability_results/` | `code/modeling/interpretability/Kaggle_baseline_intrepretability_results/` | `code/modeling/interpretability/baseline_feature_selections.ipynb` | `selector_report.md` generated 2026-09-19 14:39:53 | `kaggle_feature_selectors` | 37 |
 | `Kaggle_tabpfn_intrepretebility_results/` | `code/modeling/interpretability/Kaggle_tabpfn_intrepretebility_results/` | `code/modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb + tabpfn_interpretability_shap.ipynb (split of tabpfn_interpretability.ipynb)` | fs_pdp papermill 2026-09-20T10:58Z–2026-09-20T21:28Z; shap 2026-09-20T10:05Z–2026-09-20T11:50Z | `kaggle_interpretability` | 36 |
 
@@ -70,7 +70,7 @@ Pin (interp notebooks + Part 4 protocol): `tabpfn==9.0.0` / `tabpfn-client==0.6.
 
 ### `Kaggle_baseline_without_tssi_results/`
 
-- **Source notebook:** `code/modeling/rating/baseline_without_tssi.ipynb`
+- **Source notebook:** `code/modeling/rating/baseline_without_leakage.ipynb`
 - **Run date:** papermill 2026-09-19T14:02Z–2026-09-19T14:22Z
 - **YAML key:** `kaggle_without_tssi`
 - **Notes:** 70/30 GridSearch WITHOUT TSSI.

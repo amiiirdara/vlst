@@ -28,7 +28,7 @@ Each separate markdown uses `paper_figures/` **in the same folder** (Parts 4 and
 | `code/analyzes/stats_vs_ml/stats_vs_ml_comparison.ipynb` | Part 3 |
 | `code/modeling/rating/baseline_plus_tabpfn.ipynb` | Part 4 nested CV |
 | `code/modeling/rating/baseline_tssi_leakage.ipynb` | Part 4b ALL LEAKS ON |
-| `code/modeling/rating/baseline_without_tssi.ipynb` | Part 4b ALL LEAKS OFF |
+| `code/modeling/rating/baseline_without_leakage.ipynb` | Part 4b ALL LEAKS OFF |
 | `code/modeling/rating/wang_vlst_score.ipynb` | Part 4 Wang comparator |
 | `code/modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb` | Part 5 MI / SFS / PDP |
 | `code/modeling/interpretability/tabpfn_interpretability_shap.ipynb` | Part 5 SHAP / SHAP-IQ |

@@ -64,7 +64,7 @@ The two notebooks in the last rows remain **live protocol files** (see 0.2). Wha
 | --- | --- | --- |
 | `code/analyzes/eda.ipynb` | Univariate FDR, Table C, Table 4/4b, stent χ². Logic **unchanged**; local venv vs Kaggle is infrastructure only. | `paper_results/01_eda/` (keep this blueprint section as-is) |
 | `code/modeling/rating/baseline_tssi_leakage.ipynb` | Twin **ALL LEAKS ON**: `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`. 7-model GridSearchCV. `USE_SMOTE=True`. Stratified 70/30, 3629/1556, seed 42. | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/` |
-| `code/modeling/rating/baseline_without_tssi.ipynb` | Twin **ALL LEAKS OFF**: `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`. Same 7 models, same split. `USE_SMOTE=False`. | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` |
+| `code/modeling/rating/baseline_without_leakage.ipynb` | Twin **ALL LEAKS OFF**: `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`. Same 7 models, same split. `USE_SMOTE=False`. | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` |
 | `code/modeling/rating/baseline_plus_tabpfn.ipynb` | Canonical **nested 5×4** modeling. Pins `TABPFN_PIN="9.0.0"` (first release exposing v3.5 weights) and `TABPFN_CLIENT_PIN="0.6.0"` (hosted v3.5). Classics = library defaults + class weighting; **GridSearchCV winners from the twin notebooks are NOT imported**; inner loop = **F1 threshold only**. Drops `NO.`, `Name`, TSSI, `WBC`. Notebook `RUN_MODELS` requests local v3 + local v3.5 + thinking v3 + thinking v3.5. | `code/modeling/rating/Kaggle_baseline_plus_tabpfn_results/` (papermill 2026-09-18; CSV arms labeled only `TabPFN thinking mode` and `TabPFN`) |
 | `code/modeling/interpretability/tabpfn_interpretability_fs_pdp.ipynb` | Part 5 FS half: MI, stability SFS, PDP, consensus. **0 client fits.** `FS_THINKING_MODE=False`, `PDP_USE_CLIENT=False`, local `TABPFN_MODEL_VERSION="v3.5"`. `STABILITY_N_SEEDS=8` (10-seed plan abandoned; Kaggle 9h limit). | `.../Kaggle_tabpfn_intrepretebility_results/fs_pdp_MI/` |
 | `code/modeling/interpretability/tabpfn_interpretability_shap.ipynb` | Part 5 SHAP half: held-out SHAP (shapiq), SHAP-IQ, k-SII/waterfall. Client thinking fits (`INTERP_THINKING_MODE=True`, effort high). Same 70/30, v3.5, anti-leakage as fs_pdp. Source still prints `STABILITY_N_SEEDS=10` but **does not run SFS**. | `.../Kaggle_tabpfn_intrepretebility_results/shap/` |
@@ -80,7 +80,7 @@ Also present, not a paper results axis: `code/modeling/preprocessing/preprocessi
 | --- | --- | --- |
 | 4.1–4.2, 4.5–4.6, 5.1–5.2, 5.4 | `eda.ipynb` | **Unchanged** (venv vs Kaggle only). |
 | 4.3 (81-name list / encoder) | `eda.ipynb` + CSV headers | Part 2/4/5 widths differ after anti-leakage. |
-| 4.4 protocol; **5.3 Results leakage contrast** | `baseline_tssi_leakage.ipynb` + `baseline_without_tssi.ipynb` | NEW results axis. Not nested CV. |
+| 4.4 protocol; **5.3 Results leakage contrast** | `baseline_tssi_leakage.ipynb` + `baseline_without_leakage.ipynb` | NEW results axis. Not nested CV. |
 | 4.7, 4.9–4.10, 5.5, 5.7, 5.8 | `baseline_plus_tabpfn.ipynb` | Nested CV. See TabPFN tags. |
 | 4.8, 5.6 | `baseline_feature_selections.ipynb` (+ Part 3 rebuild, not the stats notebook asserts) | Independent LOCO/SHAP/FFS. |
 | 4.11, 5.9 MI/SFS/PDP | `tabpfn_interpretability_fs_pdp.ipynb` | Local v3.5; 8/8 SFS. |
@@ -231,7 +231,7 @@ Pin on live interp + nested notebooks: `tabpfn==9.0.0`, `tabpfn-client==0.6.0`.
 ### 4.4 TSSI and leakage control
 
 - **Purpose:** Define TSSI as time-at-risk. Protocol of the **twin 70/30 GridSearch notebooks**. Demonstration **numbers** live in Results **5.3**, not here.
-- **Exact claims allowed:** VLST=1: time to thrombosis, min 380 days (Wang median 697). VLST=0: completed follow-up, min 1241, max 1605; cohort median 1502. **ALL LEAKS ON** (`baseline_tssi_leakage.ipynb`): `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True`. **ALL LEAKS OFF** (`baseline_without_tssi.ipynb`): inverse flags, `USE_SMOTE=False`. Same 7 models (LR, DT, RF, GNB, CatBoost, XGB, LGBM), same stratified 70/30 (3629/1556, seed 42). Nested-CV / Part 2 / Part 5 **do not** use this GridSearch and **do not** import its `best_params_`. Nested-CV does not use SMOTE. Do not write “identical protocol except TSSI” (WBC, quantize, stent, SMOTE also flip).
+- **Exact claims allowed:** VLST=1: time to thrombosis, min 380 days (Wang median 697). VLST=0: completed follow-up, min 1241, max 1605; cohort median 1502. **ALL LEAKS ON** (`baseline_tssi_leakage.ipynb`): `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True`. **ALL LEAKS OFF** (`baseline_without_leakage.ipynb`): inverse flags, `USE_SMOTE=False`. Same 7 models (LR, DT, RF, GNB, CatBoost, XGB, LGBM), same stratified 70/30 (3629/1556, seed 42). Nested-CV / Part 2 / Part 5 **do not** use this GridSearch and **do not** import its `best_params_`. Nested-CV does not use SMOTE. Do not write “identical protocol except TSSI” (WBC, quantize, stent, SMOTE also flip).
 - **Exact values:** min 380 / 1241 / max 1605; median 1502; n_train=3629; n_test=1556. PR-AUC pair → Results 5.3.
 - **YAML:** `data_and_predictors.tssi_status`; `model_results.tssi_leakage_analysis`; `kaggle_tssi_leakage`; `kaggle_without_tssi`.
 - **Source:** the two twin notebooks + `Kaggle_baseline_*_tssi_*_results/` `test_metrics.csv`.
@@ -260,7 +260,7 @@ Pin on live interp + nested notebooks: `tabpfn==9.0.0`, `tabpfn-client==0.6.0`.
 
 ### 4.7 Machine-learning models
 
-- **Purpose:** Name nested-CV arms in `baseline_plus_tabpfn.ipynb`. Separate thinking vs local and v3 vs v3.5. Classics = library defaults + class weighting. **GridSearchCV winners from `baseline_without_tssi.ipynb` are NOT imported.** Inner loop = F1 threshold only.
+- **Purpose:** Name nested-CV arms in `baseline_plus_tabpfn.ipynb`. Separate thinking vs local and v3 vs v3.5. Classics = library defaults + class weighting. **GridSearchCV winners from `baseline_without_leakage.ipynb` are NOT imported.** Inner loop = F1 threshold only.
 - **Exact claims allowed:** LR `class_weight=balanced`, `max_iter=1000`, `random_state=42`. RF balanced, `n_jobs=-1`. XGB `eval_metric=aucpr`, `tree_method=hist`, fold `scale_pos_weight=n_neg/n_pos`, GPU `device=cuda`. LGB `class_weight=balanced`, `metric=average_precision`, `device=gpu`. CatBoost `auto_class_weights=Balanced`, `eval_metric=PRAUC`, `task_type=GPU`. Pins: `TABPFN_PIN="9.0.0"`, `TABPFN_CLIENT_PIN="0.6.0"`. Notebook `RUN_MODELS`: `TabPFN v3`, `TabPFN v3.5` (local, no thinking) and `TabPFN thinking v3`, `TabPFN thinking v3.5` (`thinking_mode=True`, `thinking_effort=high`, `thinking_metric=average_precision`). 2026-09-18 dump CSV has only `TabPFN thinking mode` and `TabPFN` — **do not invent nested v3 rows**. No Part 2/5 mask. DT / GNB only in the twin 70/30 notebooks.
 - **Exact values:** seeds 42; pins 9.0.0 / 0.6.0; `THINKING_KWARGS` as in the notebook.
 - **YAML:** `model_results.part4_constructors`; `tabpfn_thinking_high.model_definition`; `tabpfn_local.model_definition`; `kaggle_baseline_plus_tabpfn`.
@@ -357,7 +357,7 @@ Pin on live interp + nested notebooks: `tabpfn==9.0.0`, `tabpfn-client==0.6.0`.
   - OFF (inverse flags, SMOTE off): LR 0.343057, DT 0.137767, RF 0.487373, GNB 0.056433, Cat 0.494218, XGB 0.568484, LGB 0.667542.
   - **ARCHIVED — do not insert:** LR 0.9575→0.5077; Cat 0.9773→0.6582; GNB “unchanged.”
 - **YAML:** `model_results.tssi_leakage_analysis`; `kaggle_tssi_leakage`; `kaggle_without_tssi`.
-- **Source:** `baseline_tssi_leakage.ipynb` + `baseline_without_tssi.ipynb`; `Kaggle_baseline_tssi_leakage_results/` and `Kaggle_baseline_without_tssi_results/` `test_metrics.csv`.
+- **Source:** `baseline_tssi_leakage.ipynb` + `baseline_without_leakage.ipynb`; `Kaggle_baseline_tssi_leakage_results/` and `Kaggle_baseline_without_tssi_results/` `test_metrics.csv`.
 - **Planned table/figure:** **MS Results table** = paired 7× metrics. Optional PR bar. Not a Methods-only box.
 - **Status:** **complete** for dump PR-AUC. No `best_params_` CSV in either dump (prints live in notebooks only).
 

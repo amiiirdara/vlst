@@ -224,7 +224,7 @@ notebooks stay as in this revision.
 - **§0.2** in-scope notebooks: Part 5 is the pair `tabpfn_interpretability_fs_pdp.ipynb` +
   `tabpfn_interpretability_shap.ipynb`. Parent `tabpfn_interpretability.ipynb` is archived.
   Leakage-contrast twins: `baseline_tssi_leakage.ipynb` (requested `baseline_tssi_leakage-(3).ipynb`,
-  ALL LEAKS ON) and `baseline_without_tssi.ipynb` (requested `baseline_without_tssi-(3).ipynb`,
+  ALL LEAKS ON) and `baseline_without_leakage.ipynb` (requested `baseline_without_tssi-(3).ipynb`,
   ALL LEAKS OFF).
 - **Leakage contrast** (§4.6): every table/figure that exists in **both** arms under
   `modeling_tssi_leakage/` and `modeling_without_tssi/`.
@@ -314,7 +314,7 @@ were extracted to plain text under `.nbdump/` for line-addressable citation; the
 | 6   | `modeling/interpretability/tabpfn_interpretability_shap.ipynb` | Part 5 SHAP/k-SII | **[REV16/18]** dump 2026-09-20; hosted **v3.5**; `INTERP_THINKING_MODE=True`, effort high; held-out SHAP; k-SII row 5176; TSSI+WBC dropped. | Dump CSVs/PNGs in `Kaggle_tabpfn_intrepretebility_results/shap/`. |
 | —   | `modeling/interpretability/tabpfn_interpretability.ipynb`     | **ARCHIVED** parent | Split into rows 5–6. Do not cite as a number source. | — |
 | 7   | `modeling/rating/baseline_tssi_leakage.ipynb`                 | Part 4 leakage contrast, ALL LEAKS ON | Requested name `baseline_tssi_leakage-(3).ipynb`. Flags: `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True`. Artifacts under `modeling_tssi_leakage/`. | Yes — papermill 2026-09-19T14:00Z–14:57Z. Dump: `Kaggle_baseline_tssi_leakage_results/`. |
-| 8   | `modeling/rating/baseline_without_tssi.ipynb`                 | Part 4 leakage contrast, ALL LEAKS OFF | Requested name `baseline_without_tssi-(3).ipynb`. Flags: `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False`. Artifacts under `modeling_without_tssi/`. | Yes — papermill 2026-09-19T14:02Z–14:22Z. Dump: `Kaggle_baseline_without_tssi_results/`. |
+| 8   | `modeling/rating/baseline_without_leakage.ipynb`                 | Part 4 leakage contrast, ALL LEAKS OFF | Requested name `baseline_without_tssi-(3).ipynb`. Flags: `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False`. Artifacts under `modeling_without_tssi/`. | Yes — papermill 2026-09-19T14:02Z–14:22Z. Dump: `Kaggle_baseline_without_tssi_results/`. |
 | 9   | `modeling/rating/wang_vlst_score.ipynb`                       | Part 4 S-Wang | Frozen integer ROC **0.8013** / PR **0.1032**. | Yes — those prints are in the outputs. |
 | 10  | `modeling/preprocessing/preprocessing.ipynb`                  | **nothing**   | — | Executed (12/12 code cells) but artefacts unused by any paper analysis (§12.5). |
 
@@ -345,7 +345,7 @@ is the provenance audit, not manuscript prose.
 | 2 Selectors | `paper_results/02_ml_selectors/baseline_feature_selections_paper_figures_and_tables.md` + `paper_figures/` | **[REV17]** `Kaggle_baseline_intrepretability_results/` (2026-09-19; 87 columns; WBC dropped). Restyle: `rebuild_part2_paper_figures.py`. |
 | 3 Stats vs ML | `paper_results/03_stats_vs_ml/feature_extraction_comparison.md` + `paper_figures/` | **[REV17]** `rebuild_part3_paper_figures.py` from Part 2 dump (Jaccard 5/25). `stats_vs_ml_comparison.ipynb` still asserts 5/28 and was not edited. |
 | 4 Nested CV | `paper_results/04_tabpfn_rating/baseline_plus_tabpfn_paper_figures_and_tables.md` + `paper_figures/` | **[REV19]** Report quotes 9-arm anti-leakage dump (thinking v3.5 0.9212). Rebuild: `rebuild_part4_from_kaggle_dump.py`. |
-| 4 leakage contrast | same Part 4 Markdown, Table S-TSSI / Fig S-TSSI | **[REV18]** twins `baseline_tssi_leakage.ipynb` (ALL LEAKS ON) and `baseline_without_tssi.ipynb` (ALL LEAKS OFF). Dump `test_metrics.csv` 2026-09-19. Paths §4.6. |
+| 4 leakage contrast | same Part 4 Markdown, Table S-TSSI / Fig S-TSSI | **[REV18]** twins `baseline_tssi_leakage.ipynb` (ALL LEAKS ON) and `baseline_without_leakage.ipynb` (ALL LEAKS OFF). Dump `test_metrics.csv` 2026-09-19. Paths §4.6. |
 | 4 S-Wang | same Part 4 Markdown, Table S-Wang | `code/modeling/rating/wang_vlst_score.ipynb`. |
 | 5 Interpretability | `paper_results/05_tabpfn_interpretability/tabpfn_interpretability_paper_figures_and_tables.md` + `paper_figures/` | **[REV16]** `Kaggle_tabpfn_intrepretebility_results/` fs_pdp_MI + shap (2026-09-20; 8/8 SFS; 80 columns; WBC dropped). |
 | Concat pack | `paper_results/paper_results.md`, `paper_results/README.md` | Concatenation of the files above. |
@@ -395,7 +395,7 @@ These are the disagreements that would put two parts of the pack in contradictio
 | `tabpfn_interpretability_shap.ipynb` | Dump papermill 2026-09-20 (shap). | Hosted v3.5; `INTERP_THINKING_MODE=True` effort high; anti-leakage ON. |
 | `tabpfn_interpretability.ipynb` | **ARCHIVED** parent. | Do not cite. Version 5 `e356bb1` is historical. |
 | `baseline_tssi_leakage.ipynb` | **Yes** for ALL LEAKS ON dump 2026-09-19. | Artifacts `modeling_tssi_leakage/`. |
-| `baseline_without_tssi.ipynb` | **Yes** for ALL LEAKS OFF dump 2026-09-19. | Artifacts `modeling_without_tssi/`. |
+| `baseline_without_leakage.ipynb` | **Yes** for ALL LEAKS OFF dump 2026-09-19. | Artifacts `modeling_without_tssi/`. |
 | `wang_vlst_score.ipynb` | **Yes** for ROC 0.8013 / PR 0.1032. | Post-run display-name edit in `802d885` only. |
 | `preprocessing.ipynb` | Executed, unused. | Do not cite. |
 
@@ -680,7 +680,7 @@ VLST'; it mixes different time definitions for cases vs controls. That is struct
 Sources: `.nbdump/code__modeling__rating__baseline_tssi_leakage.txt` L797–817;
 `.nbdump/code__modeling__rating__baseline_without_tssi.txt` L906–924.
 
-**[TODO-LEAK — closed]** `baseline_tssi_leakage.ipynb` and `baseline_without_tssi.ipynb` are now cited in
+**[TODO-LEAK — closed]** `baseline_tssi_leakage.ipynb` and `baseline_without_leakage.ipynb` are now cited in
 Part 4 (Methods note + Supplementary Table S-TSSI / Figure S-TSSI). Nothing was re-run — values are the
 stored test-set metrics, rebuilt into a table by `code/modeling/rating/rebuild_tssi_leakage_table.py`.
 
@@ -792,7 +792,7 @@ Twin 70/30 GridSearch notebooks. **Not nested CV. No TabPFN.** SoT: `paper/froze
 | Arm | Notebook | Dump root | Artifact dir | Flags |
 | --- | --- | --- | --- | --- |
 | **ALL LEAKS ON** | `code/modeling/rating/baseline_tssi_leakage.ipynb` | `code/modeling/rating/Kaggle_baseline_tssi_leakage_results/` | `…/baseline_leakge_results/modeling_tssi_leakage/` | `KEEP_TSSI=True`, `DROP_WBC=False`, `QUANTIZE_CLINICAL=False`, `STENT_ENCODER_TRAIN_ONLY=False`, `USE_SMOTE=True` |
-| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_tssi.ipynb` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` | `…/baseline_without_leakage/modeling_without_tssi/` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` |
+| **ALL LEAKS OFF** | `code/modeling/rating/baseline_without_leakage.ipynb` | `code/modeling/rating/Kaggle_baseline_without_tssi_results/` | `…/baseline_without_leakage/modeling_without_tssi/` | `KEEP_TSSI=False`, `DROP_WBC=True`, `QUANTIZE_CLINICAL=True`, `STENT_ENCODER_TRAIN_ONLY=True`, `USE_SMOTE=False` |
 
 Papermill: ON 2026-09-19T14:00Z–14:57Z; OFF 2026-09-19T14:02Z–14:22Z. Inner ON folder spelling is `baseline_leakge_results`.
 
@@ -842,7 +842,7 @@ TSSI is a leakage-only demonstration, not a baseline. Nested-CV Part 4 does not 
 | TabPFN interpretability — SHAP/k-SII | `code/modeling/interpretability/tabpfn_interpretability_shap.ipynb`                  | Part 5                                 |
 | TabPFN interpretability (archived parent) | `code/modeling/interpretability/tabpfn_interpretability.ipynb`                  | **ARCHIVED** — do not cite             |
 | Leakage contrast ALL LEAKS ON        | `code/modeling/rating/baseline_tssi_leakage.ipynb`                                   | Part 4 §4.6 / Table S-TSSI             |
-| Leakage contrast ALL LEAKS OFF       | `code/modeling/rating/baseline_without_tssi.ipynb`                                   | Part 4 §4.6 / Table S-TSSI             |
+| Leakage contrast ALL LEAKS OFF       | `code/modeling/rating/baseline_without_leakage.ipynb`                                   | Part 4 §4.6 / Table S-TSSI             |
 | Preprocessing artefacts              | `code/modeling/preprocessing/preprocessing.ipynb`                                    | not reported; artefacts unused (§12.5) |
 
 
@@ -914,7 +914,7 @@ as the OR tables.
 
 Two distinct baseline exercises exist and must not be conflated:
 
-1. **Single-split baselines** (`baseline_tssi_leakage.ipynb`, `baseline_without_tssi.ipynb`): 70/30 split,
+1. **Single-split baselines** (`baseline_tssi_leakage.ipynb`, `baseline_without_leakage.ipynb`): 70/30 split,
   GridSearchCV, optional SMOTE, 7 models incl. decision tree and Gaussian NB. Not reported in any Markdown.
 2. **Nested-CV baselines** (`baseline_plus_tabpfn.ipynb`, Part 4): 5 outer × 4 inner folds, 5 classic models
   + **two** TabPFN arms, **no hyperparameter tuning** of the classics (see §6.3).
@@ -1108,7 +1108,7 @@ oof_binary_predictions[val_idx] = (val_probabilities >= fold_threshold)
 
 Source: `.nbdump/code__modeling__rating__baseline_plus_tabpfn.txt` L293–309.
 
-`GridSearchCV` winners from `baseline_without_tssi.ipynb` / `baseline_tssi_leakage.ipynb` are **not**
+`GridSearchCV` winners from `baseline_without_leakage.ipynb` / `baseline_tssi_leakage.ipynb` are **not**
 imported. Those notebooks are a separate 70/30 scout (scheme C). Passing that scout's `best_params_`
 into nested CV would leak: the 70/30 test slice overlaps later outer folds.
 
