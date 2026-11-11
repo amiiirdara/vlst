@@ -141,6 +141,7 @@ Within each training partition, numeric features were median-imputed and standar
 - Local v3.5 checkpoint `tabpfn-v3.5-20260909.safetensors`.
 - Both local arms used `tabpfn` 9.0.0, were selected explicitly by version, used `n_estimators="auto"`, and had thinking disabled.
 - Hosted v3 (`v3_default`) and hosted v3.5 (`v3.5_default`) via `tabpfn-client` 0.6.0, with `thinking_mode=True`, `thinking_effort="high"` and `thinking_metric="average_precision"`.
+- In the main R3 run, hosted v3.5 is added at `thinking_effort="micro"` ("TabPFN thinking v3.5 micro"), the only effort whose quote (about 6.8 million tokens for the nested protocol; "high" about 149 million) fits the 20-million monthly allowance. It differs from the hosted v3 arm in both checkpoint and effort, so their difference is not attributed to the version alone.
 - The tuned R1 and R3 runs use the newest releases, `tabpfn` 9.2.0 and `tabpfn-client` 0.7.1 (9 November 2026). The local v3.5 checkpoint file and its default settings are identical in 9.0.0 and 9.2.0; package versions are recorded in each run manifest.
 
 According to the vendor documentation, thinking mode is available only through the hosted service; it "uses more compute during fitting", and the metric "defines what to optimize" [12]. Its internal mechanism is not documented. Therefore, in the runs reported here:
